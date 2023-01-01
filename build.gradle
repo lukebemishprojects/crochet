@@ -1,0 +1,27 @@
+plugins {
+    id 'java-gradle-plugin'
+}
+
+group 'dev.lukebemish.crochet'
+version '1.0-SNAPSHOT'
+
+gradlePlugin {
+    plugins {
+        crochet {
+            id = 'dev.lukebemish.crochet'
+            implementationClass = 'dev.lukebemish.crochet.CrochetPlugin'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.jetbrains:annotations:23.1.0'
+    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'org.apache.commons:commons-text:1.10.0'
+    implementation 'com.google.code.gson:gson:2.10'
+    implementation 'com.google.guava:guava:31.1-jre'
+}

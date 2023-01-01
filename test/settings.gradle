@@ -1,0 +1,7 @@
+pluginManagement {
+    includeBuild '../'
+}
+
+includeBuild '../'
+
+rootProject.name = 'crochet-test'
