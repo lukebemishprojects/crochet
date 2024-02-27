@@ -1,61 +1,86 @@
 package dev.lukebemish.crochet;
 
-import dev.lukebemish.crochet.configuration.MappingConfigurations;
-import dev.lukebemish.crochet.mapping.MapSpec;
-import dev.lukebemish.crochet.mapping.RemapTransformSpec;
-import dev.lukebemish.crochet.tasks.BoringTask;
-import org.apache.commons.text.WordUtils;
+import dev.lukebemish.crochet.mapping.Mappings;
+import dev.lukebemish.crochet.mapping.RemapTransform;
+import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.artifacts.ModuleDependency;
 
 import javax.inject.Inject;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class CrochetExtension {
     private final Project project;
-    private final HashSet<MapSpec> transformations = new HashSet<>();
+
+    private final Map<String, Configuration> mappingConfigurations = new HashMap<>();
+    private final Map<String, Configuration> classpathConfigurations = new HashMap<>();
 
     @Inject
     public CrochetExtension(Project project) {
         this.project = project;
     }
 
-    public void remap(Configuration source, Configuration destination, Provider<String> from, Provider<String> to) {
-        var mapSpecProvider = project.provider(() -> new MapSpec.Named(from.get(), to.get()));
-
-        source.setCanBeResolved(true);
-        source.setCanBeConsumed(false);
-        MappingConfigurations.requireMappings(project, source, mapSpecProvider);
-
-        var taskName = "crochetRemapTo" + WordUtils.capitalize(destination.getName())+"From"+WordUtils.capitalize(source.getName());
-
-        var remapTask = project.getTasks().create(taskName, BoringTask.class, task -> {
-            task.setConfiguration(source);
-            task.setGroup("Crochet Setup");
-        });
-
-        project.getDependencies().add(destination.getName(), project.files(remapTask.getOutputFiles()));
-
-        transformMappings(mapSpecProvider);
+    public Mappings mappings(String name) {
+        mappingClasspathConfiguration(name);
+        mappingsConfiguration(name);
+        return project.getObjects().named(Mappings.class, name);
     }
 
-    public void remap(Configuration source, Configuration destination, String from, String to) {
-        remap(source, destination, project.provider(() -> from), project.provider(() -> to));
+    public Configuration mappingClasspathConfiguration(Mappings name) {
+        return mappingClasspathConfiguration(name.getName());
     }
 
-    public void transformMappings(Provider<MapSpec.Named> mapSpecProvider) {
-        project.afterEvaluate(p -> {
-            var mapSpec = mapSpecProvider.get();
-            if (!transformations.contains(mapSpec)) {
-                project.getDependencies().registerTransform(RemapTransformSpec.class, transformSpec -> {
-                    transformSpec.getFrom().attribute(CrochetPlugin.MAPPINGS_ATTRIBUTE, MapSpec.Unmapped.INSTANCE).attribute(CrochetPlugin.ARTIFACT_TYPE_ATTRIBUTE, "jar");
-                    transformSpec.getTo().attribute(CrochetPlugin.MAPPINGS_ATTRIBUTE, mapSpec).attribute(CrochetPlugin.ARTIFACT_TYPE_ATTRIBUTE, "jar");
-                    transformSpec.getParameters().setMappings(mapSpec);
-                });
+    public Configuration mappingsConfiguration(Mappings mappings) {
+        return mappingsConfiguration(mappings.getName());
+    }
 
-                transformations.add(mapSpec);
-            }
+    public synchronized Configuration mappingClasspathConfiguration(String name) {
+        if (classpathConfigurations.containsKey(name)) {
+            return classpathConfigurations.get(name);
+        }
+
+        Configuration mappingClasspath = project.getConfigurations().create("crochetMappingClasspath" + StringUtils.capitalize(name));
+        mappingClasspath.setCanBeConsumed(false);
+        mappingClasspath.setCanBeResolved(true);
+        classpathConfigurations.put(name, mappingClasspath);
+
+        mappingsConfiguration(name);
+
+        return mappingClasspath;
+    }
+
+    public synchronized Configuration mappingsConfiguration(String name) {
+        if (mappingConfigurations.containsKey(name)) {
+            return mappingConfigurations.get(name);
+        }
+
+        Configuration mappings = project.getConfigurations().create("crochetMappings" + StringUtils.capitalize(name));
+        mappings.setCanBeConsumed(false);
+        mappings.setCanBeResolved(true);
+        mappingConfigurations.put(name, mappings);
+
+        project.getDependencies().registerTransform(RemapTransform.class, params -> {
+            params.getFrom().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.UNMAPPED));
+            params.getTo().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, name));
+            params.getParameters().getMappings().from(mappings);
+            Configuration mappingClasspath = mappingClasspathConfiguration(name);
+            params.getParameters().getMappingClasspath().from(mappingClasspath);
         });
+
+        return mappings;
+    }
+
+    public void remap(Object dependency, Mappings mappings) {
+        if (dependency instanceof ModuleDependency moduleDependency) {
+            var original = moduleDependency.copy();
+            moduleDependency.attributes(attributeContainer -> {
+                attributeContainer.attribute(Mappings.MAPPINGS_ATTRIBUTE, mappings);
+            });
+            project.getDependencies().add(mappingClasspathConfiguration(mappings).getName(), original);
+        } else {
+            throw new IllegalArgumentException("Dependency must be a ModuleDependency");
+        }
     }
 }

@@ -6,9 +6,10 @@ import org.gradle.api.artifacts.transform.InputArtifact;
 import org.gradle.api.artifacts.transform.TransformAction;
 import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.artifacts.transform.TransformParameters;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.jetbrains.annotations.NotNull;
@@ -19,7 +20,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 
-public abstract class RemapTransformSpec implements TransformAction<RemapTransformSpec.Parameters> {
+public abstract class RemapTransform implements TransformAction<RemapTransform.Parameters> {
 
     @PathSensitive(PathSensitivity.NAME_ONLY)
     @InputArtifact
@@ -28,11 +29,9 @@ public abstract class RemapTransformSpec implements TransformAction<RemapTransfo
     @Override
     public void transform(@NotNull TransformOutputs outputs) {
         var input = getInputArtifact().get().getAsFile();
-        var mappings = getParameters().getMappings();
-        String prefix = "";
-        if (mappings instanceof MapSpec.Unmapped) prefix = "unmapped";
-        else if (mappings instanceof MapSpec.Named named) prefix = named.start() + "->" + named.end();
-        var fileName = prefix + "@" + input.getName();
+        String mappings = getParameters().getMappings().getFiles().stream().toList().toString();
+        String mappingClasspath = getParameters().getMappingClasspath().getFiles().stream().toList().toString();
+        var fileName = "mapped@" + input.getName();
         try {
             if (input.isFile()) {
                 var output = outputs.file(fileName);
@@ -41,7 +40,7 @@ public abstract class RemapTransformSpec implements TransformAction<RemapTransfo
                 try (FileSystem fs = FileSystems.newFileSystem(uri, ImmutableMap.of("create", "true"))) {
                     Path nf = fs.getPath("mapped.txt");
                     try (Writer writer = Files.newBufferedWriter(nf, StandardCharsets.UTF_8, StandardOpenOption.CREATE)) {
-                        writer.write(prefix + "\n");
+                        writer.write(mappings + "\n" + mappingClasspath + "\n");
                     }
                 }
             } else if (input.isDirectory()) {
@@ -49,7 +48,7 @@ public abstract class RemapTransformSpec implements TransformAction<RemapTransfo
                 FileUtils.copyDirectory(input, output);
                 Path nf = output.toPath().resolve("mapped.txt");
                 try (Writer writer = Files.newBufferedWriter(nf, StandardCharsets.UTF_8, StandardOpenOption.CREATE)) {
-                    writer.write(prefix + "\n");
+                    writer.write(mappings + "\n" + mappingClasspath + "\n");
                 }
             }
         } catch (IOException e) {
@@ -57,9 +56,13 @@ public abstract class RemapTransformSpec implements TransformAction<RemapTransfo
         }
     }
 
-    public interface Parameters extends TransformParameters {
-        @Input
-        MapSpec getMappings();
-        void setMappings(MapSpec mappings);
+    public abstract static class Parameters implements TransformParameters {
+        @PathSensitive(PathSensitivity.NONE)
+        @InputFiles
+        public abstract ConfigurableFileCollection getMappings();
+
+        @PathSensitive(PathSensitivity.NONE)
+        @InputFiles
+        public abstract ConfigurableFileCollection getMappingClasspath();
     }
 }
