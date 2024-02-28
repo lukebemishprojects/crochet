@@ -25,20 +25,28 @@ public abstract class CrochetExtension {
     }
 
     public Mappings mappings(String name) {
-        mappingClasspathConfiguration(name);
-        mappingsConfiguration(name);
+        var classpathConfig = mappingClasspathConfiguration(name);
+        var mappingsConfig = mappingsConfiguration(name);
+        project.getDependencies().registerTransform(RemapTransform.class, params -> {
+            params.getFrom().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.UNMAPPED));
+            params.getTo().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, name));
+            params.getParameters().getMappings().from(mappingsConfig);
+            params.getParameters().getMappingClasspath().from(classpathConfig);
+        });
         return project.getObjects().named(Mappings.class, name);
     }
 
-    public Configuration mappingClasspathConfiguration(Mappings name) {
-        return mappingClasspathConfiguration(name.getName());
+    public Configuration mappingClasspathConfiguration(Mappings mappings) {
+        mappings(mappings.getName());
+        return classpathConfigurations.get(mappings.getName());
     }
 
     public Configuration mappingsConfiguration(Mappings mappings) {
-        return mappingsConfiguration(mappings.getName());
+        mappings(mappings.getName());
+        return mappingConfigurations.get(mappings.getName());
     }
 
-    public synchronized Configuration mappingClasspathConfiguration(String name) {
+    private synchronized Configuration mappingClasspathConfiguration(String name) {
         if (classpathConfigurations.containsKey(name)) {
             return classpathConfigurations.get(name);
         }
@@ -48,12 +56,10 @@ public abstract class CrochetExtension {
         mappingClasspath.setCanBeResolved(true);
         classpathConfigurations.put(name, mappingClasspath);
 
-        mappingsConfiguration(name);
-
         return mappingClasspath;
     }
 
-    public synchronized Configuration mappingsConfiguration(String name) {
+    private synchronized Configuration mappingsConfiguration(String name) {
         if (mappingConfigurations.containsKey(name)) {
             return mappingConfigurations.get(name);
         }
@@ -62,14 +68,6 @@ public abstract class CrochetExtension {
         mappings.setCanBeConsumed(false);
         mappings.setCanBeResolved(true);
         mappingConfigurations.put(name, mappings);
-
-        project.getDependencies().registerTransform(RemapTransform.class, params -> {
-            params.getFrom().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.UNMAPPED));
-            params.getTo().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, name));
-            params.getParameters().getMappings().from(mappings);
-            Configuration mappingClasspath = mappingClasspathConfiguration(name);
-            params.getParameters().getMappingClasspath().from(mappingClasspath);
-        });
 
         return mappings;
     }
@@ -86,6 +84,7 @@ public abstract class CrochetExtension {
         var runtimeClasspath = withSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
 
         var oApi = withSuffix(prefix, JavaPlugin.API_CONFIGURATION_NAME);
+        var oAnnotationProcessor = withSuffix(prefix, JavaPlugin.ANNOTATION_PROCESSOR_CONFIGURATION_NAME);
         var oImplementation = withSuffix(prefix, JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME);
         var oCompileOnly = withSuffix(prefix, JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         var oRuntimeOnly = withSuffix(prefix, JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
@@ -96,6 +95,7 @@ public abstract class CrochetExtension {
         var compileOnly = withSuffix(prefix, JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME, suffix);
         var runtimeOnly = withSuffix(prefix, JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME, suffix);
         var compileOnlyApi = withSuffix(prefix, JavaPlugin.COMPILE_ONLY_API_CONFIGURATION_NAME, suffix);
+        var annotationProcessor = withSuffix(prefix, JavaPlugin.ANNOTATION_PROCESSOR_CONFIGURATION_NAME, suffix);
 
         var runtimeClasspathRemapped = withSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME, suffix);
         var compileClasspathRemapped = withSuffix(prefix, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, suffix);
@@ -112,17 +112,21 @@ public abstract class CrochetExtension {
         runtimeClasspath.extendsFrom(runtimeClasspathRemapped);
         compileClasspath.extendsFrom(compileClasspathRemapped);
 
+        project.getDependencies().add(oAnnotationProcessor.getName(), lazyOutput(annotationProcessor));
+
         copyAttributes(api, oApi);
         copyAttributes(implementation, oImplementation);
         copyAttributes(compileOnly, oCompileOnly);
         copyAttributes(runtimeOnly, oRuntimeOnly);
         copyAttributes(compileOnlyApi, oCompileOnlyApi);
+        copyAttributes(annotationProcessor, oAnnotationProcessor);
 
         remap(api, mappings);
         remap(implementation, mappings);
         remap(compileOnly, mappings);
         remap(runtimeOnly, mappings);
         remap(compileOnlyApi, mappings);
+        remap(annotationProcessor, mappings);
 
         apiElements.extendsFrom(api, compileOnlyApi);
         runtimeElements.extendsFrom(implementation, runtimeOnly);
