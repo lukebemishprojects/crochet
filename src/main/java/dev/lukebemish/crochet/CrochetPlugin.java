@@ -18,10 +18,7 @@ public class CrochetPlugin implements Plugin<Project> {
             JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME,
             JavaPlugin.COMPILE_ONLY_API_CONFIGURATION_NAME,
             JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME,
-            JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME,
-
-            JavaPlugin.TEST_COMPILE_ONLY_CONFIGURATION_NAME,
-            JavaPlugin.TEST_RUNTIME_ONLY_CONFIGURATION_NAME
+            JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME
     );
 
     @Override
@@ -33,6 +30,8 @@ public class CrochetPlugin implements Plugin<Project> {
         dependencies.attributesSchema(schema -> {
             schema.attribute(Mappings.MAPPINGS_ATTRIBUTE);
         });
-        dependencies.getArtifactTypes().maybeCreate("jar").getAttributes().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.UNMAPPED));
+        dependencies.getArtifactTypes().configureEach(type -> {
+            type.getAttributes().attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.UNMAPPED));
+        });
     }
 }

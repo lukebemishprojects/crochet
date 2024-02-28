@@ -5,7 +5,9 @@ import dev.lukebemish.crochet.mapping.RemapTransform;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ModuleDependency;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaPlugin;
 
 import javax.inject.Inject;
 import java.util.HashMap;
@@ -72,15 +74,85 @@ public abstract class CrochetExtension {
         return mappings;
     }
 
-    public void remap(Object dependency, Mappings mappings) {
-        if (dependency instanceof ModuleDependency moduleDependency) {
-            var original = moduleDependency.copy();
-            moduleDependency.attributes(attributeContainer -> {
-                attributeContainer.attribute(Mappings.MAPPINGS_ATTRIBUTE, mappings);
-            });
-            project.getDependencies().add(mappingClasspathConfiguration(mappings).getName(), original);
-        } else {
-            throw new IllegalArgumentException("Dependency must be a ModuleDependency");
+    public void remap(Configuration configuration, Mappings mappings) {
+        configuration.getAttributes().attribute(Mappings.MAPPINGS_ATTRIBUTE, mappings);
+        mappingClasspathConfiguration(mappings).extendsFrom(configuration);
+    }
+
+    public void setupConfigurations(String prefix, Mappings mappings, String suffix) {
+        var apiElements = withSuffix(prefix, JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME);
+        var runtimeElements = withSuffix(prefix, JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME);
+        var compileClasspath = withSuffix(prefix, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
+        var runtimeClasspath = withSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
+
+        var oApi = withSuffix(prefix, JavaPlugin.API_CONFIGURATION_NAME);
+        var oImplementation = withSuffix(prefix, JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME);
+        var oCompileOnly = withSuffix(prefix, JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
+        var oRuntimeOnly = withSuffix(prefix, JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
+        var oCompileOnlyApi = withSuffix(prefix, JavaPlugin.COMPILE_ONLY_API_CONFIGURATION_NAME);
+
+        var api = withSuffix(prefix, JavaPlugin.API_CONFIGURATION_NAME, suffix);
+        var implementation = withSuffix(prefix, JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME, suffix);
+        var compileOnly = withSuffix(prefix, JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME, suffix);
+        var runtimeOnly = withSuffix(prefix, JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME, suffix);
+        var compileOnlyApi = withSuffix(prefix, JavaPlugin.COMPILE_ONLY_API_CONFIGURATION_NAME, suffix);
+
+        var runtimeClasspathRemapped = withSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME, suffix);
+        var compileClasspathRemapped = withSuffix(prefix, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, suffix);
+
+        project.getDependencies().add(runtimeClasspathRemapped.getName(), lazyOutput(api));
+        project.getDependencies().add(runtimeClasspathRemapped.getName(), lazyOutput(implementation));
+        project.getDependencies().add(runtimeClasspathRemapped.getName(), lazyOutput(runtimeOnly));
+
+        project.getDependencies().add(compileClasspathRemapped.getName(), lazyOutput(api));
+        project.getDependencies().add(compileClasspathRemapped.getName(), lazyOutput(implementation));
+        project.getDependencies().add(compileClasspathRemapped.getName(), lazyOutput(compileOnly));
+        project.getDependencies().add(compileClasspathRemapped.getName(), lazyOutput(compileOnlyApi));
+
+        runtimeClasspath.extendsFrom(runtimeClasspathRemapped);
+        compileClasspath.extendsFrom(compileClasspathRemapped);
+
+        copyAttributes(api, oApi);
+        copyAttributes(implementation, oImplementation);
+        copyAttributes(compileOnly, oCompileOnly);
+        copyAttributes(runtimeOnly, oRuntimeOnly);
+        copyAttributes(compileOnlyApi, oCompileOnlyApi);
+
+        remap(api, mappings);
+        remap(implementation, mappings);
+        remap(compileOnly, mappings);
+        remap(runtimeOnly, mappings);
+        remap(compileOnlyApi, mappings);
+
+        apiElements.extendsFrom(api, compileOnlyApi);
+        runtimeElements.extendsFrom(implementation, runtimeOnly);
+    }
+
+    private FileCollection lazyOutput(Configuration configuration) {
+        return project.files(project.provider(configuration::resolve));
+    }
+
+    private Configuration withSuffix(String prefix, String suffix) {
+        var full = prefix.isEmpty() ? suffix : prefix + StringUtils.capitalize(suffix);
+        return project.getConfigurations().maybeCreate(full);
+    }
+
+    private Configuration withSuffix(String prefix, String suffix, String andSuffix) {
+        var full = prefix.isEmpty() ? suffix : prefix + StringUtils.capitalize(suffix);
+        full += StringUtils.capitalize(andSuffix);
+        return project.getConfigurations().maybeCreate(full);
+    }
+
+    private void copyAttributes(Configuration configuration, Configuration target) {
+        for (var attr : target.getAttributes().keySet()) {
+            copyAttribute(configuration, target, attr);
+        }
+    }
+
+    private <T> void copyAttribute(Configuration configuration, Configuration target, Attribute<T> attr) {
+        var value = target.getAttributes().getAttribute(attr);
+        if (value != null) {
+            configuration.getAttributes().attribute(attr, value);
         }
     }
 }

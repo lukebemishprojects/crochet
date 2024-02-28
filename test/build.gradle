@@ -1,7 +1,13 @@
 plugins {
     id 'java'
+    id 'maven-publish'
     id 'dev.lukebemish.crochet'
 }
+
+java.withSourcesJar()
+
+group = 'dev.lukebemish.crochet'
+version = '1.0.0'
 
 repositories {
     mavenCentral()
@@ -12,14 +18,25 @@ repositories {
 
 def mappings = crochet.mappings('officialToIntermediary')
 
-configurations.configureEach {
-    reso
-}
+crochet.setupConfigurations('', mappings, 'remapped')
 
 dependencies {
     crochetMappingsOfficialToIntermediary 'net.fabricmc:intermediary:1.20.4'
 
-    implementation('dev.lukebemish.autoextension:autoextension:0.1.1') {
-        crochet.remap(it, mappings)
+    implementationRemapped 'dev.lukebemish.autoextension:autoextension:0.1.1'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+        maven {
+            name 'repo'
+            url project.file('build/repo')
+        }
     }
 }

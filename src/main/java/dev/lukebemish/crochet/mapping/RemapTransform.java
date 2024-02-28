@@ -2,10 +2,7 @@ package dev.lukebemish.crochet.mapping;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.io.FileUtils;
-import org.gradle.api.artifacts.transform.InputArtifact;
-import org.gradle.api.artifacts.transform.TransformAction;
-import org.gradle.api.artifacts.transform.TransformOutputs;
-import org.gradle.api.artifacts.transform.TransformParameters;
+import org.gradle.api.artifacts.transform.*;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.provider.Provider;
@@ -20,6 +17,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 
+@CacheableTransform
 public abstract class RemapTransform implements TransformAction<RemapTransform.Parameters> {
 
     @PathSensitive(PathSensitivity.NAME_ONLY)
