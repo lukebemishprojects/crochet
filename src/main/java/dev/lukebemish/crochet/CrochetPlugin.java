@@ -5,7 +5,9 @@ import dev.lukebemish.crochet.mapping.Mappings;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.AttributeCompatibilityRule;
 import org.gradle.api.attributes.AttributeDisambiguationRule;
+import org.gradle.api.attributes.CompatibilityCheckDetails;
 import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
@@ -35,6 +37,7 @@ public class CrochetPlugin implements Plugin<Project> {
             schema.getMatchingStrategy(Mappings.MAPPINGS_ATTRIBUTE).getDisambiguationRules().add(MappingsDisambiguation.class, config ->
                 config.params(project.getObjects().named(Mappings.class, Mappings.UNMAPPED))
             );
+            schema.getMatchingStrategy(Mappings.MAPPINGS_ATTRIBUTE).getCompatibilityRules().add(MappingsCompatibility.class);
         });
         dependencies.getArtifactTypes()
             .maybeCreate(ArtifactTypeDefinition.JAR_TYPE)
@@ -42,11 +45,11 @@ public class CrochetPlugin implements Plugin<Project> {
             .attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.UNMAPPED));
     }
 
-    private static class MappingsDisambiguation implements AttributeDisambiguationRule<Mappings> {
+    static class MappingsDisambiguation implements AttributeDisambiguationRule<Mappings> {
         private final Mappings unmapped;
 
         @Inject
-        private MappingsDisambiguation(Mappings unmapped) {
+        MappingsDisambiguation(Mappings unmapped) {
             this.unmapped = unmapped;
         }
 
@@ -60,6 +63,34 @@ public class CrochetPlugin implements Plugin<Project> {
                 }
             } else if (candidateValues.contains(consumerValue)) {
                 details.closestMatch(consumerValue);
+            }
+        }
+    }
+
+    static class MappingsCompatibility implements AttributeCompatibilityRule<Mappings> {
+        @Override
+        public void execute(CompatibilityCheckDetails<Mappings> details) {
+            var consumer = details.getConsumerValue();
+            var producer = details.getProducerValue();
+            if (consumer == null || producer == null) {
+                return;
+            }
+            if (consumer.getName().equals(producer.getName())) {
+                details.compatible();
+            }
+            if (consumer.getName().equals(Mappings.UNMAPPED)) {
+                details.compatible();
+            }
+            if (Mappings.isCompound(consumer)) {
+                if (!Mappings.isCompound(producer) && Mappings.target(consumer).equals(producer.getName())) {
+                    details.compatible();
+                } else if (Mappings.isCompound(producer) && Mappings.target(producer).equals(Mappings.target(consumer))) {
+                    details.compatible();
+                }
+            } else {
+                if (Mappings.isCompound(producer) && Mappings.target(producer).equals(consumer.getName())) {
+                    details.compatible();
+                }
             }
         }
     }

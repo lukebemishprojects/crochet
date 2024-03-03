@@ -7,5 +7,7 @@ import subproject.Subproject;
 public class Test {
     public static void main(String[] args) {
         Subproject.doStuff();
+        Subproject.doMoreStuff();
+        Subproject.doEvenMoreStuff();
     }
 }

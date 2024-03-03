@@ -12,7 +12,7 @@ repositories {
     }
 }
 
-def mappings = crochet.mappings('officialToIntermediary')
+def mappings = crochet.mappings('official', 'intermediary')
 
 crochet.setupConfigurations('', mappings, 'remapped')
 

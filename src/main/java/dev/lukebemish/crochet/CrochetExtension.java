@@ -25,7 +25,8 @@ public abstract class CrochetExtension {
         this.project = project;
     }
 
-    public Mappings mappings(String name) {
+    public Mappings mappings(String source, String target) {
+        String name = Mappings.of(source, target);
         var classpathConfig = mappingClasspathConfiguration(name);
         var mappingsConfig = mappingsConfiguration(name);
         project.getDependencies().registerTransform(RemapTransform.class, params -> {
@@ -42,37 +43,39 @@ public abstract class CrochetExtension {
     }
 
     public Configuration mappingClasspathConfiguration(Mappings mappings) {
-        mappings(mappings.getName());
+        mappings(Mappings.source(mappings), Mappings.target(mappings));
         return classpathConfigurations.get(mappings.getName());
     }
 
     public Configuration mappingsConfiguration(Mappings mappings) {
-        mappings(mappings.getName());
+        mappings(Mappings.source(mappings), Mappings.target(mappings));
         return mappingConfigurations.get(mappings.getName());
     }
 
-    private synchronized Configuration mappingClasspathConfiguration(String name) {
-        if (classpathConfigurations.containsKey(name)) {
-            return classpathConfigurations.get(name);
+    private synchronized Configuration mappingClasspathConfiguration(String mappingsName) {
+        String name = Mappings.source(mappingsName) + "To" + StringUtils.capitalize(Mappings.target(mappingsName));
+        if (classpathConfigurations.containsKey(mappingsName)) {
+            return classpathConfigurations.get(mappingsName);
         }
 
         Configuration mappingClasspath = project.getConfigurations().create("crochetMappingClasspath" + StringUtils.capitalize(name));
         mappingClasspath.setCanBeConsumed(false);
         mappingClasspath.setCanBeResolved(true);
-        classpathConfigurations.put(name, mappingClasspath);
+        classpathConfigurations.put(mappingsName, mappingClasspath);
 
         return mappingClasspath;
     }
 
-    private synchronized Configuration mappingsConfiguration(String name) {
-        if (mappingConfigurations.containsKey(name)) {
-            return mappingConfigurations.get(name);
+    private synchronized Configuration mappingsConfiguration(String mappingsName) {
+        String name = Mappings.source(mappingsName) + "To" + StringUtils.capitalize(Mappings.target(mappingsName));
+        if (mappingConfigurations.containsKey(mappingsName)) {
+            return mappingConfigurations.get(mappingsName);
         }
 
         Configuration mappings = project.getConfigurations().create("crochetMappings" + StringUtils.capitalize(name));
         mappings.setCanBeConsumed(false);
         mappings.setCanBeResolved(true);
-        mappingConfigurations.put(name, mappings);
+        mappingConfigurations.put(mappingsName, mappings);
 
         return mappings;
     }

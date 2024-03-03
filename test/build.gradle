@@ -6,7 +6,7 @@ plugins {
 
 java.withSourcesJar()
 
-group = 'dev.lukebemish.crochet'
+group = 'dev.lukebemish.crochet.crochet-test'
 version = '1.0.0'
 
 repositories {
@@ -16,7 +16,7 @@ repositories {
     }
 }
 
-def mappings = crochet.mappings('officialToIntermediary')
+def mappings = crochet.mappings('official', 'intermediary')
 
 crochet.setupConfigurations('', mappings, 'remapped')
 
