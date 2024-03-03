@@ -1,0 +1,23 @@
+plugins {
+    id 'maven-publish'
+    id 'dev.lukebemish.crochet'
+}
+
+java.withSourcesJar()
+
+repositories {
+    mavenCentral()
+    maven {
+        url = 'https://maven.fabricmc.net/'
+    }
+}
+
+def mappings = crochet.mappings('officialToIntermediary')
+
+crochet.setupConfigurations('', mappings, 'remapped')
+
+dependencies {
+    crochetMappingsOfficialToIntermediary 'net.fabricmc:intermediary:1.20.4'
+
+    implementationRemapped 'dev.lukebemish.opensesame:opensesame-core:0.5.1'
+}

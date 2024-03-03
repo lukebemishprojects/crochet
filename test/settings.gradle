@@ -5,3 +5,5 @@ pluginManagement {
 includeBuild '../'
 
 rootProject.name = 'crochet-test'
+
+include 'subproject'

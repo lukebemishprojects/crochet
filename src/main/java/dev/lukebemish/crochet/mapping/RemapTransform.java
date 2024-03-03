@@ -6,6 +6,7 @@ import org.gradle.api.artifacts.transform.*;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -27,24 +28,21 @@ public abstract class RemapTransform implements TransformAction<RemapTransform.P
     @Override
     public void transform(@NotNull TransformOutputs outputs) {
         var input = getInputArtifact().get().getAsFile();
+        if (!input.exists()) {
+            // We're trying to remap before the configuration's dependencies have been resolved. This can occur during
+            // IntelliJ project import - as the file contents are used in the cache key, we should be able to safely
+            // return here without producing an artifact.
+            return;
+        }
         String mappings = getParameters().getMappings().getFiles().stream().toList().toString();
         String mappingClasspath = getParameters().getMappingClasspath().getFiles().stream().toList().toString();
         var fileName = "mapped@" + input.getName();
         try {
-            if (input.isFile()) {
-                var output = outputs.file(fileName);
-                FileUtils.copyFile(input, output);
-                URI uri = URI.create("jar:" + output.toURI());
-                try (FileSystem fs = FileSystems.newFileSystem(uri, ImmutableMap.of("create", "true"))) {
-                    Path nf = fs.getPath("mapped.txt");
-                    try (Writer writer = Files.newBufferedWriter(nf, StandardCharsets.UTF_8, StandardOpenOption.CREATE)) {
-                        writer.write(mappings + "\n" + mappingClasspath + "\n");
-                    }
-                }
-            } else if (input.isDirectory()) {
-                var output = outputs.dir(fileName);
-                FileUtils.copyDirectory(input, output);
-                Path nf = output.toPath().resolve("mapped.txt");
+            var output = outputs.file(fileName);
+            FileUtils.copyFile(input, output);
+            URI uri = URI.create("jar:" + output.toURI());
+            try (FileSystem fs = FileSystems.newFileSystem(uri, ImmutableMap.of("create", "true"))) {
+                Path nf = fs.getPath("mapped.txt");
                 try (Writer writer = Files.newBufferedWriter(nf, StandardCharsets.UTF_8, StandardOpenOption.CREATE)) {
                     writer.write(mappings + "\n" + mappingClasspath + "\n");
                 }
@@ -55,11 +53,11 @@ public abstract class RemapTransform implements TransformAction<RemapTransform.P
     }
 
     public abstract static class Parameters implements TransformParameters {
-        @PathSensitive(PathSensitivity.NONE)
+        @PathSensitive(PathSensitivity.NAME_ONLY)
         @InputFiles
         public abstract ConfigurableFileCollection getMappings();
 
-        @PathSensitive(PathSensitivity.NONE)
+        @Classpath
         @InputFiles
         public abstract ConfigurableFileCollection getMappingClasspath();
     }
