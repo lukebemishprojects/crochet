@@ -19,6 +19,8 @@ import java.util.Set;
 public class CrochetPlugin implements Plugin<Project> {
     public static final String LOCAL_RUNTIME_CONFIGURATION_NAME = "localRuntime";
 
+    public static final String VERSION = CrochetPlugin.class.getPackage().getImplementationVersion();
+
     @Override
     public void apply(@NotNull Project project) {
         project.apply(ImmutableMap.of("plugin", "java-library"));

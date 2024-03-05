@@ -12,9 +12,12 @@ repositories {
     }
 }
 
-def mappings = crochet.mappings('official', 'intermediary')
+crochet {
+    def ms = mappings('official', 'intermediary')
+    setupConfigurations('', ms, 'remapped')
 
-crochet.setupConfigurations('', mappings, 'remapped')
+    useTinyRemapper()
+}
 
 dependencies {
     crochetMappingsOfficialToIntermediary 'net.fabricmc:intermediary:1.20.4'

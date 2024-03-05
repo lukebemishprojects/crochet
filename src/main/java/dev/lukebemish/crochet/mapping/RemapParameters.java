@@ -8,8 +8,9 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.process.ExecOperations;
 
 import javax.inject.Inject;
+import java.io.Serializable;
 
-public abstract class RemapParameters {
+public abstract class RemapParameters implements Serializable {
     @Classpath
     @InputFiles
     public abstract ConfigurableFileCollection getClasspath();
@@ -17,10 +18,6 @@ public abstract class RemapParameters {
     @Input
     public abstract Property<String> getMainClass();
 
-    private final ExecOperations operations;
-
     @Inject
-    public RemapParameters(ExecOperations operations) {
-        this.operations = operations;
-    }
+    protected abstract ExecOperations getExecOperations();
 }

@@ -50,16 +50,16 @@ public abstract class RemapTransform implements TransformAction<RemapTransform.P
         }
     }
 
-    public abstract static class Parameters implements TransformParameters {
+    public interface Parameters extends TransformParameters {
         @PathSensitive(PathSensitivity.NAME_ONLY)
         @InputFiles
-        public abstract ConfigurableFileCollection getMappings();
+        ConfigurableFileCollection getMappings();
 
         @Classpath
         @InputFiles
-        public abstract ConfigurableFileCollection getMappingClasspath();
+        ConfigurableFileCollection getMappingClasspath();
 
         @Nested
-        public abstract Property<RemapParameters> getRemapParameters();
+        Property<RemapParameters> getRemapParameters();
     }
 }

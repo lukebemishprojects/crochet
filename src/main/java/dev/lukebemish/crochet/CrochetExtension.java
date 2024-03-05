@@ -12,6 +12,8 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 
 import javax.inject.Inject;
 import java.util.HashMap;
@@ -25,7 +27,7 @@ public abstract class CrochetExtension {
     private final Map<String, Configuration> mappingConfigurations = new HashMap<>();
     private final Map<String, Configuration> classpathConfigurations = new HashMap<>();
 
-    private Action<RemapParameters> defaultRemapAction = null;
+    public abstract Property<Action<RemapParameters>> getDefaultRemapConfiguration();
 
     @Inject
     public CrochetExtension(Project project) {
@@ -33,7 +35,7 @@ public abstract class CrochetExtension {
     }
 
     public void useTinyRemapper() {
-        if (!project.getRepositories().named(TINY_REMAPPER_MAVEN_NAME).isPresent()) {
+        if (project.getRepositories().named(s -> s.equals(TINY_REMAPPER_MAVEN_NAME)).isEmpty()) {
             project.getRepositories().maven(maven -> {
                 maven.setUrl("https://maven.fabricmc.net/");
                 maven.setName("FabricMC Maven: Tiny-Remapper");
@@ -42,12 +44,8 @@ public abstract class CrochetExtension {
                 );
             });
         }
-        if (defaultRemapAction != null) {
-            throw new IllegalStateException("Remap action already set");
-        }
         Configuration detached = project.getConfigurations().detachedConfiguration(
-            // TODO: version capture
-            project.getDependencies().create("dev.lukebemish.crochet.remappers:tiny-remapper:<version>")
+            project.getDependencies().create("dev.lukebemish.crochet.remappers:tiny-remapper:"+CrochetPlugin.VERSION)
         );
         detached.setVisible(false);
         detached.setCanBeConsumed(false);
@@ -55,26 +53,24 @@ public abstract class CrochetExtension {
         copyAttributes(detached, project.getConfigurations().maybeCreate(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
         // Suppress warning to make the captured type FileCollection
         @SuppressWarnings("UnnecessaryLocalVariable") FileCollection files = detached;
-        defaultRemapAction = it -> {
+        Action<RemapParameters> action = it -> {
             it.getClasspath().from(files);
             it.getMainClass().set("dev.lukebemish.crochet.remappers.tiny.TinyRemapperLauncher");
         };
+        getDefaultRemapConfiguration().set(action);
     }
 
     public Mappings mappings(String source, String target) {
-        return mappings(source, target, it -> {
-            if (defaultRemapAction != null) {
-                defaultRemapAction.execute(it);
-            }
-        });
+        var action = getDefaultRemapConfiguration().orElse(it -> {});
+        return mappings(source, target, it -> action.get().execute(it));
     }
 
     public Mappings mappings(String source, String target, Action<RemapParameters> action) {
         String name = Mappings.of(source, target);
         var classpathConfig = mappingClasspathConfiguration(name);
         var mappingsConfig = mappingsConfiguration(name);
-        var unconfiguredParameters = project.getObjects().newInstance(RemapParameters.class);
-        var remapperParameters = project.provider(() -> unconfiguredParameters).map(it -> {
+        RemapParameters unconfiguredParams = project.getObjects().newInstance(RemapParameters.class);
+        Provider<RemapParameters> remapperParameters = project.provider(() -> unconfiguredParams).map(it -> {
             action.execute(it);
             return it;
         });
