@@ -1,0 +1,18 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    maven {
+        name = "FabricMC: Tiny-Remapper"
+        url = "https://maven.fabricmc.net/"
+        content {
+            includeModule 'net.fabricmc', 'tiny-remapper'
+        }
+    }
+    mavenCentral()
+}
+
+dependencies {
+    implementation "net.fabricmc:tiny-remapper:0.9.0"
+}

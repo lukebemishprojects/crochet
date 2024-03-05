@@ -1,10 +1,13 @@
 package dev.lukebemish.crochet;
 
 import dev.lukebemish.crochet.mapping.Mappings;
+import dev.lukebemish.crochet.mapping.RemapParameters;
 import dev.lukebemish.crochet.mapping.RemapTransform;
 import org.apache.commons.lang3.StringUtils;
+import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.transform.TransformSpec;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.FileCollection;
@@ -15,20 +18,71 @@ import java.util.HashMap;
 import java.util.Map;
 
 public abstract class CrochetExtension {
+    private static final String TINY_REMAPPER_MAVEN_NAME = "FabricMC Maven: Tiny-Remapper";
+
     private final Project project;
 
     private final Map<String, Configuration> mappingConfigurations = new HashMap<>();
     private final Map<String, Configuration> classpathConfigurations = new HashMap<>();
+
+    private Action<RemapParameters> defaultRemapAction = null;
 
     @Inject
     public CrochetExtension(Project project) {
         this.project = project;
     }
 
+    public void useTinyRemapper() {
+        if (!project.getRepositories().named(TINY_REMAPPER_MAVEN_NAME).isPresent()) {
+            project.getRepositories().maven(maven -> {
+                maven.setUrl("https://maven.fabricmc.net/");
+                maven.setName("FabricMC Maven: Tiny-Remapper");
+                maven.content(content ->
+                    content.includeModule("net.fabricmc", "tiny-remapper")
+                );
+            });
+        }
+        if (defaultRemapAction != null) {
+            throw new IllegalStateException("Remap action already set");
+        }
+        Configuration detached = project.getConfigurations().detachedConfiguration(
+            // TODO: version capture
+            project.getDependencies().create("dev.lukebemish.crochet.remappers:tiny-remapper:<version>")
+        );
+        detached.setVisible(false);
+        detached.setCanBeConsumed(false);
+        detached.setCanBeResolved(true);
+        copyAttributes(detached, project.getConfigurations().maybeCreate(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
+        // Suppress warning to make the captured type FileCollection
+        @SuppressWarnings("UnnecessaryLocalVariable") FileCollection files = detached;
+        defaultRemapAction = it -> {
+            it.getClasspath().from(files);
+            it.getMainClass().set("dev.lukebemish.crochet.remappers.tiny.TinyRemapperLauncher");
+        };
+    }
+
     public Mappings mappings(String source, String target) {
+        return mappings(source, target, it -> {
+            if (defaultRemapAction != null) {
+                defaultRemapAction.execute(it);
+            }
+        });
+    }
+
+    public Mappings mappings(String source, String target, Action<RemapParameters> action) {
         String name = Mappings.of(source, target);
         var classpathConfig = mappingClasspathConfiguration(name);
         var mappingsConfig = mappingsConfiguration(name);
+        var unconfiguredParameters = project.getObjects().newInstance(RemapParameters.class);
+        var remapperParameters = project.provider(() -> unconfiguredParameters).map(it -> {
+            action.execute(it);
+            return it;
+        });
+        Action<TransformSpec<RemapTransform.Parameters>> configure = params -> {
+            params.getParameters().getMappings().from(mappingsConfig);
+            params.getParameters().getMappingClasspath().from(classpathConfig);
+            params.getParameters().getRemapParameters().set(remapperParameters);
+        };
         project.getDependencies().registerTransform(RemapTransform.class, params -> {
             params.getFrom()
                 .attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.UNMAPPED))
@@ -36,8 +90,16 @@ public abstract class CrochetExtension {
             params.getTo()
                 .attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, name))
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
-            params.getParameters().getMappings().from(mappingsConfig);
-            params.getParameters().getMappingClasspath().from(classpathConfig);
+            configure.execute(params);
+        });
+        project.getDependencies().registerTransform(RemapTransform.class, params -> {
+            params.getFrom()
+                .attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, source))
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
+            params.getTo()
+                .attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, target))
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
+            configure.execute(params);
         });
         return project.getObjects().named(Mappings.class, name);
     }

@@ -5,11 +5,9 @@ import org.apache.commons.io.FileUtils;
 import org.gradle.api.artifacts.transform.*;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileSystemLocation;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.PathSensitive;
-import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -60,5 +58,8 @@ public abstract class RemapTransform implements TransformAction<RemapTransform.P
         @Classpath
         @InputFiles
         public abstract ConfigurableFileCollection getMappingClasspath();
+
+        @Nested
+        public abstract Property<RemapParameters> getRemapParameters();
     }
 }

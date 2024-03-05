@@ -21,9 +21,13 @@ public class CrochetPlugin implements Plugin<Project> {
 
     @Override
     public void apply(@NotNull Project project) {
-        var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
         project.apply(ImmutableMap.of("plugin", "java-library"));
+        var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 
+        setupRemappingConfigurations(project, extension);
+    }
+
+    private static void setupRemappingConfigurations(@NotNull Project project, CrochetExtension extension) {
         JavaPluginExtension javaPlugin = project.getExtensions().getByType(JavaPluginExtension.class);
 
         javaPlugin.getSourceSets().configureEach(sourceSet -> {
