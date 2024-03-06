@@ -1,20 +1,16 @@
 package dev.lukebemish.crochet.mapping;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.commons.io.FileUtils;
+import dev.lukebemish.crochet.mapping.config.RemapParameters;
 import org.gradle.api.artifacts.transform.*;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.*;
+import org.gradle.process.ExecOperations;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.io.Writer;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import javax.inject.Inject;
 
 @CacheableTransform
 public abstract class RemapTransform implements TransformAction<RemapTransform.Parameters> {
@@ -22,6 +18,9 @@ public abstract class RemapTransform implements TransformAction<RemapTransform.P
     @PathSensitive(PathSensitivity.NAME_ONLY)
     @InputArtifact
     public abstract Provider<FileSystemLocation> getInputArtifact();
+
+    @Inject
+    protected abstract ExecOperations getExecOperations();
 
     @Override
     public void transform(@NotNull TransformOutputs outputs) {
@@ -32,22 +31,14 @@ public abstract class RemapTransform implements TransformAction<RemapTransform.P
             // return here without producing an artifact.
             return;
         }
-        String mappings = getParameters().getMappings().getFiles().stream().toList().toString();
-        String mappingClasspath = getParameters().getMappingClasspath().getFiles().stream().toList().toString();
         var fileName = "mapped@" + input.getName();
-        try {
-            var output = outputs.file(fileName);
-            FileUtils.copyFile(input, output);
-            URI uri = URI.create("jar:" + output.toURI());
-            try (FileSystem fs = FileSystems.newFileSystem(uri, ImmutableMap.of("create", "true"))) {
-                Path nf = fs.getPath("mapped.txt");
-                try (Writer writer = Files.newBufferedWriter(nf, StandardCharsets.UTF_8, StandardOpenOption.CREATE)) {
-                    writer.write(mappings + "\n" + mappingClasspath + "\n");
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        getParameters().getRemapParameters().get().execute(
+            getExecOperations(),
+            outputs.file(fileName).toPath(),
+            input.toPath(),
+            getParameters().getMappingClasspath(),
+            getParameters().getMappings()
+        );
     }
 
     public interface Parameters extends TransformParameters {

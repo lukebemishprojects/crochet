@@ -2,6 +2,7 @@ package dev.lukebemish.crochet;
 
 import com.google.common.collect.ImmutableMap;
 import dev.lukebemish.crochet.mapping.Mappings;
+import dev.lukebemish.crochet.mapping.TinyUnzipTransform;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -18,6 +19,7 @@ import java.util.Set;
 
 public class CrochetPlugin implements Plugin<Project> {
     public static final String LOCAL_RUNTIME_CONFIGURATION_NAME = "localRuntime";
+    public static final String TINY_ARTIFACT_TYPE = "tiny";
 
     public static final String VERSION = CrochetPlugin.class.getPackage().getImplementationVersion();
 
@@ -27,6 +29,13 @@ public class CrochetPlugin implements Plugin<Project> {
         var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 
         setupRemappingConfigurations(project, extension);
+
+        project.getDependencies().registerTransform(TinyUnzipTransform.class, params -> {
+            params.getFrom()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
+            params.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, TINY_ARTIFACT_TYPE);
+        });
     }
 
     private static void setupRemappingConfigurations(@NotNull Project project, CrochetExtension extension) {

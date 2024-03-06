@@ -1,8 +1,9 @@
 package dev.lukebemish.crochet;
 
 import dev.lukebemish.crochet.mapping.Mappings;
-import dev.lukebemish.crochet.mapping.RemapParameters;
 import dev.lukebemish.crochet.mapping.RemapTransform;
+import dev.lukebemish.crochet.mapping.config.RemapParameters;
+import dev.lukebemish.crochet.mapping.config.TinyRemapperConfiguration;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -35,6 +36,13 @@ public abstract class CrochetExtension {
     }
 
     public void useTinyRemapper() {
+        useTinyRemapper(it -> {});
+    }
+
+    public void useTinyRemapper(Action<TinyRemapperConfiguration> configurationAction) {
+        TinyRemapperConfiguration configuration = project.getObjects().newInstance(TinyRemapperConfiguration.class);
+        configurationAction.execute(configuration);
+
         if (project.getRepositories().named(s -> s.equals(TINY_REMAPPER_MAVEN_NAME)).isEmpty()) {
             project.getRepositories().maven(maven -> {
                 maven.setUrl("https://maven.fabricmc.net/");
@@ -56,6 +64,7 @@ public abstract class CrochetExtension {
         Action<RemapParameters> action = it -> {
             it.getClasspath().from(files);
             it.getMainClass().set("dev.lukebemish.crochet.remappers.tiny.TinyRemapperLauncher");
+            it.getExtraArguments().addAll(configuration.makeExtraArguments());
         };
         getDefaultRemapConfiguration().set(action);
     }
@@ -75,7 +84,9 @@ public abstract class CrochetExtension {
             return it;
         });
         Action<TransformSpec<RemapTransform.Parameters>> configure = params -> {
-            params.getParameters().getMappings().from(mappingsConfig);
+            params.getParameters().getMappings().from(mappingsConfig.getIncoming().artifactView(config ->
+                config.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, CrochetPlugin.TINY_ARTIFACT_TYPE)
+            ).getFiles());
             params.getParameters().getMappingClasspath().from(classpathConfig);
             params.getParameters().getRemapParameters().set(remapperParameters);
         };
