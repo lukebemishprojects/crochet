@@ -32,12 +32,17 @@ public abstract class RemapTransform implements TransformAction<RemapTransform.P
             return;
         }
         var fileName = "mapped@" + input.getName();
+        var outputPath = outputs.file(fileName).toPath();
+
+        var argsFile = outputPath.getParent().resolve(fileName + ".args");
+
         getParameters().getRemapParameters().get().execute(
             getExecOperations(),
-            outputs.file(fileName).toPath(),
+            outputPath,
             input.toPath(),
             getParameters().getMappingClasspath(),
-            getParameters().getMappings()
+            getParameters().getMappings(),
+            argsFile
         );
     }
 

@@ -9,13 +9,21 @@ import net.fabricmc.tinyremapper.OutputConsumerPath;
 import net.fabricmc.tinyremapper.TinyRemapper;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 public class TinyRemapperLauncher {
     private static final Pattern INVALID_LV_PATTERN = Pattern.compile("\\$\\$\\d+");
 
-    public static void main(String[] argStrings) {
+    public static void main(String[] argFile) {
+        String[] argStrings;
+        try {
+            argStrings = Files.readString(Path.of(argFile[0])).trim().split("\n");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
         var args = Arguments.of(argStrings);
 
         VisitableMappingTree mappings = new MemoryMappingTree();

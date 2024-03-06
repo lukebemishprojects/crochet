@@ -88,6 +88,8 @@ public abstract class CrochetExtension {
                 config.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, CrochetPlugin.TINY_ARTIFACT_TYPE)
             ).getFiles());
             params.getParameters().getMappingClasspath().from(classpathConfig);
+            // TODO: fix this now resolving the configuration properly, and so leaving out subproject/task dependencies
+            // params.getParameters().getMappingClasspath().builtBy(classpathConfig);
             params.getParameters().getRemapParameters().set(remapperParameters);
         };
         project.getDependencies().registerTransform(RemapTransform.class, params -> {
