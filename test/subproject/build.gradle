@@ -14,7 +14,8 @@ repositories {
 
 crochet {
     def ms = mappings('official', 'intermediary')
-    setupConfigurations('', ms, 'remapped')
+    remap(configurations.runtimeClasspath, ms)
+    remap(configurations.compileClasspath, ms)
 
     useTinyRemapper()
 }
@@ -22,5 +23,5 @@ crochet {
 dependencies {
     crochetMappingsOfficialToIntermediary 'net.fabricmc:intermediary:1.20.4'
 
-    implementationRemapped 'dev.lukebemish.opensesame:opensesame-core:0.5.1'
+    implementation 'dev.lukebemish.opensesame:opensesame-core:0.5.1'
 }

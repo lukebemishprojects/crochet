@@ -11,11 +11,16 @@ gradlePlugin {
             id = 'dev.lukebemish.crochet'
             implementationClass = 'dev.lukebemish.crochet.CrochetPlugin'
         }
+        fabricConvention {
+            id = 'dev.lukebemish.crochet.fabric'
+            implementationClass = 'dev.lukebemish.crochet.fabric.FabricConventionPlugin'
+        }
     }
 }
 
 repositories {
     mavenCentral()
+    gradlePluginPortal()
 }
 
 dependencies {

@@ -1,12 +1,9 @@
 package dev.lukebemish.crochet.mapping.config;
 
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.*;
 import org.gradle.process.ExecOperations;
 import org.jetbrains.annotations.ApiStatus;
 
@@ -19,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class RemapParameters implements Serializable {
-    @Classpath
+    @CompileClasspath
     @InputFiles
     public abstract ConfigurableFileCollection getClasspath();
 
@@ -29,9 +26,14 @@ public abstract class RemapParameters implements Serializable {
     @Input
     public abstract ListProperty<String> getExtraArguments();
 
+    @PathSensitive(PathSensitivity.NAME_ONLY)
+    @InputFiles
+    public abstract ConfigurableFileCollection getMappings();
+
     @ApiStatus.Internal
-    public void execute(ExecOperations execOperations, Path output, Path input, FileCollection mappingClasspath, FileCollection mappings, Path argsFile) {
-        Path mappingsPath = mappings.getSingleFile().toPath();
+    public void execute(ExecOperations execOperations, Path output, Path input, Path tmpDir, List<Path> classpath) {
+        Path mappingsPath = getMappings().getSingleFile().toPath();
+        Path argsFile = tmpDir.resolve("remap.args");
 
         try {
             Files.createDirectories(output.getParent());
@@ -43,8 +45,10 @@ public abstract class RemapParameters implements Serializable {
             args.add("--input");
             args.add(input.toString());
             args.add("--classpath");
-            args.addAll(mappingClasspath.getFiles().stream().map(File::getPath).toList());
+            args.addAll(classpath.stream().map(Path::toString).toList());
             args.addAll(getExtraArguments().get());
+            args.add("--tmpdir");
+            args.add(tmpDir.toString());
             Files.writeString(argsFile,
                 String.join("\n", args)
             );

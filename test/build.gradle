@@ -17,8 +17,13 @@ repositories {
 }
 
 crochet {
-    def ms = mappings('official', 'intermediary')
-    setupConfigurations('', ms, 'remapped')
+    def ms = mappings('official', 'intermediary') {
+
+    }
+    remap(configurations.runtimeClasspath, ms)
+    remap(configurations.compileClasspath, ms)
+
+    remapOutgoing('', ms)
 
     useTinyRemapper()
 }
@@ -26,8 +31,16 @@ crochet {
 dependencies {
     crochetMappingsOfficialToIntermediary 'net.fabricmc:intermediary:1.20.4'
 
-    implementationRemapped 'dev.lukebemish.autoextension:autoextension:0.1.1'
-    implementationRemapped project(':subproject')
+    implementation 'dev.lukebemish.autoextension:autoextension:0.1.1'
+    implementation project(':subproject')
+}
+
+jar {
+    manifest {
+        attributes(
+            'Main-Class': 'dev.lukebemish.crochet.CrochetTest'
+        )
+    }
 }
 
 allprojects {
@@ -50,5 +63,10 @@ allprojects {
                 url rootProject.file('build/repo')
             }
         }
+    }
+
+    tasks.register("resolveRuntimeClasspath", Copy) {
+        from(configurations.runtimeClasspath)
+        into(layout.buildDirectory.dir("runtimeClasspath"))
     }
 }

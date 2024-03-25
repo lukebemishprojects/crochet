@@ -1,20 +1,25 @@
 package dev.lukebemish.crochet;
 
-import dev.lukebemish.crochet.mapping.Mappings;
-import dev.lukebemish.crochet.mapping.RemapTransform;
+import dev.lukebemish.crochet.mapping.*;
 import dev.lukebemish.crochet.mapping.config.RemapParameters;
 import dev.lukebemish.crochet.mapping.config.TinyRemapperConfiguration;
+import dev.lukebemish.crochet.tasks.RemapJarTask;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.transform.TransformSpec;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Jar;
 
 import javax.inject.Inject;
 import java.util.HashMap;
@@ -26,13 +31,18 @@ public abstract class CrochetExtension {
     private final Project project;
 
     private final Map<String, Configuration> mappingConfigurations = new HashMap<>();
-    private final Map<String, Configuration> classpathConfigurations = new HashMap<>();
+
+    private final Map<String, Provider<RemapParameters>> remapParameters = new HashMap<>();
+    private final Map<String, MappingsConfiguration> configuredMappings = new HashMap<>();
+
+    private final TaskProvider<Task> idePostSync;
 
     public abstract Property<Action<RemapParameters>> getDefaultRemapConfiguration();
 
     @Inject
     public CrochetExtension(Project project) {
         this.project = project;
+        this.idePostSync = project.getTasks().register("crochetIdeSetup");
     }
 
     public void useTinyRemapper() {
@@ -52,17 +62,16 @@ public abstract class CrochetExtension {
                 );
             });
         }
-        Configuration detached = project.getConfigurations().detachedConfiguration(
-            project.getDependencies().create("dev.lukebemish.crochet.remappers:tiny-remapper:"+CrochetPlugin.VERSION)
-        );
-        detached.setVisible(false);
-        detached.setCanBeConsumed(false);
-        detached.setCanBeResolved(true);
-        copyAttributes(detached, project.getConfigurations().maybeCreate(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
+        Configuration tinyRemapperConfiguration = project.getConfigurations().maybeCreate("crochetTinyRemapper");
+        project.getDependencies().add(tinyRemapperConfiguration.getName(), "dev.lukebemish.crochet.remappers:tiny-remapper:"+CrochetPlugin.VERSION);
+        tinyRemapperConfiguration.setVisible(false);
+        tinyRemapperConfiguration.setCanBeConsumed(false);
+        tinyRemapperConfiguration.setCanBeResolved(true);
+        copyExternalAttributes(tinyRemapperConfiguration, project.getConfigurations().maybeCreate(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
         // Suppress warning to make the captured type FileCollection
-        @SuppressWarnings("UnnecessaryLocalVariable") FileCollection files = detached;
+        @SuppressWarnings("UnnecessaryLocalVariable") FileCollection files = tinyRemapperConfiguration;
         Action<RemapParameters> action = it -> {
-            it.getClasspath().from(files);
+            it.getClasspath().from(tinyRemapperConfiguration);
             it.getMainClass().set("dev.lukebemish.crochet.remappers.tiny.TinyRemapperLauncher");
             it.getExtraArguments().addAll(configuration.makeExtraArguments());
         };
@@ -70,26 +79,37 @@ public abstract class CrochetExtension {
     }
 
     public Mappings mappings(String source, String target) {
-        var action = getDefaultRemapConfiguration().orElse(it -> {});
-        return mappings(source, target, it -> action.get().execute(it));
+        return mappings(source, target, it -> {});
     }
 
-    public Mappings mappings(String source, String target, Action<RemapParameters> action) {
+    public Mappings mappings(String source, String target, Action<MappingsConfiguration> action) {
         String name = Mappings.of(source, target);
-        var classpathConfig = mappingClasspathConfiguration(name);
+
+        if (configuredMappings.containsKey(name)) {
+            action.execute(configuredMappings.get(name));
+            return project.getObjects().named(Mappings.class, name);
+        }
+
+        var mappings = project.getObjects().named(Mappings.class, name);
+
+        MappingsConfiguration config = project.getObjects().newInstance(MappingsConfiguration.class, mappings, this, project);
+        action.execute(config);
+        config.getRemapping().convention(getDefaultRemapConfiguration().orElse(it -> {}));
+        configuredMappings.put(name, config);
+
         var mappingsConfig = mappingsConfiguration(name);
-        RemapParameters unconfiguredParams = project.getObjects().newInstance(RemapParameters.class);
-        Provider<RemapParameters> remapperParameters = project.provider(() -> unconfiguredParams).map(it -> {
-            action.execute(it);
-            return it;
+        mappingsConfig.getDependencies().addAllLater(config.getMappings().getDependencies());
+
+        var remappingAction = config.getRemapping();
+        RemapParameters instance = project.getObjects().newInstance(RemapParameters.class);
+        Provider<RemapParameters> remapperParameters = project.provider(() -> {
+            remappingAction.get().execute(instance);
+            instance.getMappings().from(mappingsConfig);
+            return instance;
         });
+        remapParameters.put(name, remapperParameters);
+
         Action<TransformSpec<RemapTransform.Parameters>> configure = params -> {
-            params.getParameters().getMappings().from(mappingsConfig.getIncoming().artifactView(config ->
-                config.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, CrochetPlugin.TINY_ARTIFACT_TYPE)
-            ).getFiles());
-            params.getParameters().getMappingClasspath().from(classpathConfig);
-            // TODO: fix this not resolving the configuration properly, and so leaving out subproject/task dependencies
-            // params.getParameters().getMappingClasspath().builtBy(classpathConfig);
             params.getParameters().getRemapParameters().set(remapperParameters);
         };
         project.getDependencies().registerTransform(RemapTransform.class, params -> {
@@ -110,31 +130,13 @@ public abstract class CrochetExtension {
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             configure.execute(params);
         });
-        return project.getObjects().named(Mappings.class, name);
-    }
 
-    public Configuration mappingClasspathConfiguration(Mappings mappings) {
-        mappings(Mappings.source(mappings), Mappings.target(mappings));
-        return classpathConfigurations.get(mappings.getName());
+        return mappings;
     }
 
     public Configuration mappingsConfiguration(Mappings mappings) {
         mappings(Mappings.source(mappings), Mappings.target(mappings));
         return mappingConfigurations.get(mappings.getName());
-    }
-
-    private synchronized Configuration mappingClasspathConfiguration(String mappingsName) {
-        String name = Mappings.source(mappingsName) + "To" + StringUtils.capitalize(Mappings.target(mappingsName));
-        if (classpathConfigurations.containsKey(mappingsName)) {
-            return classpathConfigurations.get(mappingsName);
-        }
-
-        Configuration mappingClasspath = project.getConfigurations().create("crochetMappingClasspath" + StringUtils.capitalize(name));
-        mappingClasspath.setCanBeConsumed(false);
-        mappingClasspath.setCanBeResolved(true);
-        classpathConfigurations.put(mappingsName, mappingClasspath);
-
-        return mappingClasspath;
     }
 
     private synchronized Configuration mappingsConfiguration(String mappingsName) {
@@ -153,7 +155,6 @@ public abstract class CrochetExtension {
 
     public void remap(Configuration configuration, Mappings mappings) {
         configuration.getAttributes().attribute(Mappings.MAPPINGS_ATTRIBUTE, mappings);
-        mappingClasspathConfiguration(mappings).extendsFrom(configuration);
     }
 
     public void extraConfigurations(String prefix) {
@@ -166,69 +167,58 @@ public abstract class CrochetExtension {
         runtimeClasspath.extendsFrom(localRuntime);
     }
 
-    public void setupConfigurations(String prefix, Mappings mappings, String suffix) {
-        var oApiElements = withSuffix(prefix, JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME);
-        var oRuntimeElements = withSuffix(prefix, JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME);
-        var oCompileClasspath = withSuffix(prefix, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
-        var oRuntimeClasspath = withSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
-        var oAnnotationProcessor = withSuffix(prefix, JavaPlugin.ANNOTATION_PROCESSOR_CONFIGURATION_NAME);
+    public void remapOutgoing(String prefix, Mappings mappings) {
+        var runtimeClasspath = withSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
+        var runtimeElements = withSuffix(prefix, JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME);
 
-        var api = createWithSuffix(prefix, JavaPlugin.API_CONFIGURATION_NAME, suffix, false, false, true);
-        var implementation = createWithSuffix(prefix, JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME, suffix, false, false, true);
-        var compileOnly = createWithSuffix(prefix, JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME, suffix, false, false, true);
-        var runtimeOnly = createWithSuffix(prefix, JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME, suffix, false, false, true);
-        var compileOnlyApi = createWithSuffix(prefix, JavaPlugin.COMPILE_ONLY_API_CONFIGURATION_NAME, suffix, false, false, true);
-        var annotationProcessor = createWithSuffix(prefix, JavaPlugin.ANNOTATION_PROCESSOR_CONFIGURATION_NAME, suffix, true, false, true);
-        var localRuntime = createWithSuffix(prefix, CrochetPlugin.LOCAL_RUNTIME_CONFIGURATION_NAME, suffix, false, false, true);
+        var namedElements = project.getConfigurations().create("named"+StringUtils.capitalize(prefix)+"Elements");
+        namedElements.setCanBeDeclared(false);
+        namedElements.setCanBeConsumed(true);
+        namedElements.setCanBeResolved(false);
 
-        var runtimeClasspathCollector = createWithSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME + "Collector", suffix, true, false, false);
-        var compileClasspathCollector = createWithSuffix(prefix, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME + "Collector", suffix, true, false, false);
+        namedElements.getDependencies().addAllLater(project.provider(() -> runtimeElements.getIncoming().getDependencies()));
 
-        runtimeClasspathCollector.extendsFrom(api);
-        runtimeClasspathCollector.extendsFrom(implementation);
-        runtimeClasspathCollector.extendsFrom(runtimeOnly);
-        runtimeClasspathCollector.extendsFrom(localRuntime);
+        copyExternalAttributes(namedElements, runtimeElements);
+        namedElements.attributes(attributes -> {
+            attributes.attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.target(mappings)));
+        });
+        runtimeElements.getOutgoing().getVariants().forEach(configurationVariant -> {
+            configurationVariant.attributes(attributes -> {
+                attributes.attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.target(mappings)));
+            });
+            namedElements.getOutgoing().getVariants().add(configurationVariant);
+        });
+        runtimeElements.getOutgoing().getVariants().clear();
 
-        compileClasspathCollector.extendsFrom(api);
-        compileClasspathCollector.extendsFrom(implementation);
-        compileClasspathCollector.extendsFrom(compileOnly);
-        compileClasspathCollector.extendsFrom(compileOnlyApi);
+        BasePluginExtension baseExtension = project.getExtensions().getByType(BasePluginExtension.class);
 
-        var runtimeClasspathRemapped = createWithSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME, suffix, false, false, true);
-        var compileClasspathRemapped = createWithSuffix(prefix, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, suffix, false, false, true);
-
-        project.getDependencies()
-            .add(runtimeClasspathRemapped.getName(), lazyOutput(runtimeClasspathCollector));
-
-        project.getDependencies()
-            .add(compileClasspathRemapped.getName(), lazyOutput(compileClasspathCollector));
-
-        project.getDependencies()
-            .add(oAnnotationProcessor.getName(), lazyOutput(annotationProcessor));
-
-        oRuntimeClasspath.extendsFrom(runtimeClasspathRemapped);
-        oCompileClasspath.extendsFrom(compileClasspathRemapped);
-
-        copyAttributes(compileClasspathCollector, oCompileClasspath);
-        copyAttributes(runtimeClasspathCollector, oRuntimeClasspath);
-        copyAttributes(annotationProcessor, oAnnotationProcessor);
-
-        remap(runtimeClasspathCollector, mappings);
-        remap(compileClasspathCollector, mappings);
-        remap(annotationProcessor, mappings);
-
-        oApiElements.extendsFrom(api, compileOnlyApi);
-        oRuntimeElements.extendsFrom(implementation, runtimeOnly);
-    }
-
-    private FileCollection lazyOutput(Configuration configuration) {
-        var resolveTask = project.getTasks().register(configuration.getName() + "Resolve", task ->
-            task.dependsOn(configuration)
-        );
-
-        var files = project.files(project.provider(configuration::resolve));
-        files.builtBy(resolveTask);
-        return files;
+        TaskProvider<Jar> jarTask = project.getTasks().named(nameWithSuffix(prefix, JavaPlugin.JAR_TASK_NAME), Jar.class);
+        jarTask.configure(task -> {
+            task.getArchiveClassifier().set(prefix.isEmpty() ? "dev" : prefix + "-dev");
+        });
+        var remapJarTask = project.getTasks().register("remap"+StringUtils.capitalize(prefix)+"Jar", RemapJarTask.class, task -> {
+            //task.getRemapParameters().set(remapParameters.get(Mappings.of(Mappings.source(mappings), Mappings.target(mappings))));
+            task.from(project.zipTree(jarTask.get().getArchiveFile()).matching(pattern -> {
+                pattern.exclude("META-INF/MANIFEST.MF");
+            }));
+            task.dependsOn(jarTask);
+            task.manifest(manifest -> {
+                manifest.from(jarTask.get().getManifest());
+            });
+            task.getArchiveClassifier().set(prefix);
+        });
+        runtimeElements.getArtifacts().forEach(artifact -> {
+            namedElements.getArtifacts().add(artifact);
+        });
+        runtimeElements.getArtifacts().clear();
+        project.artifacts(artifacts -> {
+            artifacts.add(runtimeElements.getName(), remapJarTask.flatMap(RemapJarTask::getArchiveFile), artifact -> {
+                artifact.builtBy(remapJarTask);
+            });
+        });
+        project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> {
+            task.dependsOn(remapJarTask);
+        });
     }
 
     private Configuration withSuffix(String prefix, String suffix) {
@@ -236,30 +226,23 @@ public abstract class CrochetExtension {
         return project.getConfigurations().maybeCreate(full);
     }
 
-    @SuppressWarnings("UnstableApiUsage")
-    private Configuration createWithSuffix(String prefix, String suffix, String andSuffix, boolean resolvable, boolean consumable, boolean declarable) {
-        var full = prefix.isEmpty() ? suffix : prefix + StringUtils.capitalize(suffix);
-        full += StringUtils.capitalize(andSuffix);
-        var config = project.getConfigurations().maybeCreate(full);
-
-        config.setVisible(false);
-        config.setCanBeConsumed(consumable);
-        config.setCanBeResolved(resolvable);
-        config.setCanBeDeclared(declarable);
-
-        return config;
+    private String nameWithSuffix(String prefix, String suffix) {
+        return prefix.isEmpty() ? suffix : prefix + StringUtils.capitalize(suffix);
     }
 
-    private void copyAttributes(Configuration configuration, Configuration target) {
-        for (var attr : target.getAttributes().keySet()) {
-            copyAttribute(configuration, target, attr);
+    private void copyExternalAttributes(Configuration to, Configuration from) {
+        for (var attr : from.getAttributes().keySet()) {
+            if (attr.getName().equals(Mappings.MAPPINGS_ATTRIBUTE.getName())) {
+                continue;
+            }
+            copyAttribute(to, from, attr);
         }
     }
 
-    private <T> void copyAttribute(Configuration configuration, Configuration target, Attribute<T> attr) {
-        var value = target.getAttributes().getAttribute(attr);
+    private <T> void copyAttribute(Configuration to, Configuration from, Attribute<T> attr) {
+        var value = from.getAttributes().getAttribute(attr);
         if (value != null) {
-            configuration.getAttributes().attribute(attr, value);
+            to.getAttributes().attribute(attr, value);
         }
     }
 }

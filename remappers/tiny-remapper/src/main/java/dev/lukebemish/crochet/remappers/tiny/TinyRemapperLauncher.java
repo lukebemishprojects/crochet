@@ -9,8 +9,8 @@ import net.fabricmc.tinyremapper.OutputConsumerPath;
 import net.fabricmc.tinyremapper.TinyRemapper;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class TinyRemapperLauncher {
@@ -28,8 +28,25 @@ public class TinyRemapperLauncher {
 
         VisitableMappingTree mappings = new MemoryMappingTree();
 
+        Path mappingsFile = args.mappings();
+        if (!Files.exists(mappingsFile)) {
+            throw new IllegalArgumentException("Mappings file does not exist: " + mappingsFile);
+        } else if (mappingsFile.toString().endsWith(".jar")) {
+            var output = args.tmpDir().resolve("mappings.tiny");
+            try (FileSystem fs = FileSystems.newFileSystem(mappingsFile, Map.of("create", "true"))) {
+                Path nf = fs.getPath("mappings","mappings.tiny");
+                if (!Files.exists(nf)) {
+                    throw new RuntimeException("No tiny mappings found in mappings jar");
+                }
+                Files.copy(nf, output, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            mappingsFile = output;
+        }
+
         try {
-            MappingReader.read(args.mappings(), mappings);
+            MappingReader.read(mappingsFile, mappings);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

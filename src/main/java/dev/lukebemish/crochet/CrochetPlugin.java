@@ -1,6 +1,5 @@
 package dev.lukebemish.crochet;
 
-import com.google.common.collect.ImmutableMap;
 import dev.lukebemish.crochet.mapping.Mappings;
 import dev.lukebemish.crochet.mapping.TinyUnzipTransform;
 import org.gradle.api.Plugin;
@@ -10,6 +9,7 @@ import org.gradle.api.attributes.AttributeCompatibilityRule;
 import org.gradle.api.attributes.AttributeDisambiguationRule;
 import org.gradle.api.attributes.CompatibilityCheckDetails;
 import org.gradle.api.attributes.MultipleCandidatesDetails;
+import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.jetbrains.annotations.NotNull;
@@ -25,7 +25,8 @@ public class CrochetPlugin implements Plugin<Project> {
 
     @Override
     public void apply(@NotNull Project project) {
-        project.apply(ImmutableMap.of("plugin", "java-library"));
+        project.getPluginManager().apply(JavaLibraryPlugin.class);
+
         var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 
         setupRemappingConfigurations(project, extension);

@@ -12,10 +12,11 @@ record Arguments(
     List<Path> classpath,
     String sourceNs,
     String targetNs,
-    boolean remapLocalVariables
+    boolean remapLocalVariables,
+    Path tmpDir
 ) {
     private enum ArgType {
-        MAPPINGS, CLASSPATH, OUTPUT, INPUT, SOURCE, TARGET, REMAP_LOCALS;
+        MAPPINGS, CLASSPATH, OUTPUT, INPUT, SOURCE, TARGET, REMAP_LOCALS, TMPDIR;
 
         public static final Map<String, ArgType> BY_ARGUMENT;
 
@@ -31,6 +32,7 @@ record Arguments(
         Path mappingsFile = null;
         Path outputFile = null;
         Path inputFile = null;
+        Path tmpDir = null;
         List<Path> classpath = new ArrayList<>();
         String sourceNs = null;
         String targetNs = null;
@@ -94,6 +96,13 @@ record Arguments(
                         remapLocals = Boolean.parseBoolean(arg);
                         current = null;
                         break;
+                    case TMPDIR:
+                        if (tmpDir != null) {
+                            throw new IllegalArgumentException("Duplicate --tmpdir argument");
+                        }
+                        tmpDir = Path.of(arg);
+                        current = null;
+                        break;
                 }
             }
         }
@@ -105,6 +114,9 @@ record Arguments(
         }
         if (inputFile == null) {
             throw new IllegalArgumentException("No --input argument");
+        }
+        if (tmpDir == null) {
+            throw new IllegalArgumentException("No --tmpdir argument");
         }
         if (sourceNs == null) {
             sourceNs = MappingUtil.NS_SOURCE_FALLBACK;
@@ -118,6 +130,6 @@ record Arguments(
 
         classpath.remove(inputFile);
 
-        return new Arguments(mappingsFile, outputFile, inputFile, classpath, sourceNs, targetNs, remapLocals);
+        return new Arguments(mappingsFile, outputFile, inputFile, classpath, sourceNs, targetNs, remapLocals, tmpDir);
     }
 }
