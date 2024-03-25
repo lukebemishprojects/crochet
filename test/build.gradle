@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'maven-publish'
-    id 'dev.lukebemish.crochet'
+    id 'dev.lukebemish.crochet.fabric'
 }
 
 java.withSourcesJar()
@@ -16,20 +16,10 @@ repositories {
     }
 }
 
-crochet {
-    def ms = mappings('official', 'intermediary') {
-
-    }
-    remap(configurations.runtimeClasspath, ms)
-    remap(configurations.compileClasspath, ms)
-
-    remapOutgoing('', ms)
-
-    useTinyRemapper()
-}
-
 dependencies {
-    crochetMappingsOfficialToIntermediary 'net.fabricmc:intermediary:1.20.4'
+    // TODO
+    crochetMappingsNamedToIntermediary 'net.fabricmc:intermediary:1.20.4'
+    crochetMappingsIntermediaryToNamed 'net.fabricmc:intermediary:1.20.4'
 
     implementation 'dev.lukebemish.autoextension:autoextension:0.1.1'
     implementation project(':subproject')

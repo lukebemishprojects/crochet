@@ -18,6 +18,7 @@ import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 
@@ -167,9 +168,10 @@ public abstract class CrochetExtension {
         runtimeClasspath.extendsFrom(localRuntime);
     }
 
-    public void remapOutgoing(String prefix, Mappings mappings) {
-        var runtimeClasspath = withSuffix(prefix, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
-        var runtimeElements = withSuffix(prefix, JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME);
+    public void remapOutgoing(SourceSet sourceSet, Mappings mappings) {
+        String prefix = SourceSet.isMain(sourceSet) ? "" : sourceSet.getName();
+        var runtimeClasspath = project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName());
+        var runtimeElements = project.getConfigurations().getByName(sourceSet.getRuntimeElementsConfigurationName());
 
         var namedElements = project.getConfigurations().create("named"+StringUtils.capitalize(prefix)+"Elements");
         namedElements.setCanBeDeclared(false);
@@ -180,17 +182,18 @@ public abstract class CrochetExtension {
 
         copyExternalAttributes(namedElements, runtimeElements);
         namedElements.attributes(attributes -> {
-            attributes.attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.target(mappings)));
+            Mappings runtimeClasspathMappings = runtimeClasspath.getAttributes().getAttribute(Mappings.MAPPINGS_ATTRIBUTE);
+            if (runtimeClasspathMappings != null) {
+                attributes.attribute(Mappings.MAPPINGS_ATTRIBUTE, runtimeClasspathMappings);
+            }
         });
         runtimeElements.getOutgoing().getVariants().forEach(configurationVariant -> {
             configurationVariant.attributes(attributes -> {
-                attributes.attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.target(mappings)));
+                attributes.attribute(Mappings.MAPPINGS_ATTRIBUTE, project.getObjects().named(Mappings.class, Mappings.source(mappings)));
             });
             namedElements.getOutgoing().getVariants().add(configurationVariant);
         });
         runtimeElements.getOutgoing().getVariants().clear();
-
-        BasePluginExtension baseExtension = project.getExtensions().getByType(BasePluginExtension.class);
 
         TaskProvider<Jar> jarTask = project.getTasks().named(nameWithSuffix(prefix, JavaPlugin.JAR_TASK_NAME), Jar.class);
         jarTask.configure(task -> {
