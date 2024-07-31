@@ -1,6 +1,8 @@
 package dev.lukebemish.crochet;
 
-import dev.lukebemish.crochet.mapping.*;
+import dev.lukebemish.crochet.mapping.Mappings;
+import dev.lukebemish.crochet.mapping.MappingsConfiguration;
+import dev.lukebemish.crochet.mapping.RemapTransform;
 import dev.lukebemish.crochet.mapping.config.RemapParameters;
 import dev.lukebemish.crochet.mapping.config.TinyRemapperConfiguration;
 import dev.lukebemish.crochet.tasks.RemapJarTask;
@@ -14,7 +16,6 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -102,8 +103,8 @@ public abstract class CrochetExtension {
         mappingsConfig.getDependencies().addAllLater(config.getMappings().getDependencies());
 
         var remappingAction = config.getRemapping();
-        RemapParameters instance = project.getObjects().newInstance(RemapParameters.class);
         Provider<RemapParameters> remapperParameters = project.provider(() -> {
+            RemapParameters instance = project.getObjects().newInstance(RemapParameters.class);
             remappingAction.get().execute(instance);
             instance.getMappings().from(mappingsConfig);
             return instance;

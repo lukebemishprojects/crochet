@@ -2,7 +2,6 @@ package dev.lukebemish.crochet.mapping;
 
 import dev.lukebemish.crochet.mapping.config.RemapParameters;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Nested;
 import org.gradle.process.ExecOperations;
 
@@ -12,7 +11,7 @@ import java.util.List;
 
 public abstract class AbstractRemapTask extends DefaultTask {
     @Nested
-    public abstract Property<RemapParameters> getRemapParameters();
+    public abstract RemapParameters getRemapParameters();
 
     @Inject
     protected abstract ExecOperations getExecOperations();
@@ -20,7 +19,7 @@ public abstract class AbstractRemapTask extends DefaultTask {
     protected void remap(Path inputPath, Path outputPath) {
         var tmpDir = this.getTemporaryDir().toPath();
 
-        getRemapParameters().get().execute(
+        getRemapParameters().execute(
             getExecOperations(),
             outputPath,
             inputPath,

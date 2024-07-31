@@ -7,7 +7,6 @@ import org.gradle.api.tasks.*;
 import org.gradle.process.ExecOperations;
 import org.jetbrains.annotations.ApiStatus;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
@@ -29,6 +28,13 @@ public abstract class RemapParameters implements Serializable {
     @PathSensitive(PathSensitivity.NAME_ONLY)
     @InputFiles
     public abstract ConfigurableFileCollection getMappings();
+
+    public void from(RemapParameters other) {
+        getClasspath().from(other.getClasspath());
+        getMainClass().set(other.getMainClass());
+        getExtraArguments().set(other.getExtraArguments());
+        getMappings().from(other.getMappings());
+    }
 
     @ApiStatus.Internal
     public void execute(ExecOperations execOperations, Path output, Path input, Path tmpDir, List<Path> classpath) {
