@@ -19,7 +19,7 @@ public class CrochetRepositoriesPlugin implements Plugin<Object> {
             repositories(project.getRepositories());
         } else if (target instanceof Settings settings) {
             repositories(settings.getDependencyResolutionManagement().getRepositories());
-            settings.getGradle().getPlugins().apply(getClass());
+            settings.getGradle().getPlugins().apply(CrochetRepositoriesPlugin.class);
         } else if (!(target instanceof Gradle)) {
             throw new GradleException("This plugin does not support being applied to " + target);
         }
