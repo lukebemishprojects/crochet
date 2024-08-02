@@ -1,7 +1,9 @@
+import dev.lukebemish.crochet.model.VanillaInstallation
+
 plugins {
     id 'java'
     id 'maven-publish'
-    id 'dev.lukebemish.crochet.fabric'
+    id 'dev.lukebemish.crochet'
 }
 
 java.withSourcesJar()
@@ -9,54 +11,10 @@ java.withSourcesJar()
 group = 'dev.lukebemish.crochet.crochet-test'
 version = '1.0.0'
 
-repositories {
-    mavenCentral()
-    maven {
-        url = 'https://maven.fabricmc.net/'
-    }
-}
-
-dependencies {
-    // TODO
-    crochetMappingsNamedToIntermediary 'net.fabricmc:intermediary:1.20.4'
-    crochetMappingsIntermediaryToNamed 'net.fabricmc:intermediary:1.20.4'
-
-    implementation 'dev.lukebemish.autoextension:autoextension:0.1.1'
-    implementation project(':subproject')
-}
-
-jar {
-    manifest {
-        attributes(
-            'Main-Class': 'dev.lukebemish.crochet.CrochetTest'
-        )
-    }
-}
-
-allprojects {
-    apply plugin: 'java'
-    apply plugin: 'maven-publish'
-
-    version = rootProject.version
-    group = rootProject.group
-
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                from components.java
-            }
+crochet {
+    installations {
+        register('common', VanillaInstallation) {
+            neoFormVersion = '1.21-20240613.152323'
         }
-
-        repositories {
-            maven {
-                name 'repo'
-                url rootProject.file('build/repo')
-            }
-        }
-    }
-
-    tasks.register("resolveRuntimeClasspath", Copy) {
-        from(configurations.runtimeClasspath)
-        into(layout.buildDirectory.dir("runtimeClasspath"))
     }
 }
