@@ -1,3 +1,4 @@
+import dev.lukebemish.crochet.model.FabricInstallation
 import dev.lukebemish.crochet.model.VanillaInstallation
 
 plugins {
@@ -13,8 +14,22 @@ version = '1.0.0'
 
 crochet {
     installations {
-        register('common', VanillaInstallation) {
+        register('fabric', FabricInstallation) {
             neoFormVersion = '1.21-20240613.152323'
+
+            dependencies {
+                loader 'net.fabricmc:fabric-loader:0.16.0'
+            }
+        }
+
+        register('vanilla', VanillaInstallation) {
+            neoFormVersion = '1.21-20240613.152323'
+            forSourceSet project.sourceSets.main
+        }
+    }
+    runs {
+        client {
+            client installations.vanilla
         }
     }
 }

@@ -1,17 +1,20 @@
 package dev.lukebemish.crochet.model;
 
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public abstract class CrochetExtension {
-    private final TaskProvider<Task> idePostSync;
+    final TaskProvider<Task> idePostSync;
     final Project project;
     private final ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> installations;
 
@@ -27,13 +30,28 @@ public abstract class CrochetExtension {
             VanillaInstallation.class,
             name -> objects.newInstance(VanillaInstallation.class, name, this)
         );
+        this.installations.registerFactory(
+            FabricInstallation.class,
+            name -> objects.newInstance(FabricInstallation.class, name, this)
+        );
         // This collection should be non-lazy as it configures other lazy things (namely, tasks)
         this.installations.whenObjectAdded(o -> {});
+
+        if (Boolean.getBoolean("idea.sync.active")) {
+            var startParameter = project.getGradle().getStartParameter();
+            var taskRequests = new ArrayList<>(startParameter.getTaskRequests());
+            // The use of this lets us avoid internal classes
+            startParameter.setTaskNames(List.of(idePostSync.getName()));
+            taskRequests.addAll(startParameter.getTaskRequests());
+            startParameter.setTaskRequests(taskRequests);
+        }
     }
 
     public ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> getInstallations() {
         return installations;
     }
+
+    public abstract NamedDomainObjectContainer<Run> getRuns();
 
     private final Map<SourceSet, String> sourceSets = new HashMap<>();
 

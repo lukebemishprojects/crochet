@@ -63,4 +63,6 @@ public abstract class MinecraftInstallation implements Named {
 
     @Nested
     public abstract InstallationDependencies getDependencies();
+
+    protected abstract void forRun(Run run, RunType runType);
 }
