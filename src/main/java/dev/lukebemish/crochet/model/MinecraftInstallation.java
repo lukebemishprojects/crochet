@@ -1,12 +1,17 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.tasks.DownloadAssetsTask;
+import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Named;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
 import java.util.LinkedHashSet;
@@ -18,13 +23,17 @@ public abstract class MinecraftInstallation implements Named {
     private final CrochetExtension crochetExtension;
 
     @SuppressWarnings("UnstableApiUsage")
-    protected final Provider<DependencyScopeConfiguration> accessTransformers;
+    final Provider<DependencyScopeConfiguration> accessTransformers;
     @SuppressWarnings("UnstableApiUsage")
-    protected final Provider<ResolvableConfiguration> accessTransformersPath;
+    final Provider<ResolvableConfiguration> accessTransformersPath;
     @SuppressWarnings("UnstableApiUsage")
-    protected final Provider<ConsumableConfiguration> accessTransformersElements;
+    final Provider<ConsumableConfiguration> accessTransformersElements;
     @SuppressWarnings("UnstableApiUsage")
-    protected final Provider<DependencyScopeConfiguration> accessTransformersApi;
+    final Provider<DependencyScopeConfiguration> accessTransformersApi;
+
+    final TaskProvider<DownloadAssetsTask> downloadAssetsTask;
+
+    final Configuration neoFormConfig;
 
     @SuppressWarnings("UnstableApiUsage")
     @Inject
@@ -33,6 +42,13 @@ public abstract class MinecraftInstallation implements Named {
         this.crochetExtension = extension;
 
         var project = this.crochetExtension.project;
+
+        this.downloadAssetsTask = project.getTasks().register(name+"DownloadAssets", DownloadAssetsTask.class, task -> {
+            task.setGroup("crochet setup");
+            task.getAssetsProperties().convention(project.getLayout().getBuildDirectory().file("crochet/installations/"+name+"/assets.properties"));
+            task.getRuntimeClasspath().from(project.getConfigurations().named(CrochetPlugin.NEOFORM_RUNTIME_CONFIGURATION_NAME));
+        });
+
         this.accessTransformersApi = project.getConfigurations().dependencyScope(name+"AccessTransformersApi", config -> {
             config.fromDependencyCollector(getDependencies().getAccessTransformersApi());
         });
@@ -48,6 +64,8 @@ public abstract class MinecraftInstallation implements Named {
             // TODO: attributes
             config.extendsFrom(this.accessTransformersApi.get());
         });
+
+        this.neoFormConfig = project.getConfigurations().maybeCreate("crochet"+ StringUtils.capitalize(name)+"NeoFormConfig");
     }
 
     @Override

@@ -20,16 +20,20 @@ crochet {
             dependencies {
                 loader 'net.fabricmc:fabric-loader:0.16.0'
             }
+
+            forSourceSet project.sourceSets.main
         }
 
         register('vanilla', VanillaInstallation) {
             neoFormVersion = '1.21-20240613.152323'
-            forSourceSet project.sourceSets.main
         }
     }
     runs {
-        client {
+        vanillaClient {
             client installations.vanilla
+        }
+        fabricClient {
+            client installations.fabric
         }
     }
 }

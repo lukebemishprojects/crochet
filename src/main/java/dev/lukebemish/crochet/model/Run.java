@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.tasks.DownloadAssetsTask;
 import dev.lukebemish.crochet.tasks.GenerateArgFiles;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
@@ -48,23 +49,26 @@ public abstract class Run implements Named {
         this.getToolchain().getImplementation().convention(rootToolchain.getImplementation());
 
         this.argFilesTask = getProject().getTasks().register("generate"+ StringUtils.capitalize(name)+"ArgFiles", GenerateArgFiles.class, task -> {
-            task.getArgFile().convention(getRunDirectory().file("crochet/runs/"+name+"/args.txt"));
-            task.getJvmArgFile().convention(getRunDirectory().file("crochet/runs/"+name+"/jvmargs.txt"));
+            task.setGroup("crochet setup");
+            task.getArgFile().convention(getProject().getLayout().getBuildDirectory().file("crochet/runs/"+name+"/args.txt"));
+            task.getJvmArgFile().convention(getProject().getLayout().getBuildDirectory().file("crochet/runs/"+name+"/jvmargs.txt"));
             task.getJvmArgs().convention(getJvmArgs());
             task.getArgs().convention(getArgs());
             task.getMainClass().convention(getMainClass());
+            task.getRunDirectory().convention(getRunDirectory().map(f -> f.getAsFile().getAbsolutePath()));
         });
 
         this.runTask = this.getProject().getTasks().register("run"+ StringUtils.capitalize(name), JavaExec.class, task -> {
             task.setGroup("crochet");
             task.setDescription("Run the "+name+" configuration");
-            task.getJvmArguments().addAll(getJvmArgs());
             task.getMainClass().set(DEV_LAUNCH_MAIN_CLASS);
             task.classpath(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
             task.classpath(getClasspath());
             task.dependsOn(argFilesTask);
+            task.workingDir(getRunDirectory());
             task.getJavaLauncher().set(getToolchainService().launcherFor(getToolchain().asAction()));
-            task.args("@"+argFilesTask.get().getArgFile().get().getAsFile().getAbsolutePath());
+            task.args("@"+argFilesTask.get().getArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
+            task.jvmArgs("@"+argFilesTask.get().getJvmArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
         });
     }
 
@@ -116,6 +120,10 @@ public abstract class Run implements Named {
             throw new IllegalStateException("Installation already set for run "+this.name);
         }
         this.installation = installation;
+        this.argFilesTask.configure(task -> {
+            task.getAssetsProperties().set(installation.downloadAssetsTask.flatMap(DownloadAssetsTask::getAssetsProperties));
+            task.dependsOn(installation.downloadAssetsTask);
+        });
         installation.forRun(this, runType);
     }
 }

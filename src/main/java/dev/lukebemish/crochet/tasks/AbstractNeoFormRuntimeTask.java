@@ -13,6 +13,8 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -31,6 +33,7 @@ public abstract class AbstractNeoFormRuntimeTask extends DefaultTask {
 
     // We want to use gradle-downloaded artifacts everywhere if possible
     @InputFile
+    @PathSensitive(PathSensitivity.NONE)
     @Optional // TODO: remove this once we implement artifact manifest generation
     public abstract RegularFileProperty getArtifactManifest();
 

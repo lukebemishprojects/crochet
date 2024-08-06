@@ -1,18 +1,24 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.tasks.ExtractConfigTask;
 import dev.lukebemish.crochet.tasks.VanillaArtifactsTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
 
 public abstract class AbstractVanillaInstallation extends MinecraftInstallation {
     final Project project;
-    final Configuration minecraft;
+    final Provider<Configuration> clientMinecraft;
+    final Provider<Configuration> serverMinecraft;
+    final TaskProvider<ExtractConfigTask> extractConfig;
+    final TaskProvider<VanillaArtifactsTask> artifactsTask;
 
     @Inject
     public AbstractVanillaInstallation(String name, CrochetExtension extension) {
@@ -20,9 +26,17 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
 
         this.project = extension.project;
 
-        var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/" + name);
+        var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
 
-        var artifactsTask = project.getTasks().register(name + "MinecraftArtifacts", VanillaArtifactsTask.class, task -> {
+        this.downloadAssetsTask.configure(task -> {
+            task.getArguments().add("--neoform");
+            task.getArguments().add(this.getNeoFormModule().map(m -> m + "@zip"));
+
+            // TODO: artifact manifest
+        });
+
+        this.artifactsTask = project.getTasks().register(name + "MinecraftArtifacts", VanillaArtifactsTask.class, task -> {
+            task.setGroup("crochet setup");
             task.getAccessTransformers().from(this.accessTransformersPath);
             task.getNeoFormModule().set(this.getNeoFormModule().map(m -> m + "@zip"));
             task.getClientResources().set(workingDirectory.get().file("client-extra.jar"));
@@ -34,11 +48,33 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             // TODO: artifact manifest
         });
 
-        this.minecraft = project.getConfigurations().maybeCreate(getName()+"Minecraft");
+        var minecraft = project.getConfigurations().maybeCreate(getName()+"Minecraft");
+
+        this.clientMinecraft = this.project.getConfigurations().register(name+"ClientRuntimeClasspath", configuration -> {
+            configuration.extendsFrom(minecraft);
+            configuration.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
+        });
+        this.serverMinecraft = this.project.getConfigurations().register(name+"ServerRuntimeClasspath", configuration -> {
+            configuration.extendsFrom(minecraft);
+            configuration.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
+        });
+
+        if (Boolean.getBoolean("idea.sync.active")) {
+            this.project.getDependencies().add(
+                minecraft.getName(),
+                project.files(artifactsTask.flatMap(VanillaArtifactsTask::getSourcesAndCompiled)).builtBy(artifactsTask)
+            );
+        } else {
+            this.project.getDependencies().add(
+                minecraft.getName(),
+                project.files(artifactsTask.flatMap(VanillaArtifactsTask::getCompiled)).builtBy(artifactsTask)
+            );
+        }
         this.project.getDependencies().add(
-            minecraft.getName(),
-            project.files(artifactsTask.flatMap(VanillaArtifactsTask::getSourcesAndCompiled)).builtBy(artifactsTask)
+            clientMinecraft.get().getName(),
+            project.files(artifactsTask.flatMap(VanillaArtifactsTask::getClientResources)).builtBy(artifactsTask)
         );
+
         this.project.getDependencies().addProvider(
             minecraft.getName(),
             this.getNeoFormModule(),
@@ -47,6 +83,18 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
                     capabilities.requireCapability("net.neoforged:neoform-dependencies")
                 )
         );
+
+        var neoFormOnlyConfiguration = project.getConfigurations().maybeCreate(name + "NeoFormOnly");
+        this.project.getDependencies().addProvider(
+            neoFormOnlyConfiguration.getName(),
+            this.getNeoFormModule(),
+            dependency -> dependency.setTransitive(false)
+        );
+
+        this.extractConfig = project.getTasks().register(name + "ExtractNeoFormConfig", ExtractConfigTask.class, task -> {
+            task.getNeoForm().from(neoFormOnlyConfiguration);
+            task.getNeoFormConfig().set(workingDirectory.get().file("config.json"));
+        });
 
         extension.idePostSync.configure(t -> t.dependsOn(artifactsTask));
     }
@@ -61,7 +109,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     public void forSourceSet(SourceSet sourceSet) {
         super.forSourceSet(sourceSet);
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
-            config.extendsFrom(minecraft);
+            config.extendsFrom(clientMinecraft.get());
         });
     }
 }

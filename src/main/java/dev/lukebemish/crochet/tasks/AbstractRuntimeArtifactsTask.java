@@ -5,6 +5,8 @@ import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFiles;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import javax.inject.Inject;
@@ -15,6 +17,7 @@ import java.util.function.Consumer;
 public abstract class AbstractRuntimeArtifactsTask extends AbstractNeoFormRuntimeTask {
 
     @InputFiles
+    @PathSensitive(PathSensitivity.NONE)
     public abstract ConfigurableFileCollection getAccessTransformers();
 
     @OutputFiles

@@ -1,0 +1,97 @@
+---- Minecraft Crash Report ----
+// Would you like a cupcake?
+
+Time: 2024-08-05 19:27:43
+Description: Bootstrap
+
+java.lang.ExceptionInInitializerError
+	at net.minecraft.network.chat.contents.TranslatableContents.decompose(TranslatableContents.java:92)
+	at net.minecraft.network.chat.contents.TranslatableContents.visit(TranslatableContents.java:185)
+	at net.minecraft.network.chat.Component.visit(Component.java:103)
+	at net.minecraft.network.chat.FormattedText.getString(FormattedText.java:88)
+	at net.minecraft.network.chat.Component.getString(Component.java:45)
+	at net.minecraft.world.item.CreativeModeTabs.validate(CreativeModeTabs.java:1832)
+	at net.minecraft.server.Bootstrap.bootStrap(Bootstrap.java:54)
+	at net.minecraft.client.main.Main.main(Main.java:114)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at net.neoforged.devlaunch.Main.main(Main.java:55)
+Caused by: java.lang.NullPointerException
+	at java.base/java.io.Reader.<init>(Reader.java:168)
+	at java.base/java.io.InputStreamReader.<init>(InputStreamReader.java:123)
+	at net.minecraft.locale.Language.loadFromJson(Language.java:79)
+	at net.minecraft.locale.Language.parseTranslations(Language.java:72)
+	at net.minecraft.locale.Language.loadDefault(Language.java:39)
+	at net.minecraft.locale.Language.<clinit>(Language.java:34)
+	... 11 more
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+Thread: main
+Stacktrace:
+	at net.minecraft.network.chat.contents.TranslatableContents.decompose(TranslatableContents.java:92)
+	at net.minecraft.network.chat.contents.TranslatableContents.visit(TranslatableContents.java:185)
+	at net.minecraft.network.chat.Component.visit(Component.java:103)
+	at net.minecraft.network.chat.FormattedText.getString(FormattedText.java:88)
+	at net.minecraft.network.chat.Component.getString(Component.java:45)
+	at net.minecraft.world.item.CreativeModeTabs.validate(CreativeModeTabs.java:1832)
+	at net.minecraft.server.Bootstrap.bootStrap(Bootstrap.java:54)
+
+-- Initialization --
+Details:
+	Modules: 
+Stacktrace:
+	at net.minecraft.client.main.Main.main(Main.java:114)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at net.neoforged.devlaunch.Main.main(Main.java:55)
+
+-- System Details --
+Details:
+	Minecraft Version: 1.21
+	Minecraft Version ID: 0bc19753964949a0ae9ec7e68ab43a7c
+	Operating System: Linux (amd64) version 6.8.0-39-generic
+	Java Version: 21.0.1, Oracle Corporation
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode, sharing), Oracle Corporation
+	Memory: 224105736 bytes (213 MiB) / 387973120 bytes (370 MiB) up to 4116709376 bytes (3926 MiB)
+	CPUs: 8
+	Processor Vendor: GenuineIntel
+	Processor Name: 11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz
+	Identifier: Intel64 Family 6 Model 140 Stepping 1
+	Microarchitecture: Tiger Lake
+	Frequency (GHz): 2.60
+	Number of physical packages: 1
+	Number of physical CPUs: 4
+	Number of logical CPUs: 8
+	Graphics card #0 name: TigerLake-LP GT2 [Iris Xe Graphics]
+	Graphics card #0 vendor: Intel Corporation (0x8086)
+	Graphics card #0 VRAM (MiB): 256.00
+	Graphics card #0 deviceId: 0x9a49
+	Graphics card #0 versionInfo: unknown
+	Virtual memory max (MiB): 13992.46
+	Virtual memory used (MiB): 13445.46
+	Swap memory total (MiB): 6144.00
+	Swap memory used (MiB): 1917.00
+	Space in storage for jna.tmpdir (MiB): <path not set>
+	Space in storage for org.lwjgl.system.SharedLibraryExtractPath (MiB): <path not set>
+	Space in storage for io.netty.native.workdir (MiB): <path not set>
+	Space in storage for java.io.tmpdir (MiB): available: 98380.05, total: 351396.16
+	Space in storage for workdir (MiB): available: 98380.05, total: 351396.16
+	JVM Flags: 0 total; 
+	Launched Version: Crochet
+	Backend library: LWJGL version 3.3.3+5
+	Backend API: Unknown
+	Window size: <not initialized>
+	GFLW Platform: <error>
+	GL Caps: ERR
+	GL debug messages: <disabled>
+	Is Modded: Very likely; Client jar signature invalidated
+	Universe: 404
+	Type: Client (map_client.txt)
+	Locale: en_US
+	System encoding: UTF-8
+	File encoding: UTF-8
+	CPU: <unknown>

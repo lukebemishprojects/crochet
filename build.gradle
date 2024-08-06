@@ -69,6 +69,7 @@ abstract class CreateMinecraftLibrariesMavenContent extends DefaultTask {
     abstract DirectoryProperty getOutputSourceDir()
 
     @InputFile
+    @PathSensitive(PathSensitivity.NONE)
     abstract RegularFileProperty getManifestFile()
 
     @TupleConstructor
