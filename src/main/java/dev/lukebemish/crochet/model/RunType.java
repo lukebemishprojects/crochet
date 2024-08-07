@@ -1,6 +1,6 @@
 package dev.lukebemish.crochet.model;
 
-public enum RunType {
+enum RunType {
     CLIENT,
     SERVER,
     DATA

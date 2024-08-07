@@ -4,6 +4,7 @@ import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -45,6 +46,9 @@ public abstract class CrochetExtension {
             taskRequests.addAll(startParameter.getTaskRequests());
             startParameter.setTaskRequests(taskRequests);
         }
+
+        // Runs should also be non-lazy, to trigger task creation
+        this.getRuns().whenObjectAdded(o -> {});
     }
 
     public ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> getInstallations() {
@@ -52,6 +56,9 @@ public abstract class CrochetExtension {
     }
 
     public abstract NamedDomainObjectContainer<Run> getRuns();
+
+    @Nested
+    public abstract NamedDomainObjectContainer<Mod> getMods();
 
     private final Map<SourceSet, String> sourceSets = new HashMap<>();
 

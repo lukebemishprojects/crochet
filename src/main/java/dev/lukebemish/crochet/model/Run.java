@@ -9,25 +9,36 @@ import org.gradle.api.Named;
 import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.SourceDirectorySet;
+import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
+import org.gradle.api.reflect.TypeOf;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmImplementation;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
+import org.gradle.plugins.ide.idea.model.IdeaModel;
+import org.jetbrains.gradle.ext.Application;
+import org.jetbrains.gradle.ext.GradleTask;
+import org.jetbrains.gradle.ext.ProjectSettings;
+import org.jetbrains.gradle.ext.RunConfigurationContainer;
 
 import javax.inject.Inject;
+import java.util.List;
 
 public abstract class Run implements Named {
     private static final String DEV_LAUNCH_MAIN_CLASS = "net.neoforged.devlaunch.Main";
 
     private final String name;
-    final TaskProvider<JavaExec> runTask;
+    private final TaskProvider<JavaExec> runTask;
     final TaskProvider<GenerateArgFiles> argFilesTask;
     private MinecraftInstallation installation;
 
@@ -41,12 +52,20 @@ public abstract class Run implements Named {
     public Run(String name) {
         this.name = name;
 
+        this.getJvmArgs().add("-Dlog4j2.formatMsgNoLookups=true");
+
         this.getRunDirectory().convention(getProject().getLayout().getBuildDirectory().dir("runs/"+name));
 
         var rootToolchain = getProject().getExtensions().getByType(JavaPluginExtension.class).getToolchain();
         this.getToolchain().getLanguageVersion().convention(rootToolchain.getLanguageVersion());
         this.getToolchain().getVendor().convention(rootToolchain.getVendor());
         this.getToolchain().getImplementation().convention(rootToolchain.getImplementation());
+
+        getClasspath().from(getRunMods().map(mods -> {
+            var files = getProject().files();
+            mods.forEach(mod -> files.from(mod.components));
+            return files;
+        }));
 
         this.argFilesTask = getProject().getTasks().register("generate"+ StringUtils.capitalize(name)+"ArgFiles", GenerateArgFiles.class, task -> {
             task.setGroup("crochet setup");
@@ -70,12 +89,54 @@ public abstract class Run implements Named {
             task.args("@"+argFilesTask.get().getArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
             task.jvmArgs("@"+argFilesTask.get().getJvmArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
         });
+
+        if (Boolean.getBoolean("idea.active")) {
+            SourceSetContainer sourceSets = getProject().getExtensions().getByType(SourceSetContainer.class);
+            var dummySourceSet = sourceSets.register("crochet_wrapper_"+name, sourceSet -> {
+                getProject().getConfigurations().getByName(sourceSet.getImplementationConfigurationName()).extendsFrom(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
+                getProject().getDependencies().add(sourceSet.getImplementationConfigurationName(), getClasspath());
+                sourceSet.getResources().setSrcDirs(List.of());
+                sourceSet.getJava().setSrcDirs(List.of());
+            });
+
+            getProject().afterEvaluate(p -> {
+                dummySourceSet.configure(sourceSet -> {
+                    sourceSet.getExtensions().getExtensionsSchema().forEach(schema -> {
+                        if (TypeOf.typeOf(SourceDirectorySet.class).isAssignableFrom(schema.getPublicType())) {
+                            ((SourceDirectorySet) sourceSet.getExtensions().getByName(schema.getName())).setSrcDirs(List.of());
+                        }
+                    });
+                });
+
+                if (Boolean.getBoolean("idea.sync.active")) {
+                    var rootProject = getProject().getRootProject();
+                    var idea = rootProject.getExtensions().getByType(IdeaModel.class);
+                    var settings = ((ExtensionAware) idea.getProject()).getExtensions().getByType(ProjectSettings.class);
+                    var runConfigurations = ((ExtensionAware) settings).getExtensions().getByType(RunConfigurationContainer.class);
+                    var runName = getProject().getParent() == null ? getName() : getName() + " (" + getProject().getPath() + ")";
+                    runConfigurations.register(runName, Application.class, runConfig -> {
+                        runConfig.setMainClass(DEV_LAUNCH_MAIN_CLASS);
+                        runConfig.setJvmArgs("@" + argFilesTask.get().getJvmArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
+                        runConfig.setProgramParameters("@" + argFilesTask.get().getArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
+                        runConfig.moduleRef(getProject(), dummySourceSet.get());
+                        runConfig.setWorkingDirectory(getRunDirectory().get().getAsFile().getAbsolutePath());
+                        runConfig.beforeRun(beforeRun -> {
+                            beforeRun.create(argFilesTask.getName(), GradleTask.class, task -> {
+                                task.setTask(argFilesTask.get());
+                            });
+                        });
+                    });
+                }
+            });
+        }
     }
 
     @Override
     public String getName() {
         return this.name;
     }
+
+    public abstract SetProperty<Mod> getRunMods();
 
     public abstract DirectoryProperty getRunDirectory();
 

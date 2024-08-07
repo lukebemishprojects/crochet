@@ -8,6 +8,7 @@ import org.gradle.api.attributes.AttributeDisambiguationRule;
 import org.gradle.api.attributes.Bundling;
 import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.attributes.java.TargetJvmVersion;
+import org.gradle.api.plugins.UnknownPluginException;
 import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
@@ -17,6 +18,7 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final String LOCAL_RUNTIME_CONFIGURATION_NAME = "localRuntime";
     public static final String NEOFORM_RUNTIME_CONFIGURATION_NAME = "crochetNeoformRuntimeClasspath";
     public static final String DEV_LAUNCH_CONFIGURATION_NAME = "crochetDevLaunchClasspath";
+    public static final String TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME = "crochetTerminalConsoleAppender";
     public static final String VERSION = CrochetPlugin.class.getPackage().getImplementationVersion();
 
     public static final Attribute<String> DISTRIBUTION_ATTRIBUTE = Attribute.of("net.neoforged.distribution", String.class);
@@ -24,6 +26,7 @@ public class CrochetPlugin implements Plugin<Project> {
 
     private static final String NFRT_VERSION = "1.0.1";
     private static final String DEV_LAUNCH_VERSION = "1.0.1";
+    private static final String TERMINAL_CONSOLE_APPENDER_VERSION = "1.3.0";
 
     @Override
     public void apply(@NotNull Project project) {
@@ -48,14 +51,32 @@ public class CrochetPlugin implements Plugin<Project> {
         project.getConfigurations().register(DEV_LAUNCH_CONFIGURATION_NAME);
         project.getDependencies().add(DEV_LAUNCH_CONFIGURATION_NAME, "net.neoforged:DevLaunch:" + DEV_LAUNCH_VERSION);
 
+        project.getConfigurations().register(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME);
+        project.getDependencies().add(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME, "net.minecrell:terminalconsoleappender:" + TERMINAL_CONSOLE_APPENDER_VERSION);
+
         var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 
         applyDisambiguationRules(project);
         applyComponentRules(project);
 
+        setupIntelliJ(project);
+
         // Plan for runs:
         // - start with everything based on a javaexec task
         // - ...pain?
+    }
+
+    private static void setupIntelliJ(Project project) {
+        if (Boolean.getBoolean("idea.sync.active")) {
+            // We break project isolation here -- not that we have a choice, the whole setup is rather terrible
+            var rootProject = project.getRootProject();
+            try {
+                rootProject.getPluginManager().apply("org.jetbrains.gradle.plugin.idea-ext");
+            } catch (UnknownPluginException e) {
+                // Ensures that classpath errors due to multiple subprojects trying to add this are impossible
+                throw new IllegalStateException("Crochet requires the 'org.jetbrains.gradle.plugin.idea-ext' plugin to be available to the root project plugin classpath.", e);
+            }
+        }
     }
 
     private static void applyComponentRules(Project project) {

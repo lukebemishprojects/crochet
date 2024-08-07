@@ -28,12 +28,18 @@ crochet {
             neoFormVersion = '1.21-20240613.152323'
         }
     }
+    mods {
+        main {
+            include sourceSets.main
+        }
+    }
     runs {
         vanillaClient {
             client installations.vanilla
         }
         fabricClient {
             client installations.fabric
+            runMods.add mods.main
         }
     }
 }

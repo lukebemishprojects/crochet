@@ -59,7 +59,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             configuration.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
         });
 
-        if (Boolean.getBoolean("idea.sync.active")) {
+        if (Boolean.getBoolean("idea.active")) {
             this.project.getDependencies().add(
                 minecraft.getName(),
                 project.files(artifactsTask.flatMap(VanillaArtifactsTask::getSourcesAndCompiled)).builtBy(artifactsTask)
