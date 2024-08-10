@@ -54,6 +54,8 @@ public abstract class Run implements Named, Dependencies {
     public Run(String name) {
         this.name = name;
         this.classpath = getProject().getConfigurations().maybeCreate("crochetRun"+StringUtils.capitalize(name)+"Classpath");
+        var defaultRunName = getProject().getBuildTreePath().equals(":") ? getName() : getName() + " (" + getProject().getBuildTreePath() + ")";
+        this.getIdeName().convention(defaultRunName);
 
         this.getJvmArgs().add("-Dlog4j2.formatMsgNoLookups=true");
 
@@ -109,12 +111,17 @@ public abstract class Run implements Named, Dependencies {
                     });
                 });
 
+                var runName = getIdeName().get();
+                if (runName.isBlank()) {
+                    return;
+                }
+
                 if (Boolean.getBoolean("idea.sync.active")) {
+                    // Isolate this logic to only sync...
                     var rootProject = getProject().getRootProject();
                     var idea = rootProject.getExtensions().getByType(IdeaModel.class);
                     var settings = ((ExtensionAware) idea.getProject()).getExtensions().getByType(ProjectSettings.class);
                     var runConfigurations = ((ExtensionAware) settings).getExtensions().getByType(RunConfigurationContainer.class);
-                    var runName = getProject().getParent() == null ? getName() : getName() + " (" + getProject().getPath() + ")";
                     runConfigurations.register(runName, Application.class, runConfig -> {
                         runConfig.setMainClass(DEV_LAUNCH_MAIN_CLASS);
                         runConfig.setJvmArgs("@" + argFilesTask.get().getJvmArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
@@ -137,7 +144,7 @@ public abstract class Run implements Named, Dependencies {
         return this.name;
     }
 
-    protected abstract SetProperty<Mod> getRunMods();
+    public abstract Property<String> getIdeName();
 
     public void mod(Mod mod) {
         getRunMods().add(mod);
@@ -214,4 +221,6 @@ public abstract class Run implements Named, Dependencies {
         });
         installation.forRun(this, runType);
     }
+
+    protected abstract SetProperty<Mod> getRunMods();
 }
