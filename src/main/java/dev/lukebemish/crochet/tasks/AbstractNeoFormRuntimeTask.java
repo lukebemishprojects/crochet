@@ -12,7 +12,6 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
-import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
@@ -34,7 +33,6 @@ public abstract class AbstractNeoFormRuntimeTask extends DefaultTask {
     // We want to use gradle-downloaded artifacts everywhere if possible
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
-    @Optional // TODO: remove this once we implement artifact manifest generation
     public abstract RegularFileProperty getArtifactManifest();
 
     @Nested
@@ -70,13 +68,10 @@ public abstract class AbstractNeoFormRuntimeTask extends DefaultTask {
         fullArguments.add(2, "--work-dir");
         fullArguments.add(3, getTemporaryDir().getAbsolutePath());
 
-        // TODO: re-enable once we have the necessary support
-        /*
         fullArguments.add("--artifact-manifest");
         fullArguments.add(getArtifactManifest().get().getAsFile().getAbsolutePath());
         // Ideally we'd like to provide an option to make this error -- not sure NFRT supports that at present
         fullArguments.add("--warn-on-artifact-manifest-miss");
-        */
 
         // TODO:
         // - verbose logging

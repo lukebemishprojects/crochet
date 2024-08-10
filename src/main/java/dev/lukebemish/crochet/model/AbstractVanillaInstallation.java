@@ -1,10 +1,13 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.tasks.CreateArtifactManifest;
 import dev.lukebemish.crochet.tasks.ExtractConfigTask;
 import dev.lukebemish.crochet.tasks.VanillaArtifactsTask;
+import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -19,6 +22,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     final Provider<Configuration> serverMinecraft;
     final TaskProvider<ExtractConfigTask> extractConfig;
     final TaskProvider<VanillaArtifactsTask> artifactsTask;
+    final TaskProvider<CreateArtifactManifest> createArtifactManifestTask;
 
     @Inject
     public AbstractVanillaInstallation(String name, CrochetExtension extension) {
@@ -28,11 +32,15 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
 
         var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
 
+        this.createArtifactManifestTask = project.getTasks().register(name + "CreateArtifactManifest", CreateArtifactManifest.class, task -> {
+            task.getOutputFile().set(workingDirectory.get().file("artifacts.properties"));
+        });
+
         this.downloadAssetsTask.configure(task -> {
             task.getArguments().add("--neoform");
             task.getArguments().add(this.getNeoFormModule().map(m -> m + "@zip"));
-
-            // TODO: artifact manifest
+            task.getArtifactManifest().set(createArtifactManifestTask.flatMap(CreateArtifactManifest::getOutputFile));
+            task.dependsOn(createArtifactManifestTask);
         });
 
         this.artifactsTask = project.getTasks().register(name + "MinecraftArtifacts", VanillaArtifactsTask.class, task -> {
@@ -44,19 +52,58 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             task.getSources().set(workingDirectory.get().file("sources.jar"));
             task.getSourcesAndCompiled().set(workingDirectory.get().file("sources-and-compiled.jar"));
             task.getRuntimeClasspath().from(project.getConfigurations().named(CrochetPlugin.NEOFORM_RUNTIME_CONFIGURATION_NAME));
-
-            // TODO: artifact manifest
+            task.getArtifactManifest().set(createArtifactManifestTask.flatMap(CreateArtifactManifest::getOutputFile));
+            task.dependsOn(createArtifactManifestTask);
         });
 
-        var minecraft = project.getConfigurations().maybeCreate(getName()+"Minecraft");
+        var minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
+        var minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config ->
+            config.extendsFrom(minecraftDependencies)
+        );
 
-        this.clientMinecraft = this.project.getConfigurations().register(name+"ClientRuntimeClasspath", configuration -> {
+        this.clientMinecraft = this.project.getConfigurations().register("crochet"+StringUtils.capitalize(name)+"ClientRuntimeClasspath", configuration -> {
             configuration.extendsFrom(minecraft);
             configuration.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
         });
-        this.serverMinecraft = this.project.getConfigurations().register(name+"ServerRuntimeClasspath", configuration -> {
+        this.serverMinecraft = this.project.getConfigurations().register("crochet"+StringUtils.capitalize(name)+"ServerRuntimeClasspath", configuration -> {
             configuration.extendsFrom(minecraft);
             configuration.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
+        });
+
+        var neoformCompileClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformCompileClasspath", config -> {
+            config.extendsFrom(minecraftDependencies);
+            config.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+            });
+        });
+        var neoformRuntimeClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformRuntimeClasspath", config -> {
+            config.extendsFrom(minecraftDependencies);
+            config.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+            });
+        });
+
+        this.project.getDependencies().addProvider(
+            minecraftDependencies.getName(),
+            this.getNeoFormModule(),
+            dependency ->
+                dependency.capabilities(capabilities ->
+                    capabilities.requireCapability("net.neoforged:neoform-dependencies")
+                )
+        );
+
+        var neoform = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoForm");
+        this.project.getDependencies().addProvider(
+            neoform.getName(),
+            this.getNeoFormModule()
+        );
+
+        this.createArtifactManifestTask.configure(task -> {
+            task.configuration(neoformCompileClasspath);
+            task.configuration(neoformRuntimeClasspath);
+            task.configuration(neoform);
         });
 
         if (Boolean.getBoolean("idea.active")) {
@@ -75,16 +122,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             project.files(artifactsTask.flatMap(VanillaArtifactsTask::getClientResources)).builtBy(artifactsTask)
         );
 
-        this.project.getDependencies().addProvider(
-            minecraft.getName(),
-            this.getNeoFormModule(),
-            dependency ->
-                dependency.capabilities(capabilities ->
-                    capabilities.requireCapability("net.neoforged:neoform-dependencies")
-                )
-        );
-
-        var neoFormOnlyConfiguration = project.getConfigurations().maybeCreate(name + "NeoFormOnly");
+        var neoFormOnlyConfiguration = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(name)+"NeoFormOnly");
         this.project.getDependencies().addProvider(
             neoFormOnlyConfiguration.getName(),
             this.getNeoFormModule(),
