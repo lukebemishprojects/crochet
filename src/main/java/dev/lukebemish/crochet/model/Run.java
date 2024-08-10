@@ -74,6 +74,10 @@ public abstract class Run implements Named, Dependencies {
             task.getRunDirectory().convention(getRunDirectory().map(f -> f.getAsFile().getAbsolutePath()));
         });
 
+        getProject().getExtensions().getByType(CrochetExtension.class).idePostSync.configure(task -> {
+            task.dependsOn(argFilesTask);
+        });
+
         this.runTask = this.getProject().getTasks().register("run"+ StringUtils.capitalize(name), JavaExec.class, task -> {
             task.setGroup("crochet");
             task.setDescription("Run the "+name+" configuration");
