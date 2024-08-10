@@ -72,7 +72,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             // and try and pull it from the source compile tasks I guess?
             attributes.attributeProvider(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, run.getToolchain().getLanguageVersion().map(JavaLanguageVersion::asInt).orElse(21));
         });
-        run.getClasspath().from(runtimeClasspath);
+        run.classpath.extendsFrom(runtimeClasspath);
         run.getJvmArgs().addAll(
             "-Dfabric.development=true",
             // TODO: remap classpath file

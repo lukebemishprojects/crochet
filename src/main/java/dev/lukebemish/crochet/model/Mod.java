@@ -13,11 +13,14 @@ import javax.inject.Inject;
 public abstract class Mod implements Dependencies, Named {
     private final String name;
     protected final Configuration components;
+    protected final Configuration classpath;
 
     @Inject
     public Mod(String name) {
         this.name = name;
         this.components = getProject().getConfigurations().create("crochetMod"+ StringUtils.capitalize(name) + "Components");
+        this.classpath = getProject().getConfigurations().create("crochetMod"+ StringUtils.capitalize(name) + "Classpath");
+        this.classpath.extendsFrom(this.components);
         components.fromDependencyCollector(getInclude());
     }
 
@@ -30,9 +33,11 @@ public abstract class Mod implements Dependencies, Named {
 
     public void include(SourceSet sourceSet) {
         getInclude().add(sourceSet.getOutput());
+        classpath.extendsFrom(getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()));
     }
 
     public void include(Mod mod) {
         components.extendsFrom(mod.components);
+        classpath.extendsFrom(mod.classpath);
     }
 }

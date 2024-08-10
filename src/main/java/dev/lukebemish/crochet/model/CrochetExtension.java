@@ -55,6 +55,7 @@ public abstract class CrochetExtension {
         return installations;
     }
 
+    @Nested
     public abstract NamedDomainObjectContainer<Run> getRuns();
 
     @Nested

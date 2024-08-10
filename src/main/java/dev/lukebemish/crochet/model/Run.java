@@ -6,14 +6,16 @@ import dev.lukebemish.crochet.tasks.GenerateArgFiles;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
-import org.gradle.api.Project;
-import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.dsl.Dependencies;
+import org.gradle.api.artifacts.dsl.DependencyCollector;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.reflect.TypeOf;
 import org.gradle.api.tasks.JavaExec;
@@ -34,7 +36,8 @@ import org.jetbrains.gradle.ext.RunConfigurationContainer;
 import javax.inject.Inject;
 import java.util.List;
 
-public abstract class Run implements Named {
+@SuppressWarnings("UnstableApiUsage")
+public abstract class Run implements Named, Dependencies {
     private static final String DEV_LAUNCH_MAIN_CLASS = "net.neoforged.devlaunch.Main";
 
     private final String name;
@@ -42,8 +45,7 @@ public abstract class Run implements Named {
     final TaskProvider<GenerateArgFiles> argFilesTask;
     private MinecraftInstallation installation;
 
-    @Inject
-    protected abstract Project getProject();
+    final Configuration classpath;
 
     @Inject
     protected abstract JavaToolchainService getToolchainService();
@@ -51,6 +53,7 @@ public abstract class Run implements Named {
     @Inject
     public Run(String name) {
         this.name = name;
+        this.classpath = getProject().getConfigurations().maybeCreate("crochetRun"+StringUtils.capitalize(name)+"Classpath");
 
         this.getJvmArgs().add("-Dlog4j2.formatMsgNoLookups=true");
 
@@ -60,12 +63,6 @@ public abstract class Run implements Named {
         this.getToolchain().getLanguageVersion().convention(rootToolchain.getLanguageVersion());
         this.getToolchain().getVendor().convention(rootToolchain.getVendor());
         this.getToolchain().getImplementation().convention(rootToolchain.getImplementation());
-
-        getClasspath().from(getRunMods().map(mods -> {
-            var files = getProject().files();
-            mods.forEach(mod -> files.from(mod.components));
-            return files;
-        }));
 
         this.argFilesTask = getProject().getTasks().register("generate"+ StringUtils.capitalize(name)+"ArgFiles", GenerateArgFiles.class, task -> {
             task.setGroup("crochet setup");
@@ -82,7 +79,7 @@ public abstract class Run implements Named {
             task.setDescription("Run the "+name+" configuration");
             task.getMainClass().set(DEV_LAUNCH_MAIN_CLASS);
             task.classpath(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
-            task.classpath(getClasspath());
+            task.classpath(classpath);
             task.dependsOn(argFilesTask);
             task.workingDir(getRunDirectory());
             task.getJavaLauncher().set(getToolchainService().launcherFor(getToolchain().asAction()));
@@ -94,7 +91,7 @@ public abstract class Run implements Named {
             SourceSetContainer sourceSets = getProject().getExtensions().getByType(SourceSetContainer.class);
             var dummySourceSet = sourceSets.register("crochet_wrapper_"+name, sourceSet -> {
                 getProject().getConfigurations().getByName(sourceSet.getImplementationConfigurationName()).extendsFrom(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
-                getProject().getDependencies().add(sourceSet.getImplementationConfigurationName(), getClasspath());
+                getProject().getConfigurations().getByName(sourceSet.getImplementationConfigurationName()).extendsFrom(classpath);
                 sourceSet.getResources().setSrcDirs(List.of());
                 sourceSet.getJava().setSrcDirs(List.of());
             });
@@ -136,7 +133,33 @@ public abstract class Run implements Named {
         return this.name;
     }
 
-    public abstract SetProperty<Mod> getRunMods();
+    protected abstract SetProperty<Mod> getRunMods();
+
+    public void mod(Mod mod) {
+        getRunMods().add(mod);
+        classpath.extendsFrom(mod.classpath);
+    }
+
+    public void mod(Provider<Mod> mod) {
+        getRunMods().add(mod);
+        classpath.extendsFrom(mod.get().classpath);
+    }
+
+    public void mods(Iterable<?> mods) {
+        for (var part : mods) {
+            if (part instanceof Mod mod) {
+                mod(mod);
+            } else if (part instanceof Provider<?> provider && provider.get() instanceof Mod mod) {
+                mod(mod);
+            } else {
+                throw new IllegalArgumentException("Unsupported mod type: "+part.getClass());
+            }
+        }
+    }
+
+    public void mods(Object... mods) {
+        mods(List.of(mods));
+    }
 
     public abstract DirectoryProperty getRunDirectory();
 
@@ -166,7 +189,7 @@ public abstract class Run implements Named {
         }
     }
 
-    public abstract ConfigurableFileCollection getClasspath();
+    public abstract DependencyCollector getClasspath();
 
     public void client(MinecraftInstallation installation) {
         installation(installation, RunType.CLIENT);

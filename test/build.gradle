@@ -39,7 +39,7 @@ crochet {
         }
         fabricClient {
             client installations.fabric
-            runMods.add mods.main
+            mod mods.main
         }
     }
 }

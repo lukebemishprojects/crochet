@@ -24,7 +24,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
         switch (runType) {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
-                run.getClasspath().from(clientMinecraft);
+                run.classpath.extendsFrom(clientMinecraft.get());
                 run.getArgs().addAll(
                     "--gameDir", ".",
                     "--assetIndex", "${assets_index_name}",
@@ -34,12 +34,12 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
                 );
             }
             case SERVER -> {
-                run.getClasspath().from(serverMinecraft);
+                run.classpath.extendsFrom(serverMinecraft.get());
                 run.getMainClass().convention("net.minecraft.server.Main");
             }
             case DATA -> {
                 // TODO: what's the right stuff to go here?
-                run.getClasspath().from(clientMinecraft);
+                run.classpath.extendsFrom(clientMinecraft.get());
                 run.getMainClass().convention("net.minecraft.data.Main");
             }
         }
