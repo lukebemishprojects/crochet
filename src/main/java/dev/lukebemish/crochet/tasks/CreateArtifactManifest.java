@@ -3,7 +3,6 @@ package dev.lukebemish.crochet.tasks;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.component.ComponentArtifactIdentifier;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.artifacts.result.ResolvedArtifactResult;
 import org.gradle.api.file.RegularFileProperty;
@@ -13,7 +12,6 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -29,34 +27,21 @@ public abstract class CreateArtifactManifest extends DefaultTask {
     public abstract RegularFileProperty getOutputFile();
 
     @Input
-    protected abstract ListProperty<String> getArtifactFiles();
+    public abstract ListProperty<String> getArtifactFiles();
 
     @Input
-    protected abstract ListProperty<ComponentArtifactIdentifier> getArtifactIdentifiers();
+    public abstract ListProperty<String> getArtifactIdentifiers();
 
     @TaskAction
     public void execute() {
         Properties properties = new Properties();
         List<String> files = getArtifactFiles().get();
-        List<ComponentArtifactIdentifier> identifiers = getArtifactIdentifiers().get();
+        List<String> identifiers = getArtifactIdentifiers().get();
         for (int i = 0; i < files.size(); i++) {
             var file = files.get(i);
             var artifactIdentifier = identifiers.get(i);
-            var identifier = artifactIdentifier.getComponentIdentifier();
-            if (identifier instanceof ModuleComponentIdentifier moduleId) {
-                var key = moduleId.getGroup() + ":" + moduleId.getModule() + ":" + moduleId.getVersion();
-                var actualFile = new File(file);
-                var name = actualFile.getName();
-                var rest = name.substring(0, name.lastIndexOf('.'));
-                var forClassifier = moduleId.getModule() + "-" + moduleId.getVersion() + "-";
-                if (rest.startsWith(forClassifier)) {
-                    key = key + ":" + rest.substring(forClassifier.length());
-                }
-                var extension = name.substring(name.lastIndexOf('.') + 1);
-                if (!extension.equals("jar")) {
-                    key = key + "@" + extension;
-                }
-                properties.setProperty(key, file);
+            if (!artifactIdentifier.isBlank()) {
+                properties.setProperty(artifactIdentifier, file);
             }
         }
         getOutputFile().get().getAsFile().getParentFile().mkdirs();
@@ -81,10 +66,29 @@ public abstract class CreateArtifactManifest extends DefaultTask {
         }
     }
 
-    public static class IdExtractor implements Transformer<List<ComponentArtifactIdentifier>, Collection<ResolvedArtifactResult>> {
+    public static class IdExtractor implements Transformer<List<String>, Collection<ResolvedArtifactResult>> {
         @Override
-        public List<ComponentArtifactIdentifier> transform(Collection<ResolvedArtifactResult> artifacts) {
-            return artifacts.stream().map(ResolvedArtifactResult::getId).collect(Collectors.toList());
+        public List<String> transform(Collection<ResolvedArtifactResult> artifacts) {
+            return artifacts.stream().map(resolvedArtifactResult -> {
+                var file = resolvedArtifactResult.getFile();
+                var artifactIdentifier = resolvedArtifactResult.getId();
+                var identifier = artifactIdentifier.getComponentIdentifier();
+                if (identifier instanceof ModuleComponentIdentifier moduleId) {
+                    var key = moduleId.getGroup() + ":" + moduleId.getModule() + ":" + moduleId.getVersion();
+                    var name = file.getName();
+                    var rest = name.substring(0, name.lastIndexOf('.'));
+                    var forClassifier = moduleId.getModule() + "-" + moduleId.getVersion() + "-";
+                    if (rest.startsWith(forClassifier)) {
+                        key = key + ":" + rest.substring(forClassifier.length());
+                    }
+                    var extension = name.substring(name.lastIndexOf('.') + 1);
+                    if (!extension.equals("jar")) {
+                        key = key + "@" + extension;
+                    }
+                    return key;
+                }
+                return "";
+            }).collect(Collectors.toList());
         }
     }
 }

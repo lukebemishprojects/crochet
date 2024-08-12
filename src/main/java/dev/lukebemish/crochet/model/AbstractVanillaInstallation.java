@@ -8,6 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.attributes.Usage;
+import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -23,6 +24,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     final TaskProvider<ExtractConfigTask> extractConfig;
     final TaskProvider<VanillaArtifactsTask> artifactsTask;
     final TaskProvider<CreateArtifactManifest> createArtifactManifestTask;
+    final Provider<Directory> workingDirectory;
 
     @Inject
     public AbstractVanillaInstallation(String name, CrochetExtension extension) {
@@ -31,8 +33,9 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.project = extension.project;
 
         var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
+        this.workingDirectory = workingDirectory;
 
-        this.createArtifactManifestTask = project.getTasks().register(name + "CreateArtifactManifest", CreateArtifactManifest.class, task -> {
+        this.createArtifactManifestTask = project.getTasks().register(name + "CrochetCreateArtifactManifest", CreateArtifactManifest.class, task -> {
             task.getOutputFile().set(workingDirectory.get().file("artifacts.properties"));
         });
 
@@ -43,7 +46,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             task.dependsOn(createArtifactManifestTask);
         });
 
-        this.artifactsTask = project.getTasks().register(name + "MinecraftArtifacts", VanillaArtifactsTask.class, task -> {
+        this.artifactsTask = project.getTasks().register(name + "CrochetMinecraftArtifacts", VanillaArtifactsTask.class, task -> {
             task.setGroup("crochet setup");
             task.getAccessTransformers().from(this.accessTransformersPath);
             task.getNeoFormModule().set(this.getNeoFormModule().map(m -> m + "@zip"));
@@ -129,7 +132,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             dependency -> dependency.setTransitive(false)
         );
 
-        this.extractConfig = project.getTasks().register(name + "ExtractNeoFormConfig", ExtractConfigTask.class, task -> {
+        this.extractConfig = project.getTasks().register(name + "CrochetExtractNeoFormConfig", ExtractConfigTask.class, task -> {
             task.getNeoForm().from(neoFormOnlyConfiguration);
             task.getNeoFormConfig().set(workingDirectory.get().file("config.json"));
         });

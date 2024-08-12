@@ -4,6 +4,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -21,7 +22,16 @@ public abstract class AbstractRuntimeArtifactsTask extends AbstractNeoFormRuntim
     public abstract ConfigurableFileCollection getAccessTransformers();
 
     @OutputFiles
-    abstract MapProperty<String, RegularFile> getTargets();
+    public abstract MapProperty<String, RegularFile> getTargets();
+
+    public record StepOutput(String step, String outputId) {
+        public StepOutput(String step) {
+            this(step, "output");
+        }
+    }
+
+    @Nested
+    public abstract MapProperty<String, StepOutput> getCustomResults();
 
     @Inject
     public AbstractRuntimeArtifactsTask() {}
@@ -43,6 +53,10 @@ public abstract class AbstractRuntimeArtifactsTask extends AbstractNeoFormRuntim
         // Each output comes as a --write-result=nameoftarget:path/to/output
         for (var target : getTargets().get().entrySet()) {
             arguments.add("--write-result=" + target.getKey() + ":" + target.getValue().getAsFile().getAbsolutePath());
+        }
+
+        for (var customResult : getCustomResults().get().entrySet()) {
+            arguments.add("--add-result=" + customResult.getKey() + ":" + customResult.getValue().step() + ":" + customResult.getValue().outputId());
         }
 
         collectArguments(arguments::add);
