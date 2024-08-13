@@ -16,7 +16,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
     }
 
     @Override
-    protected void forRun(Run run, RunType runType) {
+    void forRun(Run run, RunType runType) {
         run.argFilesTask.configure(task -> {
             task.dependsOn(extractConfig);
             task.getNeoFormConfig().set(extractConfig.flatMap(ExtractConfigTask::getNeoFormConfig));

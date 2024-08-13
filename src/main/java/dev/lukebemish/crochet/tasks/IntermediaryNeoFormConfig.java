@@ -46,6 +46,9 @@ public abstract class IntermediaryNeoFormConfig extends DefaultTask {
                     "type": "downloadServer"
                   },
                   {
+                    "type": "downloadClientMappings"
+                  },
+                  {
                     "name": "extractServer",
                     "type": "bundleExtractJar",
                     "input": "{downloadServerOutput}"
@@ -91,6 +94,9 @@ public abstract class IntermediaryNeoFormConfig extends DefaultTask {
                     "type": "downloadClient"
                   },
                   {
+                    "type": "downloadClientMappings"
+                  },
+                  {
                     "type": "strip",
                     "input": "{downloadClientOutput}"
                   },
@@ -117,6 +123,9 @@ public abstract class IntermediaryNeoFormConfig extends DefaultTask {
                   },
                   {
                     "type": "downloadServer"
+                  },
+                  {
+                    "type": "downloadClientMappings"
                   },
                   {
                     "name": "extractServer",

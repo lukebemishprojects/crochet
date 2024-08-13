@@ -10,9 +10,9 @@ public abstract class MergedMappingsSource implements MappingsSource {
     public abstract ListProperty<MappingsSource> getInputSources();
 
     @Override
-    public IMappingFile getMappings() {
+    public IMappingFile makeMappings() {
         return getInputSources().get().stream()
-            .map(MappingsSource::getMappings)
+            .map(MappingsSource::makeMappings)
             .reduce(IMappingFile::merge).orElse(IMappingBuilder.create("source", "target").build().getMap("source", "target"));
     }
 }

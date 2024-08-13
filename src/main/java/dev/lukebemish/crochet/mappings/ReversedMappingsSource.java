@@ -9,7 +9,7 @@ public abstract class ReversedMappingsSource implements MappingsSource {
     public abstract Property<MappingsSource> getInputMappings();
 
     @Override
-    public IMappingFile getMappings() {
-        return getInputMappings().get().getMappings().reverse();
+    public IMappingFile makeMappings() {
+        return getInputMappings().get().makeMappings().reverse();
     }
 }

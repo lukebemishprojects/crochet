@@ -24,7 +24,7 @@ public abstract class MappingsWriter extends DefaultTask {
 
     @TaskAction
     void execute() throws IOException {
-        IMappingFile mappings = getInputMappings().get().getMappings();
+        IMappingFile mappings = getInputMappings().get().makeMappings();
         mappings.write(getOutputMappings().get().getAsFile().toPath(), getTargetFormat().get(), false);
     }
 }

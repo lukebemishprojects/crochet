@@ -15,7 +15,7 @@ public abstract class FileMappingSource implements MappingsSource {
     public abstract RegularFileProperty getMappingsFile();
 
     @Override
-    public IMappingFile getMappings() {
+    public IMappingFile makeMappings() {
         try {
             return IMappingFile.load(getMappingsFile().get().getAsFile());
         } catch (IOException e) {

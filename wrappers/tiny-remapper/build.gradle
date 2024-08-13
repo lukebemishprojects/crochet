@@ -1,0 +1,32 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'dev.lukebemish.crochet.wrappers'
+// TODO: managed versioning
+version = '0.1.0'
+
+repositories {
+    mavenCentral()
+    maven {
+        url = 'https://maven.fabricmc.net/'
+    }
+}
+
+dependencies {
+    implementation 'net.fabricmc:tiny-remapper:0.9.0'
+    implementation 'info.picocli:picocli:4.7.6'
+    implementation 'net.neoforged:srgutils:1.0.9'
+    annotationProcessor 'info.picocli:picocli-codegen:4.7.6'
+}
+
+compileJava {
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'dev.lukebemish.crochet.wrappers.tinyremapper.Main'
+        attributes 'Implementation-Version' : project.version as String
+    }
+}

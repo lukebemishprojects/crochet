@@ -106,6 +106,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.createArtifactManifestTask.configure(task -> {
             task.configuration(neoformCompileClasspath);
             task.configuration(neoformRuntimeClasspath);
+            task.configuration(project.getConfigurations().getByName(CrochetPlugin.NFRT_DEPENDENCIES_CONFIGURATION_NAME));
             task.configuration(neoform);
         });
 

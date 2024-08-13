@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.internal;
 import dev.lukebemish.crochet.model.CrochetExtension;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeDisambiguationRule;
 import org.gradle.api.attributes.Bundling;
@@ -18,14 +19,17 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final String LOCAL_RUNTIME_CONFIGURATION_NAME = "localRuntime";
     public static final String NEOFORM_RUNTIME_CONFIGURATION_NAME = "crochetNeoformRuntimeClasspath";
     public static final String INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME = "crochetIntermediaryNeoformDependencies";
+    public static final String NFRT_DEPENDENCIES_CONFIGURATION_NAME = "crochetNeoFormRuntimeDependencies";
     public static final String DEV_LAUNCH_CONFIGURATION_NAME = "crochetDevLaunchClasspath";
     public static final String TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME = "crochetTerminalConsoleAppender";
+    public static final String TINY_REMAPPER_CONFIGURATION_NAME = "crochetTinyRemapper";
+
     public static final String VERSION = CrochetPlugin.class.getPackage().getImplementationVersion();
 
     public static final Attribute<String> DISTRIBUTION_ATTRIBUTE = Attribute.of("net.neoforged.distribution", String.class);
     public static final Attribute<String> OPERATING_SYSTEM_ATTRIBUTE = Attribute.of("net.neoforged.operatingsystem", String.class);
 
-    private static final String NFRT_VERSION = "1.0.1";
+    private static final String NFRT_VERSION = "1.0.4";
     private static final String DEV_LAUNCH_VERSION = "1.0.1";
     private static final String TERMINAL_CONSOLE_APPENDER_VERSION = "1.3.0";
 
@@ -49,6 +53,7 @@ public class CrochetPlugin implements Plugin<Project> {
 
         var objects = project.getObjects();
 
+        // intermediary neoform configs
         project.getConfigurations().register(INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME, config -> {
             config.setTransitive(false);
         });
@@ -56,6 +61,7 @@ public class CrochetPlugin implements Plugin<Project> {
         project.getDependencies().add(INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME, IntermediaryNeoFormDependencies.ART);
         project.getDependencies().add(INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME, IntermediaryNeoFormDependencies.INSTALLERTOOLS);
 
+        // NFRT
         project.getConfigurations().register(NEOFORM_RUNTIME_CONFIGURATION_NAME, config -> config.attributes(attributes -> {
             // NFRT runs on 21 in general
             attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
@@ -64,6 +70,20 @@ public class CrochetPlugin implements Plugin<Project> {
         }));
         project.getDependencies().add(NEOFORM_RUNTIME_CONFIGURATION_NAME, "net.neoforged:neoform-runtime:" + NFRT_VERSION);
 
+        project.getConfigurations().register(NFRT_DEPENDENCIES_CONFIGURATION_NAME, config -> config.attributes(attributes -> {
+            // NFRT runs on 21 in general
+            attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
+        }));
+        var nfrtDeps = (ModuleDependency) project.getDependencies().add(NFRT_DEPENDENCIES_CONFIGURATION_NAME, "net.neoforged:neoform-runtime:" + NFRT_VERSION);
+        nfrtDeps.capabilities(capabilities -> {
+            capabilities.requireCapability("net.neoforged:neoform-runtime-external-tools");
+        });
+
+        // tiny-remapper
+        project.getConfigurations().register(TINY_REMAPPER_CONFIGURATION_NAME);
+        project.getDependencies().add(TINY_REMAPPER_CONFIGURATION_NAME, "dev.lukebemish.crochet.wrappers:tiny-remapper:" + VERSION);
+
+        // runs
         project.getConfigurations().register(DEV_LAUNCH_CONFIGURATION_NAME);
         project.getDependencies().add(DEV_LAUNCH_CONFIGURATION_NAME, "net.neoforged:DevLaunch:" + DEV_LAUNCH_VERSION);
 

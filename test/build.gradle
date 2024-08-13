@@ -23,7 +23,9 @@ crochet {
                 loader 'net.fabricmc:fabric-loader:0.16.0'
             }
 
-            forSourceSet project.sourceSets.main
+            forSourceSet(project.sourceSets.main) {
+                modImplementation 'net.fabricmc.fabric-api:fabric-api:0.102.0+1.21'
+            }
         }
 
         register('vanilla', VanillaInstallation) {

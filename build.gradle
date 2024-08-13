@@ -132,7 +132,3 @@ sourceSets {
         }
     }
 }
-
-subprojects {
-    version = rootProject.version
-}

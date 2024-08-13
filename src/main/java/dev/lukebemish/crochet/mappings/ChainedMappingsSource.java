@@ -10,9 +10,9 @@ public abstract class ChainedMappingsSource implements MappingsSource {
     public abstract ListProperty<MappingsSource> getInputSources();
 
     @Override
-    public IMappingFile getMappings() {
+    public IMappingFile makeMappings() {
         return getInputSources().get().stream()
-            .map(MappingsSource::getMappings)
+            .map(MappingsSource::makeMappings)
             .reduce(IMappingFile::chain).orElse(IMappingBuilder.create("source", "target").build().getMap("source", "target"));
     }
 }
