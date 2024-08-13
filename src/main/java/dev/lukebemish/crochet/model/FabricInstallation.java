@@ -8,6 +8,7 @@ import dev.lukebemish.crochet.mappings.ReversedMappingsSource;
 import dev.lukebemish.crochet.tasks.ExtractConfigTask;
 import dev.lukebemish.crochet.tasks.IntermediaryNeoFormConfig;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
+import dev.lukebemish.crochet.tasks.RemapJarsTask;
 import dev.lukebemish.crochet.tasks.WriteFile;
 import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
@@ -33,10 +34,15 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Configuration loaderConfiguration;
     final TaskProvider<WriteFile> writeLog4jConfig;
 
+    private final CrochetExtension extension;
+    private final TaskProvider<MappingsWriter> intermediaryToNamed;
+
     @SuppressWarnings("UnstableApiUsage")
     @Inject
     public FabricInstallation(String name, CrochetExtension extension) {
         super(name, extension);
+
+        this.extension = extension;
 
         this.writeLog4jConfig = project.getTasks().register("writeCrochet"+StringUtils.capitalize(name)+"Log4jConfig", WriteFile.class, task -> {
             task.getContents().convention(
@@ -107,7 +113,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var chainedSpec = objects.newInstance(ChainedMappingsSource.class);
         chainedSpec.getInputSources().set(List.of(intermediaryReversed, named));
 
-        project.getTasks().register("crochet"+StringUtils.capitalize(name)+"IntermediaryToNamed", MappingsWriter.class, task -> {
+        this.intermediaryToNamed = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"IntermediaryToNamed", MappingsWriter.class, task -> {
             task.getInputMappings().set(chainedSpec);
             task.dependsOn(intermediaryMappings);
             task.dependsOn(this.artifactsTask);
@@ -163,6 +169,44 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         modRuntimeClasspath.extendsFrom(modApi);
         runtimeElements.extendsFrom(modApi);
         apiElements.extendsFrom(modApi);
+
+        var remappedCompileClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("remapped", "compileClasspath"));
+        project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).extendsFrom(remappedCompileClasspath);
+        var remappedRuntimeClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("remapped", "runtimeClasspath"));
+        project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).extendsFrom(remappedRuntimeClasspath);
+
+        var compileRemappingClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapping", "compileClasspath"));
+        var runtimeRemappingClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapping", "runtimeClasspath"));
+
+        compileRemappingClasspath.extendsFrom(modCompileClasspath);
+        compileRemappingClasspath.extendsFrom(clientMinecraft.get());
+        compileRemappingClasspath.extendsFrom(loaderConfiguration);
+
+        runtimeRemappingClasspath.extendsFrom(modRuntimeClasspath);
+        runtimeRemappingClasspath.extendsFrom(clientMinecraft.get());
+        runtimeRemappingClasspath.extendsFrom(loaderConfiguration);
+
+        var remappedCompileMods = project.files();
+        project.getDependencies().add(remappedCompileClasspath.getName(), remappedCompileMods);
+        var remappedRuntimeMods = project.files();
+        project.getDependencies().add(remappedRuntimeClasspath.getName(), remappedRuntimeMods);
+
+        var remapCompileMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspath"), RemapJarsTask.class, task -> {
+            task.setup(modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspath"), remappedCompileMods);
+            task.dependsOn(intermediaryToNamed);
+            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+        });
+
+        var remapRuntimeMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspath"), RemapJarsTask.class, task -> {
+            task.setup(modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspath"), remappedRuntimeMods);
+            task.dependsOn(intermediaryToNamed);
+            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+        });
+
+        extension.idePostSync.configure(task -> {
+            task.dependsOn(remapCompileMods);
+            task.dependsOn(remapRuntimeMods);
+        });
 
         // TODO: isolate project dependencies and treat them differently
     }
