@@ -64,11 +64,11 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             config.extendsFrom(minecraftDependencies)
         );
 
-        this.clientMinecraft = this.project.getConfigurations().register("crochet"+StringUtils.capitalize(name)+"ClientRuntimeClasspath", configuration -> {
+        this.clientMinecraft = this.project.getConfigurations().register("crochet"+StringUtils.capitalize(name)+"ClientMinecraft", configuration -> {
             configuration.extendsFrom(minecraft);
             configuration.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
         });
-        this.serverMinecraft = this.project.getConfigurations().register("crochet"+StringUtils.capitalize(name)+"ServerRuntimeClasspath", configuration -> {
+        this.serverMinecraft = this.project.getConfigurations().register("crochet"+StringUtils.capitalize(name)+"ServerMinecraft", configuration -> {
             configuration.extendsFrom(minecraft);
             configuration.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
         });

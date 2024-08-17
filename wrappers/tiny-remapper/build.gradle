@@ -17,7 +17,10 @@ dependencies {
     implementation 'net.fabricmc:tiny-remapper:0.9.0'
     implementation 'info.picocli:picocli:4.7.6'
     implementation 'net.neoforged:srgutils:1.0.9'
+    implementation 'net.fabricmc:access-widener:2.1.0'
+    implementation 'com.google.code.gson:gson:2.11.0'
     annotationProcessor 'info.picocli:picocli-codegen:4.7.6'
+    implementation project(':wrappers:shared')
 }
 
 compileJava {
@@ -26,7 +29,7 @@ compileJava {
 
 jar {
     manifest {
-        attributes 'Main-Class': 'dev.lukebemish.crochet.wrappers.tinyremapper.Main'
+        attributes 'Main-Class': 'dev.lukebemish.crochet.wrappers.tinyremapper.RemapMods'
         attributes 'Implementation-Version' : project.version as String
     }
 }

@@ -5,10 +5,13 @@ import dev.lukebemish.crochet.internal.Log4jSetup;
 import dev.lukebemish.crochet.mappings.ChainedMappingsSource;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
 import dev.lukebemish.crochet.mappings.ReversedMappingsSource;
+import dev.lukebemish.crochet.tasks.CreateArtifactManifest;
 import dev.lukebemish.crochet.tasks.ExtractConfigTask;
 import dev.lukebemish.crochet.tasks.IntermediaryNeoFormConfig;
+import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
 import dev.lukebemish.crochet.tasks.RemapJarsTask;
+import dev.lukebemish.crochet.tasks.RemappingArtifactsTasks;
 import dev.lukebemish.crochet.tasks.WriteFile;
 import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
@@ -22,16 +25,24 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
 public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Configuration loaderConfiguration;
+    final Configuration intermediaryMinecraft;
+    final Configuration remapClasspathConfiguration;
+    final Configuration mappingsClasspath;
     final TaskProvider<WriteFile> writeLog4jConfig;
 
     private final CrochetExtension extension;
@@ -54,10 +65,11 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var mappings = workingDirectory.map(dir -> dir.file("mappings.txt"));
 
         this.artifactsTask.configure(task -> {
-            // TODO: needs a NFRT update
             task.getTargets().put("node.mergeMappings.output.output", mappings);
             task.getOutputs().file(mappings);
         });
+
+        this.remapClasspathConfiguration = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(getName())+"RemapClasspath");
 
         this.loaderConfiguration = project.getConfigurations().maybeCreate(getName()+"FabricLoader");
         this.loaderConfiguration.fromDependencyCollector(getDependencies().getLoader());
@@ -119,7 +131,48 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.dependsOn(this.artifactsTask);
             task.getTargetFormat().set(IMappingFile.Format.TINY);
             task.getOutputMappings().set(workingDirectory.map(dir -> dir.file("intermediary-to-named.tiny")));
+            // Ensure that the header is nicely present for loader
+            task.doLast(t -> {
+                var mappingWriter = (MappingsWriter) t;
+                var file = mappingWriter.getOutputMappings().getAsFile().get().toPath();
+                try {
+                    String text = Files.readString(file, StandardCharsets.UTF_8);
+                    var firstLine = text.indexOf('\n');
+                    var newHeader = "tiny\t2\t0\tintermediary\tnamed";
+                    var newText = newHeader + text.substring(firstLine);
+                    Files.writeString(file, newText, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
         });
+
+        this.mappingsClasspath = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(getName())+"MappingsClasspath");
+        var mappingsJar = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+"MappingsJar", Jar.class, task -> {
+            task.getDestinationDirectory().set(workingDirectory);
+            task.getArchiveFileName().set("intermediary-mappings.jar");
+            task.from(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings), spec -> {
+                spec.into("mappings");
+                spec.rename(s -> "mappings.tiny");
+            });
+            task.dependsOn(intermediaryToNamed);
+        });
+        var mappingsJarFiles = project.files(mappingsJar.map(Jar::getArchiveFile));
+        mappingsJarFiles.builtBy(mappingsJar);
+        project.getDependencies().add(mappingsClasspath.getName(), mappingsJarFiles);
+
+        this.intermediaryMinecraft = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(getName())+"IntermediaryMinecraft");
+        var remappingArtifactsTask = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+"RemappingArtifacts", RemappingArtifactsTasks.class, task -> {
+            task.getIntermediaryJar().set(workingDirectory.get().file("intermediary.jar"));
+            task.getNeoFormModule().set(intemediaryNeoFormModule);
+            task.getRuntimeClasspath().from(project.getConfigurations().named(CrochetPlugin.NEOFORM_RUNTIME_CONFIGURATION_NAME));
+            task.getArtifactManifest().set(createArtifactManifestTask.flatMap(CreateArtifactManifest::getOutputFile));
+            task.dependsOn(createArtifactManifestTask);
+        });
+        var intermediaryJarFiles = project.files();
+        intermediaryJarFiles.from(remappingArtifactsTask.flatMap(RemappingArtifactsTasks::getIntermediaryJar));
+        intermediaryJarFiles.builtBy(remappingArtifactsTask);
+        project.getDependencies().add(intermediaryMinecraft.getName(), intermediaryJarFiles);
     }
 
     public abstract Property<String> getMinecraftVersion();
@@ -178,12 +231,15 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var compileRemappingClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapping", "compileClasspath"));
         var runtimeRemappingClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapping", "runtimeClasspath"));
 
+        project.getDependencies().add(remapClasspathConfiguration.getName(), project.files(compileRemappingClasspath));
+        project.getDependencies().add(remapClasspathConfiguration.getName(), project.files(runtimeRemappingClasspath));
+
         compileRemappingClasspath.extendsFrom(modCompileClasspath);
-        compileRemappingClasspath.extendsFrom(clientMinecraft.get());
+        compileRemappingClasspath.extendsFrom(intermediaryMinecraft);
         compileRemappingClasspath.extendsFrom(loaderConfiguration);
 
         runtimeRemappingClasspath.extendsFrom(modRuntimeClasspath);
-        runtimeRemappingClasspath.extendsFrom(clientMinecraft.get());
+        runtimeRemappingClasspath.extendsFrom(intermediaryMinecraft);
         runtimeRemappingClasspath.extendsFrom(loaderConfiguration);
 
         var remappedCompileMods = project.files();
@@ -192,13 +248,13 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         project.getDependencies().add(remappedRuntimeClasspath.getName(), remappedRuntimeMods);
 
         var remapCompileMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspath"), RemapJarsTask.class, task -> {
-            task.setup(modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspath"), remappedCompileMods);
+            task.setup(modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspath").dir(sourceSet.getName()), remappedCompileMods);
             task.dependsOn(intermediaryToNamed);
             task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
         });
 
         var remapRuntimeMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspath"), RemapJarsTask.class, task -> {
-            task.setup(modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspath"), remappedRuntimeMods);
+            task.setup(modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspath").dir(sourceSet.getName()), remappedRuntimeMods);
             task.dependsOn(intermediaryToNamed);
             task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
         });
@@ -228,6 +284,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
         Configuration runtimeClasspath = project.getConfigurations().maybeCreate("crochet" + StringUtils.capitalize(this.getName()) + StringUtils.capitalize(run.getName()) + "Classpath");
         runtimeClasspath.extendsFrom(loaderConfiguration);
+        runtimeClasspath.extendsFrom(mappingsClasspath);
         runtimeClasspath.extendsFrom(project.getConfigurations().getByName(CrochetPlugin.TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME));
         runtimeClasspath.attributes(attributes -> {
             attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
@@ -235,13 +292,25 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             // and try and pull it from the source compile tasks I guess?
             attributes.attributeProvider(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, run.getToolchain().getLanguageVersion().map(JavaLanguageVersion::asInt).orElse(21));
         });
+
+        var remapClasspathFile = project.getLayout().getBuildDirectory().file("crochet/runs/"+run.getName()+"/remapClasspath.txt");
+        var remapClasspath = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+StringUtils.capitalize(run.getName())+"RemapClasspath", MakeRemapClasspathFile.class, task -> {
+            task.getRemapClasspathFile().set(remapClasspathFile);
+            task.getRemapClasspath().from(remapClasspathConfiguration);
+            task.dependsOn(mappingsClasspath);
+        });
+        run.argFilesTask.configure(task -> {
+            task.dependsOn(remapClasspath);
+        });
+
         run.classpath.extendsFrom(runtimeClasspath);
         run.getJvmArgs().addAll(
             "-Dfabric.development=true",
             // TODO: remap classpath file
             "-Dlog4j.configurationFile="+project.getLayout().getBuildDirectory().file("crochet/installations/"+this.getName()+"/log4j2.xml").get().getAsFile().getAbsolutePath(),
             "-Dfabric.log.disableAnsi=false",
-            "-Dfabric.gameVersion=${minecraft_version}"
+            "-Dfabric.gameVersion=${minecraft_version}",
+            "-Dfabric.remapClasspathFile="+remapClasspathFile.get().getAsFile().getAbsolutePath()
         );
         run.getJvmArgs().add(project.provider(() -> {
             List<String> groups = new ArrayList<>();

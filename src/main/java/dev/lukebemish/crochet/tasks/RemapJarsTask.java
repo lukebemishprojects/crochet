@@ -6,10 +6,13 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.logging.configuration.ShowStacktrace;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
@@ -18,6 +21,8 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
 import javax.inject.Inject;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,16 +56,38 @@ public abstract class RemapJarsTask extends DefaultTask {
     @Inject
     protected abstract ExecOperations getExecOperations();
 
+    @Internal
+    public abstract Property<String> getLogLevel();
+
+    @Internal
+    public abstract Property<Boolean> getShowStackTrace();
+
     @Inject
     public RemapJarsTask() {
         getTinyRemapperClasspath().from(getProject().getConfigurations().getByName(CrochetPlugin.TINY_REMAPPER_CONFIGURATION_NAME));
+
+        getLogLevel().convention(switch (getProject().getGradle().getStartParameter().getLogLevel()) {
+            case DEBUG -> "debug";
+            case INFO, LIFECYCLE -> "info";
+            case WARN -> "warn";
+            case QUIET, ERROR -> "error";
+        });
+        getShowStackTrace().convention(getProject().getGradle().getStartParameter().getShowStacktrace() != ShowStacktrace.INTERNAL_EXCEPTIONS);
     }
 
     @TaskAction
-    public void execute() {
+    public void execute() throws IOException {
+        for (var target : getTargets().get()) {
+            var outPath = target.getTarget().get().getAsFile().toPath();
+            if (Files.exists(outPath)) {
+                Files.delete(outPath);
+            }
+        }
         getExecOperations().javaexec(spec -> {
             spec.classpath(getTinyRemapperClasspath());
-            spec.getMainClass().set("dev.lukebemish.crochet.wrappers.tinyremapper.Main");
+            spec.getMainClass().set("dev.lukebemish.crochet.wrappers.tinyremapper.RemapMods");
+            spec.systemProperty("org.slf4j.simpleLogger.defaultLogLevel", getLogLevel().get());
+            spec.systemProperty("dev.lukebemish.crochet.wrappers.hidestacktrace", !getShowStackTrace().get());
             for (var target : getTargets().get()) {
                 spec.args(
                     target.getSource().get().getAsFile().getAbsolutePath(),
@@ -70,8 +97,6 @@ public abstract class RemapJarsTask extends DefaultTask {
             spec.args("--mappings", getMappings().get().getAsFile().getAbsolutePath());
             spec.args("--classpath", getRemappingClasspath().getAsPath());
         });
-
-        // TODO: strip nested jars
     }
 
     public void setup(Configuration source, Configuration exclude, Directory destinationDirectory, ConfigurableFileCollection destinationFiles) {
