@@ -23,6 +23,9 @@ gradlePlugin {
 }
 
 repositories {
+    // TODO: remove
+    mavenLocal()
+
     mavenCentral()
     gradlePluginPortal()
 }
@@ -34,6 +37,11 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10'
     implementation 'com.google.guava:guava:33.0.0-jre'
     implementation 'net.neoforged:srgutils:1.0.9'
+    implementation('dev.lukebemish:taskgraphrunner:0.1.0') {
+        capabilities {
+            requireCapability("dev.lukebemish:taskgraphrunner-model")
+        }
+    }
     implementation 'org.jetbrains.gradle.plugin.idea-ext:org.jetbrains.gradle.plugin.idea-ext.gradle.plugin:1.1.8'
 }
 

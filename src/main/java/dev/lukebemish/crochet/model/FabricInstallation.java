@@ -74,22 +74,14 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         this.loaderConfiguration = project.getConfigurations().maybeCreate(getName()+"FabricLoader");
         this.loaderConfiguration.fromDependencyCollector(getDependencies().getLoader());
 
-        this.getMinecraftVersion().convention(getNeoFormModule().map(module -> {
-            var parts = module.split("[:@]");
-            if (parts.length >= 3) {
-                var nf = parts[2];
-                return nf.substring(0, nf.lastIndexOf('-'));
-            }
-            throw new IllegalArgumentException("Cannot extract minecraft version from `"+module+"` -- you may need to manually specify it");
-        }));
         this.getDependencies().getIntermediary().add(project.provider(() ->
-            this.getDependencies().module("net.fabricmc", "intermediary", this.getMinecraftVersion().get()))
+            this.getDependencies().module("net.fabricmc", "intermediary", this.getMinecraft().get()))
         );
         var intermediaryConfiguration = project.getConfigurations().maybeCreate(getName()+"Intermediary");
         intermediaryConfiguration.fromDependencyCollector(getDependencies().getIntermediary());
         var neoFormConfig = project.getTasks().register("crochetCreate"+StringUtils.capitalize(name)+"IntermediaryNFConfig", IntermediaryNeoFormConfig.class, task -> {
             task.getOutputFile().set(workingDirectory.get().file("intermediary-neoform-config.json"));
-            task.getMinecraftVersion().set(this.getMinecraftVersion());
+            task.getMinecraftVersion().set(this.getMinecraft());
         });
         var intermediaryMappings = project.getTasks().register("crochetExtract"+StringUtils.capitalize(name)+"IntermediaryMappings", Copy.class, task -> {
             task.from(project.zipTree(intermediaryConfiguration.getSingleFile()));
@@ -103,7 +95,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.dependsOn(intermediaryMappings);
         });
 
-        var intemediaryNeoFormModule = getMinecraftVersion().map(v -> "dev.lukebemish.crochet.internal:intermediary-neoform:"+v+"+crochet."+CrochetPlugin.VERSION+"@zip");
+        var intemediaryNeoFormModule = getMinecraft().map(v -> "dev.lukebemish.crochet.internal:intermediary-neoform:"+v+"+crochet."+CrochetPlugin.VERSION+"@zip");
 
         createArtifactManifestTask.configure(task -> {
             task.getArtifactIdentifiers().add(intemediaryNeoFormModule);
@@ -174,8 +166,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         intermediaryJarFiles.builtBy(remappingArtifactsTask);
         project.getDependencies().add(intermediaryMinecraft.getName(), intermediaryJarFiles);
     }
-
-    public abstract Property<String> getMinecraftVersion();
 
     @Override
     public void forSourceSet(SourceSet sourceSet) {
@@ -278,8 +268,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     @Override
     void forRun(Run run, RunType runType) {
         run.argFilesTask.configure(task -> {
-            task.dependsOn(extractConfig);
-            task.getNeoFormConfig().set(extractConfig.flatMap(ExtractConfigTask::getNeoFormConfig));
+            task.getMinecraftVersion().set(getMinecraft());
             task.dependsOn(writeLog4jConfig);
         });
         Configuration runtimeClasspath = project.getConfigurations().maybeCreate("crochet" + StringUtils.capitalize(this.getName()) + StringUtils.capitalize(run.getName()) + "Classpath");
@@ -316,9 +305,9 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             List<String> groups = new ArrayList<>();
 
             groups.add(
-                (Boolean.getBoolean("idea.active") ? artifactsTask.get().getSourcesAndCompiled() : artifactsTask.get().getCompiled()).getAsFile().get().getAbsolutePath()
+                this.binary.get().getAsFile().getAbsolutePath()
                     + File.pathSeparator
-                    + artifactsTask.get().getClientResources().getAsFile().get().getAbsolutePath()
+                    + this.resources.get().getAsFile().getAbsolutePath()
             );
 
             run.getRunMods().get().forEach(mod -> {
@@ -330,7 +319,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         switch (runType) {
             case CLIENT -> {
                 runtimeClasspath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
-                runtimeClasspath.extendsFrom(clientMinecraft.get());
+                runtimeClasspath.extendsFrom(minecraft);
                 run.getMainClass().convention("net.fabricmc.loader.impl.launch.knot.KnotClient");
                 run.getArgs().addAll(
                     "--assetIndex",
@@ -341,7 +330,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             }
             case SERVER -> {
                 runtimeClasspath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
-                runtimeClasspath.extendsFrom(serverMinecraft.get());
+                runtimeClasspath.extendsFrom(minecraft);
                 run.getMainClass().convention("net.fabricmc.loader.impl.launch.knot.KnotClient");
             }
         }

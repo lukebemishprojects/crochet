@@ -5,11 +5,15 @@ import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.artifacts.result.ResolvedArtifactResult;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.FileWriter;
@@ -25,6 +29,10 @@ import java.util.stream.Collectors;
 public abstract class CreateArtifactManifest extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.ABSOLUTE)
+    public abstract ConfigurableFileCollection getArtifacts();
 
     @Input
     public abstract ListProperty<String> getArtifactFiles();

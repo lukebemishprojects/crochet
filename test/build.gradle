@@ -9,6 +9,14 @@ plugins {
     id 'dev.lukebemish.crochet'
 }
 
+repositories {
+    repositories {
+        mavenCentral()
+        // TODO: publish stuff
+        mavenLocal()
+    }
+}
+
 java.withSourcesJar()
 
 group = 'dev.lukebemish.crochet.crochet-test'
@@ -16,8 +24,8 @@ version = '1.0.0'
 
 crochet {
     installations {
-        register('fabric', FabricInstallation) {
-            neoFormVersion = '1.21-20240613.152323'
+        /*register('fabric', FabricInstallation) {
+            minecraft = '1.21.1'
 
             dependencies {
                 loader 'net.fabricmc:fabric-loader:0.16.0'
@@ -26,10 +34,10 @@ crochet {
             forSourceSet(project.sourceSets.main) {
                 modImplementation 'net.fabricmc.fabric-api:fabric-api:0.102.0+1.21'
             }
-        }
+        }*/
 
         register('vanilla', VanillaInstallation) {
-            neoFormVersion = '1.21-20240613.152323'
+            minecraft = '1.21.1'
         }
     }
     mods {
@@ -41,10 +49,10 @@ crochet {
         vanillaClient {
             client installations.vanilla
         }
-        fabricClient {
+        /*fabricClient {
             client installations.fabric
             mod mods.main
-        }
+        }*/
     }
 }
 

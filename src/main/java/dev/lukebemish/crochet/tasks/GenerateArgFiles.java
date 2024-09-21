@@ -8,6 +8,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -43,7 +44,12 @@ public abstract class GenerateArgFiles extends DefaultTask {
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
+    @Optional
     public abstract RegularFileProperty getNeoFormConfig();
+
+    @Input
+    @Optional
+    public abstract Property<String> getMinecraftVersion();
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -65,23 +71,28 @@ public abstract class GenerateArgFiles extends DefaultTask {
         new File(getRunDirectory().get()).mkdirs();
         getArgFile().get().getAsFile().getParentFile().mkdirs();
         Properties assetsProperties = new Properties();
-        JsonObject neoFormConfig;
         try (var argsWriter = new OutputStreamWriter(new FileOutputStream(getArgFile().get().getAsFile()));
              var jvmArgsWriter = new OutputStreamWriter(new FileOutputStream(getJvmArgFile().get().getAsFile()));
-             var assetsPropertiesStream = new FileInputStream(getAssetsProperties().get().getAsFile());
-             var neoFormConfigReader = new InputStreamReader(new FileInputStream(getNeoFormConfig().get().getAsFile()), StandardCharsets.UTF_8)) {
+             var assetsPropertiesStream = new FileInputStream(getAssetsProperties().get().getAsFile())) {
+            String minecraftVersion;
+            if (getNeoFormConfig().isPresent()) {
+                var neoFormConfigReader = new InputStreamReader(new FileInputStream(getNeoFormConfig().get().getAsFile()), StandardCharsets.UTF_8);
+                JsonObject neoFormConfig = new Gson().fromJson(neoFormConfigReader, JsonObject.class);
+                minecraftVersion = neoFormConfig.getAsJsonPrimitive("version").getAsString();
+            } else {
+                minecraftVersion = getMinecraftVersion().get();
+            }
             assetsProperties.load(assetsPropertiesStream);
-            neoFormConfig = new Gson().fromJson(neoFormConfigReader, JsonObject.class);
             List<String> argsLines = new ArrayList<>();
-            argsLines.add(escapeArgument(getMainClass().get(), assetsProperties, neoFormConfig));
+            argsLines.add(escapeArgument(getMainClass().get(), assetsProperties, minecraftVersion));
             for (var arg : getArgs().get()) {
-                argsLines.add(escapeArgument(arg, assetsProperties, neoFormConfig));
+                argsLines.add(escapeArgument(arg, assetsProperties, minecraftVersion));
             }
             argsWriter.write(String.join("\n", argsLines));
 
             List<String> jvmArgsLines = new ArrayList<>();
             for (var jvmArg : getJvmArgs().get()) {
-                jvmArgsLines.add(escapeArgument(jvmArg, assetsProperties, neoFormConfig));
+                jvmArgsLines.add(escapeArgument(jvmArg, assetsProperties, minecraftVersion));
             }
             jvmArgsWriter.write(String.join("\n", jvmArgsLines));
         } catch (Exception e) {
@@ -89,12 +100,12 @@ public abstract class GenerateArgFiles extends DefaultTask {
         }
     }
 
-    private String escapeArgument(String argument, Properties assetProperties, JsonObject neoFormConfig) {
+    private String escapeArgument(String argument, Properties assetProperties, String minecraftVersion) {
         argument = argument.replace("\\", "\\\\");
         argument = argument.replace("\"", "\\\"");
         argument = argument.replace("${assets_root}", Objects.requireNonNull(assetProperties.getProperty("assets_root")));
         argument = argument.replace("${assets_index_name}", Objects.requireNonNull(assetProperties.getProperty("asset_index")));
-        argument = argument.replace("${minecraft_version}", Objects.requireNonNull(neoFormConfig.getAsJsonPrimitive("version").getAsString()));
+        argument = argument.replace("${minecraft_version}", Objects.requireNonNull(minecraftVersion));
         if (argument.contains(" ")) {
             argument = "\"" + argument + "\"";
         }

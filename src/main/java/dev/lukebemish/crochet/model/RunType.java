@@ -1,6 +1,8 @@
 package dev.lukebemish.crochet.model;
 
-enum RunType {
+import java.io.Serializable;
+
+enum RunType implements Serializable {
     CLIENT,
     SERVER,
     DATA

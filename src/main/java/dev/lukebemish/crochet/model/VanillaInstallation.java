@@ -17,14 +17,11 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
 
     @Override
     void forRun(Run run, RunType runType) {
-        run.argFilesTask.configure(task -> {
-            task.dependsOn(extractConfig);
-            task.getNeoFormConfig().set(extractConfig.flatMap(ExtractConfigTask::getNeoFormConfig));
-        });
+        run.argFilesTask.configure(task -> task.getMinecraftVersion().set(getMinecraft()));
         switch (runType) {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
-                run.classpath.extendsFrom(clientMinecraft.get());
+                run.classpath.extendsFrom(minecraft);
                 run.getArgs().addAll(
                     "--gameDir", ".",
                     "--assetIndex", "${assets_index_name}",
@@ -34,12 +31,12 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
                 );
             }
             case SERVER -> {
-                run.classpath.extendsFrom(serverMinecraft.get());
+                run.classpath.extendsFrom(minecraft);
                 run.getMainClass().convention("net.minecraft.server.Main");
             }
             case DATA -> {
                 // TODO: what's the right stuff to go here?
-                run.classpath.extendsFrom(clientMinecraft.get());
+                run.classpath.extendsFrom(minecraft);
                 run.getMainClass().convention("net.minecraft.data.Main");
             }
         }

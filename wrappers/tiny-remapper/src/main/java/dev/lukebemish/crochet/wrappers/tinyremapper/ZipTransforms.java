@@ -128,7 +128,7 @@ class ZipTransforms implements OutputConsumerPath.ResourceRemapper {
             }
         }
 
-        Files.move(tempFile, zipPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFile, zipPath, StandardCopyOption.REPLACE_EXISTING);
 
         return replacedCount;
     }
