@@ -5,13 +5,11 @@ import dev.lukebemish.crochet.internal.Log4jSetup;
 import dev.lukebemish.crochet.mappings.ChainedMappingsSource;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
 import dev.lukebemish.crochet.mappings.ReversedMappingsSource;
-import dev.lukebemish.crochet.tasks.CreateArtifactManifest;
-import dev.lukebemish.crochet.tasks.ExtractConfigTask;
-import dev.lukebemish.crochet.tasks.IntermediaryNeoFormConfig;
+import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
 import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
 import dev.lukebemish.crochet.tasks.RemapJarsTask;
-import dev.lukebemish.crochet.tasks.RemappingArtifactsTasks;
+import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.WriteFile;
 import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
@@ -20,13 +18,11 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
-import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 
 import javax.inject.Inject;
@@ -44,6 +40,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Configuration remapClasspathConfiguration;
     final Configuration mappingsClasspath;
     final TaskProvider<WriteFile> writeLog4jConfig;
+    final FabricInstallationArtifacts fabricConfigMaker;
 
     private final CrochetExtension extension;
     private final TaskProvider<MappingsWriter> intermediaryToNamed;
@@ -64,9 +61,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var mappings = workingDirectory.map(dir -> dir.file("mappings.txt"));
 
+        this.fabricConfigMaker = project.getObjects().newInstance(FabricInstallationArtifacts.class);
+        fabricConfigMaker.getWrapped().set(vanillaConfigMaker);
+
         this.artifactsTask.configure(task -> {
-            task.getTargets().put("node.mergeMappings.output.output", mappings);
-            task.getOutputs().file(mappings);
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("downloadClientMappings.output", mappings, project.getObjects()));
+            task.getConfigMaker().set(fabricConfigMaker);
         });
 
         this.remapClasspathConfiguration = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(getName())+"RemapClasspath");
@@ -79,29 +79,19 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         );
         var intermediaryConfiguration = project.getConfigurations().maybeCreate(getName()+"Intermediary");
         intermediaryConfiguration.fromDependencyCollector(getDependencies().getIntermediary());
-        var neoFormConfig = project.getTasks().register("crochetCreate"+StringUtils.capitalize(name)+"IntermediaryNFConfig", IntermediaryNeoFormConfig.class, task -> {
-            task.getOutputFile().set(workingDirectory.get().file("intermediary-neoform-config.json"));
-            task.getMinecraftVersion().set(this.getMinecraft());
-        });
         var intermediaryMappings = project.getTasks().register("crochetExtract"+StringUtils.capitalize(name)+"IntermediaryMappings", Copy.class, task -> {
             task.from(project.zipTree(intermediaryConfiguration.getSingleFile()));
             task.setDestinationDir(workingDirectory.get().dir("intermediary").getAsFile());
         });
-        var neoFormZip = project.getTasks().register("crochetCreate"+StringUtils.capitalize(name)+"IntermediaryNeoFormZip", Zip.class, task -> {
-            task.getDestinationDirectory().set(workingDirectory);
-            task.getArchiveFileName().set("intermediary-neoform-config.zip");
-            task.from(neoFormConfig.get().getOutputFile(), spec -> spec.rename("intermediary-neoform-config.json", "config.json"));
-            task.from(workingDirectory.get().dir("intermediary").file("mappings/mappings.tiny"), spec -> spec.into("mappings"));
+
+        fabricConfigMaker.getIntermediary().fileProvider(intermediaryMappings.map(t -> t.getDestinationDir().toPath().resolve("mappings").resolve("mappings.tiny").toFile()));
+        this.artifactsTask.configure(task -> {
             task.dependsOn(intermediaryMappings);
         });
 
-        var intemediaryNeoFormModule = getMinecraft().map(v -> "dev.lukebemish.crochet.internal:intermediary-neoform:"+v+"+crochet."+CrochetPlugin.VERSION+"@zip");
-
-        createArtifactManifestTask.configure(task -> {
-            task.getArtifactIdentifiers().add(intemediaryNeoFormModule);
-            task.getArtifactFiles().add(neoFormZip.map(t -> t.getArchiveFile().get().getAsFile().getAbsolutePath()));
-            task.dependsOn(neoFormZip);
-            task.configuration(project.getConfigurations().getByName(CrochetPlugin.INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME));
+        var intermediaryJar = workingDirectory.map(it -> it.file("intermediary.jar"));
+        this.artifactsTask.configure(task -> {
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("intermediary", intermediaryJar, project.getObjects()));
         });
 
         // To remap dependencies, we need a intermediary -> mojmaps + srg mapping.
@@ -114,8 +104,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         intermediaryReversed.getInputMappings().set(intermediary);
         var named = objects.newInstance(FileMappingSource.class);
         named.getMappingsFile().set(mappings);
+        var namedReversed = objects.newInstance(ReversedMappingsSource.class);
+        namedReversed.getInputMappings().set(named);
         var chainedSpec = objects.newInstance(ChainedMappingsSource.class);
-        chainedSpec.getInputSources().set(List.of(intermediaryReversed, named));
+        chainedSpec.getInputSources().set(List.of(intermediaryReversed, namedReversed));
 
         this.intermediaryToNamed = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"IntermediaryToNamed", MappingsWriter.class, task -> {
             task.getInputMappings().set(chainedSpec);
@@ -154,16 +146,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         project.getDependencies().add(mappingsClasspath.getName(), mappingsJarFiles);
 
         this.intermediaryMinecraft = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(getName())+"IntermediaryMinecraft");
-        var remappingArtifactsTask = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+"RemappingArtifacts", RemappingArtifactsTasks.class, task -> {
-            task.getIntermediaryJar().set(workingDirectory.get().file("intermediary.jar"));
-            task.getNeoFormModule().set(intemediaryNeoFormModule);
-            task.getRuntimeClasspath().from(project.getConfigurations().named(CrochetPlugin.NEOFORM_RUNTIME_CONFIGURATION_NAME));
-            task.getArtifactManifest().set(createArtifactManifestTask.flatMap(CreateArtifactManifest::getOutputFile));
-            task.dependsOn(createArtifactManifestTask);
-        });
+
         var intermediaryJarFiles = project.files();
-        intermediaryJarFiles.from(remappingArtifactsTask.flatMap(RemappingArtifactsTasks::getIntermediaryJar));
-        intermediaryJarFiles.builtBy(remappingArtifactsTask);
+        intermediaryJarFiles.from(intermediaryJar);
+        intermediaryJarFiles.builtBy(this.artifactsTask);
         project.getDependencies().add(intermediaryMinecraft.getName(), intermediaryJarFiles);
     }
 

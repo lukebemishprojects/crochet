@@ -1,11 +1,8 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
-import dev.lukebemish.crochet.tasks.DownloadAssetsTask;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
-import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Named;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
@@ -37,7 +34,6 @@ public abstract class MinecraftInstallation implements Named {
 
     final TaskProvider<TaskGraphExecution> downloadAssetsTask;
 
-    final Configuration neoFormConfig;
     final Provider<RegularFile> assetsProperties;
 
     @SuppressWarnings("UnstableApiUsage")
@@ -52,10 +48,7 @@ public abstract class MinecraftInstallation implements Named {
         this.downloadAssetsTask = project.getTasks().register(name+"DownloadAssets", TaskGraphExecution.class, task -> {
             task.setGroup("crochet setup");
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
-            task.getTargets().put(
-                "assets",
-                assetsProperties
-            );
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("assets", assetsProperties, project.getObjects()));
         });
 
         this.accessTransformersApi = project.getConfigurations().dependencyScope(name+"AccessTransformersApi", config -> {
@@ -73,8 +66,6 @@ public abstract class MinecraftInstallation implements Named {
             // TODO: attributes
             config.extendsFrom(this.accessTransformersApi.get());
         });
-
-        this.neoFormConfig = project.getConfigurations().maybeCreate("crochet"+ StringUtils.capitalize(name)+"NeoFormConfig");
 
         this.distribution = project.getObjects().property(InstallationDistribution.class);
         this.distribution.convention(InstallationDistribution.JOINED);

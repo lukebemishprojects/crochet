@@ -1,10 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
-import dev.lukebemish.crochet.tasks.CreateArtifactManifest;
-import dev.lukebemish.crochet.tasks.ExtractConfigTask;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
-import dev.lukebemish.crochet.tasks.VanillaArtifactsTask;
 import dev.lukebemish.crochet.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
@@ -24,6 +21,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     final Project project;
     final Configuration minecraft;
     final TaskProvider<TaskGraphExecution> artifactsTask;
+    final VanillaInstallationArtifacts vanillaConfigMaker;
     final Provider<Directory> workingDirectory;
 
     final Provider<RegularFile> sources;
@@ -43,24 +41,15 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.binary = workingDirectory.map(it -> it.file("compiled.jar"));
         this.sources = workingDirectory.map(it -> it.file("sources.jar"));
 
+        this.vanillaConfigMaker = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
+        vanillaConfigMaker.getMinecraftVersion().set(getMinecraft());
+        vanillaConfigMaker.getAccessTransformers().from(this.accessTransformersPath);
         this.artifactsTask = project.getTasks().register(name + "CrochetMinecraftArtifacts", TaskGraphExecution.class, task -> {
             task.setGroup("crochet setup");
-            var vanillaArtifacts = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
-            vanillaArtifacts.getMinecraftVersion().set(getMinecraft());
-            task.getConfigMaker().set(vanillaArtifacts);
-            vanillaArtifacts.getAccessTransformers().from(this.accessTransformersPath);
-            task.getTargets().put(
-                "resources",
-                resources
-            );
-            task.getTargets().put(
-                "binary",
-                binary
-            );
-            task.getTargets().put(
-                "sources",
-                sources
-            );
+            task.getConfigMaker().set(vanillaConfigMaker);
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("resources", resources, project.getObjects()));
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("binary", binary, project.getObjects()));
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("sources", sources, project.getObjects()));
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 

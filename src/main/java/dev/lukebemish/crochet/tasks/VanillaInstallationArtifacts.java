@@ -35,7 +35,7 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
             config.parameters.put("accessTransformers",
                 new Value.ListValue(
                     getAccessTransformers().getFiles().stream()
-                        .<Value>map(f -> new Value.StringValue(f.getAbsolutePath()))
+                        .<Value>map(f -> Value.file(f.toPath()))
                         .toList()
                 )
             );

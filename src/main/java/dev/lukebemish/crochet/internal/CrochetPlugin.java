@@ -17,10 +17,7 @@ import javax.inject.Inject;
 public class CrochetPlugin implements Plugin<Project> {
     // TODO: re-implement this stuff
     public static final String LOCAL_RUNTIME_CONFIGURATION_NAME = "localRuntime";
-    public static final String NEOFORM_RUNTIME_CONFIGURATION_NAME = "crochetNeoformRuntimeClasspath";
     public static final String TASK_GRAPH_RUNNER_CONFIGURATION_NAME = "crochetTaskGraphRunnerClasspath";
-    public static final String INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME = "crochetIntermediaryNeoformDependencies";
-    public static final String NFRT_DEPENDENCIES_CONFIGURATION_NAME = "crochetNeoFormRuntimeDependencies";
     public static final String TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME = "crochetTaskGraphRunnerDependencies";
     public static final String DEV_LAUNCH_CONFIGURATION_NAME = "crochetDevLaunchClasspath";
     public static final String TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME = "crochetTerminalConsoleAppender";
@@ -35,14 +32,6 @@ public class CrochetPlugin implements Plugin<Project> {
     private static final String DEV_LAUNCH_VERSION = "1.0.1";
     private static final String TERMINAL_CONSOLE_APPENDER_VERSION = "1.3.0";
 
-    public static final class IntermediaryNeoFormDependencies {
-        private IntermediaryNeoFormDependencies() {}
-
-        public static final String MERGETOOL = "net.neoforged:mergetool:2.0.3:fatjar";
-        public static final String ART = "net.neoforged:AutoRenamingTool:2.0.3:all";
-        public static final String INSTALLERTOOLS = "net.neoforged.installertools:installertools:2.1.2:fatjar";
-    }
-
     @Override
     public void apply(@NotNull Project project) {
         if (!project.getGradle().getPlugins().hasPlugin(CrochetRepositoriesPlugin.class)) {
@@ -54,14 +43,6 @@ public class CrochetPlugin implements Plugin<Project> {
         project.getPluginManager().apply("java-library");
 
         var objects = project.getObjects();
-
-        // intermediary neoform configs
-        project.getConfigurations().register(INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME, config -> {
-            config.setTransitive(false);
-        });
-        project.getDependencies().add(INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME, IntermediaryNeoFormDependencies.MERGETOOL);
-        project.getDependencies().add(INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME, IntermediaryNeoFormDependencies.ART);
-        project.getDependencies().add(INTERMEDIARY_NEOFORM_DEPENDENCIES_CONFIGURATION_NAME, IntermediaryNeoFormDependencies.INSTALLERTOOLS);
 
         // TaskGraphRunner
         project.getConfigurations().register(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, config -> config.attributes(attributes -> {

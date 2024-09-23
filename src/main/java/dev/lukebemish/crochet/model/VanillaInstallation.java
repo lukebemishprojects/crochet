@@ -1,6 +1,5 @@
 package dev.lukebemish.crochet.model;
 
-import dev.lukebemish.crochet.tasks.ExtractConfigTask;
 import org.gradle.api.Action;
 
 import javax.inject.Inject;

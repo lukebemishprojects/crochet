@@ -1,7 +1,6 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
-import dev.lukebemish.crochet.tasks.DownloadAssetsTask;
 import dev.lukebemish.crochet.tasks.GenerateArgFiles;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;

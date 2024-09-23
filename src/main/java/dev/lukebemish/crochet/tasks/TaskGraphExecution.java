@@ -15,6 +15,8 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
@@ -25,6 +27,7 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.OutputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -74,8 +77,22 @@ public abstract class TaskGraphExecution extends DefaultTask {
     @Input
     public abstract ListProperty<String> getArtifactIdentifiers();
 
-    @OutputFiles
-    public abstract MapProperty<String, RegularFile> getTargets();
+    @Nested
+    public abstract ListProperty<GraphOutput> getTargets();
+
+    public static abstract class GraphOutput {
+        @Input
+        abstract Property<String> getOutputName();
+        @OutputFile
+        abstract RegularFileProperty getOutputFile();
+
+        public static GraphOutput of(String outputName, Provider<RegularFile> outputFile, ObjectFactory factory) {
+            var instance = factory.newInstance(GraphOutput.class);
+            instance.getOutputName().set(outputName);
+            instance.getOutputFile().set(outputFile);
+            return instance;
+        }
+    }
 
     @Nested
     public abstract Property<JavaLauncher> getJavaLauncher();
@@ -103,8 +120,9 @@ public abstract class TaskGraphExecution extends DefaultTask {
     public void execute() throws IOException {
         var config = getConfigMaker().get().makeConfig();
         var workItem = new WorkItem();
-        getTargets().get().forEach((target, regularFile) -> {
-            var file = regularFile.getAsFile().toPath();
+        getTargets().get().forEach(graphOutput -> {
+            var file = graphOutput.getOutputFile().get().getAsFile().toPath();
+            var target = graphOutput.getOutputName().get();
             var parts = target.split("\\.", 2);
             workItem.results.put(
                 parts.length == 2 ? new WorkItem.Target.OutputTarget(new Output(parts[0], parts[1])) : new WorkItem.Target.AliasTarget(target),

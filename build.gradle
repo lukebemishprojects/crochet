@@ -19,6 +19,10 @@ gradlePlugin {
             id = 'dev.lukebemish.crochet.repositories'
             implementationClass = 'dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin'
         }
+        crochetIdeaModel {
+            id = 'dev.lukebemish.crochet.idea'
+            implementationClass = 'dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin'
+        }
     }
 }
 

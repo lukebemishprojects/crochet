@@ -24,7 +24,7 @@ version = '1.0.0'
 
 crochet {
     installations {
-        /*register('fabric', FabricInstallation) {
+        register('fabric', FabricInstallation) {
             minecraft = '1.21.1'
 
             dependencies {
@@ -34,7 +34,7 @@ crochet {
             forSourceSet(project.sourceSets.main) {
                 modImplementation 'net.fabricmc.fabric-api:fabric-api:0.102.0+1.21'
             }
-        }*/
+        }
 
         register('vanilla', VanillaInstallation) {
             minecraft = '1.21.1'
@@ -49,10 +49,10 @@ crochet {
         vanillaClient {
             client installations.vanilla
         }
-        /*fabricClient {
+        fabricClient {
             client installations.fabric
             mod mods.main
-        }*/
+        }
     }
 }
 
