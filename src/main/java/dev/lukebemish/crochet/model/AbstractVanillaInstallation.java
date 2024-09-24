@@ -39,9 +39,9 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
         this.workingDirectory = workingDirectory;
 
-        this.resources = workingDirectory.map(it -> it.file("extra-resources.jar"));
-        this.binary = workingDirectory.map(it -> it.file("compiled.jar"));
-        this.sources = workingDirectory.map(it -> it.file("sources.jar"));
+        this.resources = workingDirectory.map(it -> it.file(name+"-extra-resources.jar"));
+        this.binary = workingDirectory.map(it -> it.file(name+"-compiled.jar"));
+        this.sources = workingDirectory.map(it -> it.file(name+"-sources.jar"));
 
         if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
             var model = IdeaModelHandlerPlugin.retrieve(project);

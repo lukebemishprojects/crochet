@@ -175,7 +175,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         }
     }
 
-    public class IdeaLayoutJson {
+    public static class IdeaLayoutJson {
         public Map<String, String> modulesMap;
     }
 
@@ -258,45 +258,47 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                     }
                     layoutJson.modulesMap.forEach((module, imlPathString) -> {
                         var imlPath = new File(imlPathString).toPath();
-                        var moduleDir = imlPath.getParent();
-                        try {
-                            var documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-                            var doc = documentBuilder.parse(imlPath.toFile());
-                            XPathFactory xPathfactory = XPathFactory.newInstance();
-                            XPath xpath = xPathfactory.newXPath();
-                            XPathExpression expr = xpath.compile("//component[@name=\"NewModuleRootManager\"]/orderEntry[@type=\"module-library\"]/library");
-                            NodeList nodes = (NodeList) expr.evaluate(doc, XPathConstants.NODESET);
-                            for (int i = 0; i < nodes.getLength(); i++) {
-                                var node = nodes.item(i);
-                                var classesNode = getNode(node, "CLASSES");
-                                if (classesNode != null) {
-                                    var classesRoot = getNode(classesNode, "root");
-                                    if (classesRoot != null) {
-                                        var urlNode = classesRoot.getAttributes().getNamedItem("url");
-                                        if (urlNode != null) {
-                                            var url = urlNode.getNodeValue();
-                                            if (url.startsWith("jar://") && url.endsWith("!/")) {
-                                                var jarPathString = url.substring(5, url.length() - 2).replace("$MODULE_DIR$", moduleDir.toAbsolutePath().toString());
-                                                var jarPath = Paths.get(jarPathString).normalize().toAbsolutePath().toString();
-                                                if (pathMap.containsKey(jarPath)) {
-                                                    var relativeSourcesPath = "$MODULE_DIR$"+File.separator+ moduleDir.relativize(Paths.get(pathMap.get(jarPath)));
-                                                    var newUrl = "jar://" + relativeSourcesPath + "!/";
-                                                    var sourcesNode = getNode(node, "SOURCES");
-                                                    if (sourcesNode == null) {
-                                                        var sourcesRoot = doc.createElement("root");
-                                                        sourcesRoot.setAttribute("url", newUrl);
-                                                        sourcesRoot.setAttribute("type", "java-source");
-                                                        sourcesNode = doc.createElement("SOURCES");
-                                                        sourcesNode.appendChild(sourcesRoot);
-                                                        node.appendChild(sourcesNode);
-                                                    } else {
-                                                        var sourceRoot = getNode(sourcesNode, "root");
-                                                        if (!(sourceRoot instanceof Element elementRoot)) {
-                                                            Element sourceRootElement = doc.createElement("root");
-                                                            sourceRootElement.setAttribute("url", newUrl);
-                                                            sourcesNode.appendChild(sourceRootElement);
+                        if (Files.exists(imlPath)) {
+                            var moduleDir = imlPath.getParent();
+                            try {
+                                var documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+                                var doc = documentBuilder.parse(imlPath.toFile());
+                                XPathFactory xPathfactory = XPathFactory.newInstance();
+                                XPath xpath = xPathfactory.newXPath();
+                                XPathExpression expr = xpath.compile("//component[@name=\"NewModuleRootManager\"]/orderEntry[@type=\"module-library\"]/library");
+                                NodeList nodes = (NodeList) expr.evaluate(doc, XPathConstants.NODESET);
+                                for (int i = 0; i < nodes.getLength(); i++) {
+                                    var node = nodes.item(i);
+                                    var classesNode = getNode(node, "CLASSES");
+                                    if (classesNode != null) {
+                                        var classesRoot = getNode(classesNode, "root");
+                                        if (classesRoot != null) {
+                                            var urlNode = classesRoot.getAttributes().getNamedItem("url");
+                                            if (urlNode != null) {
+                                                var url = urlNode.getNodeValue();
+                                                if (url.startsWith("jar://") && url.endsWith("!/")) {
+                                                    var jarPathString = url.substring(5, url.length() - 2).replace("$MODULE_DIR$", moduleDir.toAbsolutePath().toString());
+                                                    var jarPath = Paths.get(jarPathString).normalize().toAbsolutePath().toString();
+                                                    if (pathMap.containsKey(jarPath)) {
+                                                        var relativeSourcesPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(pathMap.get(jarPath)));
+                                                        var newUrl = "jar://" + relativeSourcesPath + "!/";
+                                                        var sourcesNode = getNode(node, "SOURCES");
+                                                        if (sourcesNode == null) {
+                                                            var sourcesRoot = doc.createElement("root");
+                                                            sourcesRoot.setAttribute("url", newUrl);
+                                                            sourcesRoot.setAttribute("type", "java-source");
+                                                            sourcesNode = doc.createElement("SOURCES");
+                                                            sourcesNode.appendChild(sourcesRoot);
+                                                            node.appendChild(sourcesNode);
                                                         } else {
-                                                            elementRoot.setAttribute("url", newUrl);
+                                                            var sourceRoot = getNode(sourcesNode, "root");
+                                                            if (!(sourceRoot instanceof Element elementRoot)) {
+                                                                Element sourceRootElement = doc.createElement("root");
+                                                                sourceRootElement.setAttribute("url", newUrl);
+                                                                sourcesNode.appendChild(sourceRootElement);
+                                                            } else {
+                                                                elementRoot.setAttribute("url", newUrl);
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -304,19 +306,19 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                                         }
                                     }
                                 }
+                                TransformerFactory transformerFactory = TransformerFactory.newInstance();
+                                Transformer transformer = transformerFactory.newTransformer();
+                                DOMSource source = new DOMSource(doc);
+                                try (var output = Files.newOutputStream(imlPath)) {
+                                    StreamResult result = new StreamResult(output);
+                                    transformer.transform(source, result);
+                                }
+                            } catch (Exception e) {
+                                if (e instanceof RuntimeException rE) {
+                                    throw rE;
+                                }
+                                throw new RuntimeException(e);
                             }
-                            TransformerFactory transformerFactory = TransformerFactory.newInstance();
-                            Transformer transformer = transformerFactory.newTransformer();
-                            DOMSource source = new DOMSource(doc);
-                            try (var output = Files.newOutputStream(imlPath)) {
-                                StreamResult result = new StreamResult(output);
-                                transformer.transform(source, result);
-                            }
-                        } catch (Exception e) {
-                            if (e instanceof RuntimeException rE) {
-                                throw rE;
-                            }
-                            throw new RuntimeException(e);
                         }
                     });
                 });

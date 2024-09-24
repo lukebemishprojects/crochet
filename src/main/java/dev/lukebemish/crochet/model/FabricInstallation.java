@@ -11,6 +11,7 @@ import dev.lukebemish.crochet.tasks.MappingsWriter;
 import dev.lukebemish.crochet.tasks.RemapJarsTask;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.WriteFile;
+import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
 import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
@@ -61,6 +62,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var mappings = workingDirectory.map(dir -> dir.file("mappings.txt"));
 
+        this.vanillaConfigMaker.getSidedAnnotation().set(SingleVersionGenerator.Options.SidedAnnotation.FABRIC);
         this.fabricConfigMaker = project.getObjects().newInstance(FabricInstallationArtifacts.class);
         fabricConfigMaker.getWrapped().set(vanillaConfigMaker);
 

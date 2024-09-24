@@ -8,24 +8,31 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 
 import javax.inject.Inject;
 import java.io.IOException;
-import java.util.Date;
 
 public abstract class VanillaInstallationArtifacts implements TaskGraphExecution.ConfigMaker {
     @Inject
-    public VanillaInstallationArtifacts() {}
+    public VanillaInstallationArtifacts() {
+        getSidedAnnotation().convention(SingleVersionGenerator.Options.SidedAnnotation.FABRIC);
+    }
 
     @Input
     public abstract Property<String> getMinecraftVersion();
 
+    @Input
+    @Optional
+    public abstract Property<SingleVersionGenerator.Options.SidedAnnotation> getSidedAnnotation();
+
     @Override
     public Config makeConfig() throws IOException {
         var options = SingleVersionGenerator.Options.builder()
-            .distribution(Distribution.JOINED); // for now we only do joined; we'll figure other stuff out later
+            .sidedAnnotation(getSidedAnnotation().getOrNull())
+            .distribution(Distribution.JOINED); // for now we only do joined; we'll figure other stuff out later (probably by after-the-fact splitting)
         if (!getAccessTransformers().isEmpty()) {
             options.accessTransformersParameter("accessTransformers");
         }
