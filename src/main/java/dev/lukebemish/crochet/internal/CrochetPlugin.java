@@ -76,25 +76,6 @@ public class CrochetPlugin implements Plugin<Project> {
 
         applyDisambiguationRules(project);
         applyComponentRules(project);
-
-        setupIntelliJ(project);
-
-        // Plan for runs:
-        // - start with everything based on a javaexec task
-        // - ...pain?
-    }
-
-    private static void setupIntelliJ(Project project) {
-        if (Boolean.getBoolean("idea.sync.active")) {
-            // We break project isolation here -- not that we have a choice, the whole setup is rather terrible
-            var rootProject = project.getRootProject();
-            try {
-                rootProject.getPluginManager().apply("org.jetbrains.gradle.plugin.idea-ext");
-            } catch (UnknownPluginException e) {
-                // Ensures that classpath errors due to multiple subprojects trying to add this are impossible
-                throw new IllegalStateException("Crochet requires the 'org.jetbrains.gradle.plugin.idea-ext' plugin to be available to the root project plugin classpath.", e);
-            }
-        }
     }
 
     private static void applyComponentRules(Project project) {

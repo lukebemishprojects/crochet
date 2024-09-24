@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.tasks.GenerateArgFiles;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
@@ -10,7 +11,6 @@ import org.gradle.api.artifacts.dsl.Dependencies;
 import org.gradle.api.artifacts.dsl.DependencyCollector;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.SourceDirectorySet;
-import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
@@ -26,11 +26,6 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmImplementation;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
-import org.gradle.plugins.ide.idea.model.IdeaModel;
-import org.jetbrains.gradle.ext.Application;
-import org.jetbrains.gradle.ext.GradleTask;
-import org.jetbrains.gradle.ext.ProjectSettings;
-import org.jetbrains.gradle.ext.RunConfigurationContainer;
 
 import javax.inject.Inject;
 import java.util.List;
@@ -115,22 +110,18 @@ public abstract class Run implements Named, Dependencies {
                     return;
                 }
 
-                if (Boolean.getBoolean("idea.sync.active")) {
+                if (IdeaModelHandlerPlugin.isIdeaSyncRelated(getProject())) {
                     // Isolate this logic to only sync...
-                    var rootProject = getProject().getRootProject();
-                    var idea = rootProject.getExtensions().getByType(IdeaModel.class);
-                    var settings = ((ExtensionAware) idea.getProject()).getExtensions().getByType(ProjectSettings.class);
-                    var runConfigurations = ((ExtensionAware) settings).getExtensions().getByType(RunConfigurationContainer.class);
-                    runConfigurations.register(runName, Application.class, runConfig -> {
-                        runConfig.setMainClass(DEV_LAUNCH_MAIN_CLASS);
-                        runConfig.setJvmArgs("@" + argFilesTask.get().getJvmArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
-                        runConfig.setProgramParameters("@" + argFilesTask.get().getArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
-                        runConfig.moduleRef(getProject(), dummySourceSet.get());
-                        runConfig.setWorkingDirectory(getRunDirectory().get().getAsFile().getAbsolutePath());
-                        runConfig.beforeRun(beforeRun -> {
-                            beforeRun.create(argFilesTask.getName(), GradleTask.class, task -> {
-                                task.setTask(argFilesTask.get());
-                            });
+                    var model = IdeaModelHandlerPlugin.retrieve(getProject());
+                    model.getRuns().register(runName, runConfig -> {
+                        runConfig.getMainClass().set(DEV_LAUNCH_MAIN_CLASS);
+                        runConfig.getJvmArgs().set("@" + argFilesTask.get().getJvmArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
+                        runConfig.getProgramParameters().set("@" + argFilesTask.get().getArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
+                        runConfig.getProject().set(getProject());
+                        runConfig.getSourceSet().set(dummySourceSet.get());
+                        runConfig.getWorkingDir().set(getRunDirectory());
+                        runConfig.getBeforeRun().set(beforeRun -> {
+                            beforeRun.forTask(argFilesTask);
                         });
                     });
                 }

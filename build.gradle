@@ -46,7 +46,6 @@ dependencies {
             requireCapability("dev.lukebemish:taskgraphrunner-model")
         }
     }
-    implementation 'org.jetbrains.gradle.plugin.idea-ext:org.jetbrains.gradle.plugin.idea-ext.gradle.plugin:1.1.8'
 }
 
 tasks.named('jar', Jar) {

@@ -64,7 +64,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         this.fabricConfigMaker = project.getObjects().newInstance(FabricInstallationArtifacts.class);
         fabricConfigMaker.getWrapped().set(vanillaConfigMaker);
 
-        this.artifactsTask.configure(task -> {
+        this.binaryArtifactsTask.configure(task -> {
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("downloadClientMappings.output", mappings, project.getObjects()));
             task.getConfigMaker().set(fabricConfigMaker);
         });
@@ -85,12 +85,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
 
         fabricConfigMaker.getIntermediary().fileProvider(intermediaryMappings.map(t -> t.getDestinationDir().toPath().resolve("mappings").resolve("mappings.tiny").toFile()));
-        this.artifactsTask.configure(task -> {
+        this.binaryArtifactsTask.configure(task -> {
             task.dependsOn(intermediaryMappings);
         });
 
         var intermediaryJar = workingDirectory.map(it -> it.file("intermediary.jar"));
-        this.artifactsTask.configure(task -> {
+        this.binaryArtifactsTask.configure(task -> {
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("intermediary", intermediaryJar, project.getObjects()));
         });
 
@@ -112,7 +112,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         this.intermediaryToNamed = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"IntermediaryToNamed", MappingsWriter.class, task -> {
             task.getInputMappings().set(chainedSpec);
             task.dependsOn(intermediaryMappings);
-            task.dependsOn(this.artifactsTask);
+            task.dependsOn(this.binaryArtifactsTask);
             task.getTargetFormat().set(IMappingFile.Format.TINY);
             task.getOutputMappings().set(workingDirectory.map(dir -> dir.file("intermediary-to-named.tiny")));
             // Ensure that the header is nicely present for loader
@@ -149,7 +149,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var intermediaryJarFiles = project.files();
         intermediaryJarFiles.from(intermediaryJar);
-        intermediaryJarFiles.builtBy(this.artifactsTask);
+        intermediaryJarFiles.builtBy(this.binaryArtifactsTask);
         project.getDependencies().add(intermediaryMinecraft.getName(), intermediaryJarFiles);
     }
 

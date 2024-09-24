@@ -16,13 +16,18 @@ import java.util.Map;
 
 public abstract class CrochetExtension {
     final TaskProvider<Task> idePostSync;
+    final TaskProvider<Task> generateSources;
     final Project project;
     private final ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> installations;
 
     @Inject
     public CrochetExtension(Project project) {
         this.project = project;
-        this.idePostSync = project.getTasks().register("crochetIdeSetup");
+        this.generateSources = project.getTasks().register("crochetGenerateSources", t -> t.setGroup("crochet setup"));
+        this.idePostSync = project.getTasks().register("crochetIdeSetup", t -> {
+            t.setGroup("crochet setup");
+            t.dependsOn(generateSources);
+        });
         var objects = project.getObjects();
         this.installations = objects.polymorphicDomainObjectContainer(
             MinecraftInstallation.class

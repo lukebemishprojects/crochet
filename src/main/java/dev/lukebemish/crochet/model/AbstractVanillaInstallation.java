@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
@@ -20,7 +21,8 @@ import javax.inject.Inject;
 public abstract class AbstractVanillaInstallation extends MinecraftInstallation {
     final Project project;
     final Configuration minecraft;
-    final TaskProvider<TaskGraphExecution> artifactsTask;
+    final TaskProvider<TaskGraphExecution> binaryArtifactsTask;
+    final TaskProvider<TaskGraphExecution> sourcesArtifactsTask;
     final VanillaInstallationArtifacts vanillaConfigMaker;
     final Provider<Directory> workingDirectory;
 
@@ -41,23 +43,31 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.binary = workingDirectory.map(it -> it.file("compiled.jar"));
         this.sources = workingDirectory.map(it -> it.file("sources.jar"));
 
+        if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
+            var model = IdeaModelHandlerPlugin.retrieve(project);
+            model.mapBinaryToSource(binary, sources);
+        }
+
         this.vanillaConfigMaker = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
         vanillaConfigMaker.getMinecraftVersion().set(getMinecraft());
         vanillaConfigMaker.getAccessTransformers().from(this.accessTransformersPath);
-        this.artifactsTask = project.getTasks().register(name + "CrochetMinecraftArtifacts", TaskGraphExecution.class, task -> {
+        this.binaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftBinaryArtifacts", TaskGraphExecution.class, task -> {
             task.setGroup("crochet setup");
             task.getConfigMaker().set(vanillaConfigMaker);
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("resources", resources, project.getObjects()));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("binary", binary, project.getObjects()));
-            task.getTargets().add(TaskGraphExecution.GraphOutput.of("sources", sources, project.getObjects()));
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
+        this.sourcesArtifactsTask = project.getTasks().register(name + "CrochetMinecraftSourcesArtifacts", TaskGraphExecution.class, task -> {
+            task.copyConfigFrom(binaryArtifactsTask.get());
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("sources", sources, project.getObjects()));
+        });
+
+        extension.generateSources.configure(t -> t.dependsOn(this.sourcesArtifactsTask));
+
         this.downloadAssetsTask.configure(task -> {
-            task.getConfigMaker().set(this.artifactsTask.flatMap(TaskGraphExecution::getConfigMaker));
-            task.getArtifactFiles().set(this.artifactsTask.flatMap(TaskGraphExecution::getArtifactFiles));
-            task.getArtifactIdentifiers().set(this.artifactsTask.flatMap(TaskGraphExecution::getArtifactIdentifiers));
-            task.getJavaLauncher().set(this.artifactsTask.flatMap(TaskGraphExecution::getJavaLauncher));
+            task.copyConfigFrom(binaryArtifactsTask.get());
         });
 
         var minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
@@ -86,28 +96,28 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             getMinecraft().map(it -> "net.neoforged:minecraft-dependencies:"+it)
         );
 
-        this.artifactsTask.configure(task -> {
+        this.binaryArtifactsTask.configure(task -> {
             task.artifactsConfiguration(decompileCompileClasspath);
             task.artifactsConfiguration(decompileRuntimeClasspath);
             task.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME));
         });
 
         var binaryFiles = project.files(binary);
-        binaryFiles.builtBy(artifactsTask);
+        binaryFiles.builtBy(binaryArtifactsTask);
         this.project.getDependencies().add(
             minecraft.getName(),
             binaryFiles
         );
 
         var resourcesFiles = project.files(resources);
-        resourcesFiles.builtBy(artifactsTask);
+        resourcesFiles.builtBy(binaryArtifactsTask);
 
         this.project.getDependencies().add(
             minecraft.getName(),
             resourcesFiles
         );
 
-        extension.idePostSync.configure(t -> t.dependsOn(artifactsTask));
+        extension.idePostSync.configure(t -> t.dependsOn(binaryArtifactsTask));
     }
 
     public abstract Property<String> getMinecraft();

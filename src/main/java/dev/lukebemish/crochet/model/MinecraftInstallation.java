@@ -45,7 +45,7 @@ public abstract class MinecraftInstallation implements Named {
         var project = this.crochetExtension.project;
 
         this.assetsProperties = project.getLayout().getBuildDirectory().file("crochet/installations/"+name+"/assets.properties");
-        this.downloadAssetsTask = project.getTasks().register(name+"DownloadAssets", TaskGraphExecution.class, task -> {
+        this.downloadAssetsTask = project.getTasks().register(name+"CrochetDownloadAssets", TaskGraphExecution.class, task -> {
             task.setGroup("crochet setup");
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("assets", assetsProperties, project.getObjects()));

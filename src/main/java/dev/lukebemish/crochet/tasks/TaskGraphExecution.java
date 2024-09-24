@@ -116,6 +116,15 @@ public abstract class TaskGraphExecution extends DefaultTask {
     @Inject
     protected abstract ProjectLayout getProjectLayout();
 
+    public void copyConfigFrom(TaskGraphExecution other) {
+        getConfigMaker().set(other.getConfigMaker());
+        getArtifactFiles().set(other.getArtifactFiles());
+        getArtifactIdentifiers().set(other.getArtifactIdentifiers());
+        getJavaLauncher().set(other.getJavaLauncher());
+        getRuntimeCacheDirectory().set(other.getRuntimeCacheDirectory());
+        getClasspath().setFrom(other.getClasspath());
+    }
+
     @TaskAction
     public void execute() throws IOException {
         var config = getConfigMaker().get().makeConfig();
