@@ -20,6 +20,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
@@ -45,10 +46,12 @@ import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 @ApiStatus.Internal
@@ -67,7 +70,9 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         }
     }
 
-    public interface SourceBinaryLinker extends BiConsumer<Provider<List<RegularFile>>, Provider<List<RegularFile>>> {}
+    public interface SourceBinaryLinker {
+        void accept(Provider<List<RegularFile>> binaries, Provider<List<RegularFile>> sources, Provider<List<RegularFile>> lineMappedBinaries);
+    }
     public interface BeforeRunCollector {
         void forTask(TaskProvider<?> task);
     }
@@ -113,7 +118,15 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         }
 
         public void mapBinariesToSources(Provider<List<RegularFile>> binaries, Provider<List<RegularFile>> sources) {
-            sourceBinaryLinker.accept(binaries, sources);
+            sourceBinaryLinker.accept(binaries, sources, binaries);
+        }
+
+        public void mapBinariesToSourcesWithLineMaps(Provider<List<RegularFile>> binaries, Provider<List<RegularFile>> sources, Provider<List<RegularFile>> lineMappedBinaries) {
+            sourceBinaryLinker.accept(binaries, sources, lineMappedBinaries);
+        }
+
+        public void mapBinaryToSourceWithLineMaps(Provider<RegularFile> binary, Provider<RegularFile> source, Provider<RegularFile> lineMappedBinary) {
+            mapBinariesToSourcesWithLineMaps(binary.map(List::of), source.map(List::of), lineMappedBinary.map(List::of));
         }
 
         public NamedDomainObjectContainer<IdeaRun> getRuns() {
@@ -183,10 +196,12 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
     private void applyRoot(Project project) {
         ListProperty<String> sources = project.getObjects().listProperty(String.class);
         ListProperty<String> binaries = project.getObjects().listProperty(String.class);
+        ListProperty<String> lineMappedBinaries = project.getObjects().listProperty(String.class);
         NamedDomainObjectContainer<IdeaRun> ideaRuns = project.getObjects().domainObjectContainer(IdeaRun.class);
-        project.getExtensions().create(IdeaModelOptions.class, "crochetIdeaModelOptions", IdeaModelOptions.class, (SourceBinaryLinker) (newBinaries, newSources) -> {
+        project.getExtensions().create(IdeaModelOptions.class, "crochetIdeaModelOptions", IdeaModelOptions.class, (SourceBinaryLinker) (newBinaries, newSources, newLineMappedBinaries) -> {
             sources.addAll(newSources.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
             binaries.addAll(newBinaries.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
+            lineMappedBinaries.addAll(newLineMappedBinaries.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
         }, ideaRuns);
         var layoutFile = project.file("layout.json");
         var serviceProvider = project.getGradle().getSharedServices()
@@ -241,15 +256,32 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
             project.getTasks().named("processIdeaSettings", task -> {
                 task.getInputs().property("crochetBinaries", binaries);
                 task.getInputs().property("crochetSources", sources);
+                task.getInputs().file(serviceProvider.get().getParameters().getLayoutFile()).withPathSensitivity(PathSensitivity.NONE).skipWhenEmpty();
                 task.usesService(serviceProvider);
                 task.doLast(t -> {
-                    Map<String, String> pathMap = new HashMap<>();
+                    Map<String, String> binariesToSourcesPathMap = new HashMap<>();
+                    Map<String, String> binariesToLineMappedPathMap = new HashMap<>();
                     var finalBinaries = binaries.get();
                     var finalSources = sources.get();
+                    var finalLineMappedBinaries = lineMappedBinaries.get();
                     for (int i = 0; i < finalBinaries.size(); i++) {
-                        pathMap.put(finalBinaries.get(i), finalSources.get(i));
+                        binariesToSourcesPathMap.put(finalBinaries.get(i), finalSources.get(i));
+                        binariesToSourcesPathMap.put(finalLineMappedBinaries.get(i), finalSources.get(i));
+                        if (!Objects.equals(finalBinaries.get(i), finalLineMappedBinaries.get(i))) {
+                            binariesToLineMappedPathMap.put(finalBinaries.get(i), finalLineMappedBinaries.get(i));
+                        }
                     }
                     var path = serviceProvider.get().getParameters().getLayoutFile().get().toPath();
+                    var tmpFile = t.getTemporaryDir().toPath().resolve("layout.json");
+                    try {
+                        if (Files.exists(tmpFile)) {
+                            Files.delete(tmpFile);
+                        }
+                        Files.createDirectories(tmpFile.getParent());
+                        Files.copy(path, tmpFile);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                     IdeaLayoutJson layoutJson;
                     try (var reader = Files.newBufferedReader(path)) {
                         layoutJson = GSON.fromJson(reader, IdeaLayoutJson.class);
@@ -279,8 +311,13 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                                                 if (url.startsWith("jar://") && url.endsWith("!/")) {
                                                     var jarPathString = url.substring(5, url.length() - 2).replace("$MODULE_DIR$", moduleDir.toAbsolutePath().toString());
                                                     var jarPath = Paths.get(jarPathString).normalize().toAbsolutePath().toString();
-                                                    if (pathMap.containsKey(jarPath)) {
-                                                        var relativeSourcesPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(pathMap.get(jarPath)));
+                                                    if (binariesToSourcesPathMap.containsKey(jarPath)) {
+                                                        if (binariesToLineMappedPathMap.containsKey(jarPath)) {
+                                                            var relativeLineMappedPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(binariesToLineMappedPathMap.get(jarPath)));
+                                                            var newUrl = "jar://" + relativeLineMappedPath + "!/";
+                                                            urlNode.setNodeValue(newUrl);
+                                                        }
+                                                        var relativeSourcesPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(binariesToSourcesPathMap.get(jarPath)));
                                                         var newUrl = "jar://" + relativeSourcesPath + "!/";
                                                         var sourcesNode = getNode(node, "SOURCES");
                                                         if (sourcesNode == null) {

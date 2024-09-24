@@ -87,6 +87,9 @@ public abstract class Run implements Named, Dependencies {
             task.jvmArgs("@"+argFilesTask.get().getJvmArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
         });
 
+        this.getAvoidNeedlessDecompilation().finalizeValueOnRead();
+        this.getAvoidNeedlessDecompilation().convention(getProject().getProviders().environmentVariable("CI").isPresent());
+
         if (Boolean.getBoolean("idea.active")) {
             SourceSetContainer sourceSets = getProject().getExtensions().getByType(SourceSetContainer.class);
             var dummySourceSet = sourceSets.register("crochet_wrapper_"+name, sourceSet -> {
@@ -213,4 +216,6 @@ public abstract class Run implements Named, Dependencies {
     }
 
     protected abstract SetProperty<Mod> getRunMods();
+
+    public abstract Property<Boolean> getAvoidNeedlessDecompilation();
 }

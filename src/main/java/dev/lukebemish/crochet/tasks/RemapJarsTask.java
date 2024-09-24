@@ -17,6 +17,7 @@ import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
@@ -77,6 +78,11 @@ public abstract class RemapJarsTask extends DefaultTask {
 
     @TaskAction
     public void execute() throws IOException {
+        if (getTargets().get().isEmpty()) {
+            this.setDidWork(false);
+            return;
+        }
+
         for (var target : getTargets().get()) {
             var outPath = target.getTarget().get().getAsFile().toPath();
             if (Files.exists(outPath)) {

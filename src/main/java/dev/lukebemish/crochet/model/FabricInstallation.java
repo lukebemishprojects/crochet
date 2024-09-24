@@ -19,6 +19,8 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Property;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
@@ -259,16 +261,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.getMinecraftVersion().set(getMinecraft());
             task.dependsOn(writeLog4jConfig);
         });
-        Configuration runtimeClasspath = project.getConfigurations().maybeCreate("crochet" + StringUtils.capitalize(this.getName()) + StringUtils.capitalize(run.getName()) + "Classpath");
-        runtimeClasspath.extendsFrom(loaderConfiguration);
-        runtimeClasspath.extendsFrom(mappingsClasspath);
-        runtimeClasspath.extendsFrom(project.getConfigurations().getByName(CrochetPlugin.TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME));
-        runtimeClasspath.attributes(attributes -> {
-            attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
-            // We just default to 21 here if nothing is specified -- we'll want to be smarter about this in the future
-            // and try and pull it from the source compile tasks I guess?
-            attributes.attributeProvider(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, run.getToolchain().getLanguageVersion().map(JavaLanguageVersion::asInt).orElse(21));
-        });
+        run.classpath.extendsFrom(loaderConfiguration);
+        run.classpath.extendsFrom(mappingsClasspath);
+        run.classpath.extendsFrom(project.getConfigurations().getByName(CrochetPlugin.TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME));
+        // TODO: figure out setting java version attribute on run classpath?
 
         var remapClasspathFile = project.getLayout().getBuildDirectory().file("crochet/runs/"+run.getName()+"/remapClasspath.txt");
         var remapClasspath = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+StringUtils.capitalize(run.getName())+"RemapClasspath", MakeRemapClasspathFile.class, task -> {
@@ -279,8 +275,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         run.argFilesTask.configure(task -> {
             task.dependsOn(remapClasspath);
         });
-
-        run.classpath.extendsFrom(runtimeClasspath);
         run.getJvmArgs().addAll(
             "-Dfabric.development=true",
             // TODO: remap classpath file
@@ -306,8 +300,14 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         }));
         switch (runType) {
             case CLIENT -> {
-                runtimeClasspath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
-                runtimeClasspath.extendsFrom(minecraft);
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
+                project.afterEvaluate(p -> {
+                    if (run.getAvoidNeedlessDecompilation().get()) {
+                        run.classpath.extendsFrom(minecraft);
+                    } else {
+                        run.classpath.extendsFrom(minecraftLineMapped);
+                    }
+                });
                 run.getMainClass().convention("net.fabricmc.loader.impl.launch.knot.KnotClient");
                 run.getArgs().addAll(
                     "--assetIndex",
@@ -317,8 +317,14 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 );
             }
             case SERVER -> {
-                runtimeClasspath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
-                runtimeClasspath.extendsFrom(minecraft);
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
+                project.afterEvaluate(p -> {
+                    if (run.getAvoidNeedlessDecompilation().get()) {
+                        run.classpath.extendsFrom(minecraft);
+                    } else {
+                        run.classpath.extendsFrom(minecraftLineMapped);
+                    }
+                });
                 run.getMainClass().convention("net.fabricmc.loader.impl.launch.knot.KnotClient");
             }
         }

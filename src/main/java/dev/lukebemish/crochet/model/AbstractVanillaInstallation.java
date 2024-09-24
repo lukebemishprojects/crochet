@@ -13,6 +13,7 @@ import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -21,14 +22,17 @@ import javax.inject.Inject;
 public abstract class AbstractVanillaInstallation extends MinecraftInstallation {
     final Project project;
     final Configuration minecraft;
+    final Configuration minecraftLineMapped;
     final TaskProvider<TaskGraphExecution> binaryArtifactsTask;
     final TaskProvider<TaskGraphExecution> sourcesArtifactsTask;
+    final TaskProvider<TaskGraphExecution> lineMappedBinaryArtifactsTask;
     final VanillaInstallationArtifacts vanillaConfigMaker;
     final Provider<Directory> workingDirectory;
 
     final Provider<RegularFile> sources;
     final Provider<RegularFile> resources;
     final Provider<RegularFile> binary;
+    final Provider<RegularFile> binaryLineMapped;
 
     @Inject
     public AbstractVanillaInstallation(String name, CrochetExtension extension) {
@@ -42,10 +46,11 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.resources = workingDirectory.map(it -> it.file(name+"-extra-resources.jar"));
         this.binary = workingDirectory.map(it -> it.file(name+"-compiled.jar"));
         this.sources = workingDirectory.map(it -> it.file(name+"-sources.jar"));
+        this.binaryLineMapped = workingDirectory.map(it -> it.file(name+"-compiled-line-mapped.jar"));
 
         if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
             var model = IdeaModelHandlerPlugin.retrieve(project);
-            model.mapBinaryToSource(binary, sources);
+            model.mapBinaryToSourceWithLineMaps(binary, sources, binaryLineMapped);
         }
 
         this.vanillaConfigMaker = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
@@ -55,7 +60,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             task.setGroup("crochet setup");
             task.getConfigMaker().set(vanillaConfigMaker);
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("resources", resources, project.getObjects()));
-            task.getTargets().add(TaskGraphExecution.GraphOutput.of("binary", binary, project.getObjects()));
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("binarySourceIndependent", binary, project.getObjects()));
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
@@ -64,7 +69,15 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("sources", sources, project.getObjects()));
         });
 
-        extension.generateSources.configure(t -> t.dependsOn(this.sourcesArtifactsTask));
+        this.lineMappedBinaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftLineMappedBinaryArtifacts", TaskGraphExecution.class, task -> {
+            task.copyConfigFrom(binaryArtifactsTask.get());
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("binary", binaryLineMapped, project.getObjects()));
+        });
+
+        extension.generateSources.configure(t -> {
+            t.dependsOn(this.sourcesArtifactsTask);
+            t.dependsOn(this.lineMappedBinaryArtifactsTask);
+        });
 
         this.downloadAssetsTask.configure(task -> {
             task.copyConfigFrom(binaryArtifactsTask.get());
@@ -72,6 +85,11 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
 
         var minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
         this.minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config -> {
+            config.extendsFrom(minecraftDependencies);
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+        });
+
+        this.minecraftLineMapped = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftLineMapped", config -> {
             config.extendsFrom(minecraftDependencies);
             config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
         });
@@ -109,11 +127,22 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             binaryFiles
         );
 
+        var lineMappedBinaryFiles = project.files(binary);
+        lineMappedBinaryFiles.builtBy(lineMappedBinaryArtifactsTask);
+        this.project.getDependencies().add(
+            minecraftLineMapped.getName(),
+            binaryFiles
+        );
+
         var resourcesFiles = project.files(resources);
         resourcesFiles.builtBy(binaryArtifactsTask);
 
         this.project.getDependencies().add(
             minecraft.getName(),
+            resourcesFiles
+        );
+        this.project.getDependencies().add(
+            minecraftLineMapped.getName(),
             resourcesFiles
         );
 
