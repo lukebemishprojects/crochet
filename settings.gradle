@@ -1,3 +1,4 @@
 rootProject.name = 'crochet'
 
-include 'remappers:tiny-remapper'
+include 'wrappers:shared'
+include 'wrappers:tiny-remapper'

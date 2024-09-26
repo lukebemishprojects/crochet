@@ -1,3 +1,7 @@
+import groovy.json.JsonSlurper
+import groovy.transform.EqualsAndHashCode
+import groovy.transform.TupleConstructor
+
 plugins {
     id 'java-gradle-plugin'
     id 'maven-publish'
@@ -9,16 +13,23 @@ gradlePlugin {
     plugins {
         crochet {
             id = 'dev.lukebemish.crochet'
-            implementationClass = 'dev.lukebemish.crochet.CrochetPlugin'
+            implementationClass = 'dev.lukebemish.crochet.internal.CrochetPlugin'
         }
-        fabricConvention {
-            id = 'dev.lukebemish.crochet.fabric'
-            implementationClass = 'dev.lukebemish.crochet.fabric.FabricConventionPlugin'
+        crochetRepositories {
+            id = 'dev.lukebemish.crochet.repositories'
+            implementationClass = 'dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin'
+        }
+        crochetIdeaModel {
+            id = 'dev.lukebemish.crochet.idea'
+            implementationClass = 'dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin'
         }
     }
 }
 
 repositories {
+    // TODO: remove
+    mavenLocal()
+
     mavenCentral()
     gradlePluginPortal()
 }
@@ -29,6 +40,12 @@ dependencies {
     implementation 'org.apache.commons:commons-text:1.10.0'
     implementation 'com.google.code.gson:gson:2.10'
     implementation 'com.google.guava:guava:33.0.0-jre'
+    implementation 'net.neoforged:srgutils:1.0.9'
+    implementation('dev.lukebemish:taskgraphrunner:0.1.0') {
+        capabilities {
+            requireCapability("dev.lukebemish:taskgraphrunner-model")
+        }
+    }
 }
 
 tasks.named('jar', Jar) {
@@ -37,6 +54,92 @@ tasks.named('jar', Jar) {
     }
 }
 
-subprojects {
-    version = rootProject.version
+abstract class DownloadManifest extends DefaultTask {
+    @OutputFile
+    abstract RegularFileProperty getOutputFile()
+
+    @javax.inject.Inject
+    public DownloadManifest() {
+        outputs.upToDateWhen { false }
+    }
+
+    @TaskAction
+    void execute() {
+        def outputFile = outputFile.get().asFile
+        outputFile.parentFile.mkdirs()
+        outputFile.text = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'.toURL().text
+    }
+}
+
+abstract class CreateMinecraftLibrariesMavenContent extends DefaultTask {
+    @OutputFile
+    abstract RegularFileProperty getOutputFile()
+
+    @Input
+    abstract Property<String> getClassName()
+
+    @Internal
+    abstract DirectoryProperty getOutputSourceDir()
+
+    @InputFile
+    @PathSensitive(PathSensitivity.NONE)
+    abstract RegularFileProperty getManifestFile()
+
+    @TupleConstructor
+    @EqualsAndHashCode
+    private static class Module {
+        final String group
+        final String name
+    }
+
+    @javax.inject.Inject
+    public CreateMinecraftLibrariesMavenContent() {
+        outputFile.convention(outputSourceDir.file(className.map { it.replace('.', '/')+'.java' }))
+    }
+
+    @TaskAction
+    void execute() {
+        final Set<Module> modules = new LinkedHashSet<>()
+        final sourceFile = outputFile.get().asFile
+        sourceFile.parentFile.mkdirs()
+        final json = new JsonSlurper()
+        final manifest = json.parse(manifestFile.get().asFile)
+        manifest.versions.each { version ->
+            final versionData = json.parse((version.url as String).toURL())
+            versionData.libraries.each {
+                final gav = it.name.split(':')
+                modules.add(new Module(gav[0], gav[1]))
+            }
+        }
+        final classText ="""package ${className.get().split(/\./).dropRight(1).join('.')};
+
+import org.gradle.api.artifacts.repositories.RepositoryContentDescriptor;
+
+class ${className.get().split(/\./).last()} {
+    static void applyContent(RepositoryContentDescriptor descriptor) {
+${modules.collect { "        descriptor.includeModule(\"${it.group}\", \"${it.name}\");" }.join('\n')}
+    }
+}
+"""
+        sourceFile.text = classText
+    }
+}
+
+def downloadManifest = tasks.register('downloadManifest', DownloadManifest) {
+    outputFile.set(layout.buildDirectory.file("manifest.json"))
+}
+
+tasks.register('createMinecraftLibrariesMavenContent', CreateMinecraftLibrariesMavenContent) {
+    dependsOn downloadManifest
+    className.set('dev.lukebemish.crochet.internal.MinecraftLibrariesMavenContent')
+    outputSourceDir.set(project.file('src/generated/java'))
+    manifestFile.set(downloadManifest.flatMap { it.outputFile })
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/generated/java'
+        }
+    }
 }

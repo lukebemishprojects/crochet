@@ -1,13 +1,10 @@
 package test;
 
-import dev.lukebemish.autoextension.AutoExtension;
-import subproject.Subproject;
+import net.fabricmc.api.ModInitializer;
 
-@AutoExtension
-public class Test {
-    public static void main(String[] args) {
-        Subproject.doStuff();
-        Subproject.doMoreStuff();
-        Subproject.doEvenMoreStuff();
+public class Test implements ModInitializer {
+    @Override
+    public void onInitialize() {
+        System.out.println("Crochet loaded the fabric test mod!");
     }
 }

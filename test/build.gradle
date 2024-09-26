@@ -1,7 +1,20 @@
+import dev.lukebemish.crochet.model.FabricInstallation
+import dev.lukebemish.crochet.model.VanillaInstallation
+import dev.lukebemish.crochet.tasks.MappingsWriter
+import net.neoforged.srgutils.IMappingFile
+
 plugins {
     id 'java'
     id 'maven-publish'
-    id 'dev.lukebemish.crochet.fabric'
+    id 'dev.lukebemish.crochet'
+}
+
+repositories {
+    repositories {
+        mavenCentral()
+        // TODO: publish stuff
+        mavenLocal()
+    }
 }
 
 java.withSourcesJar()
@@ -9,54 +22,42 @@ java.withSourcesJar()
 group = 'dev.lukebemish.crochet.crochet-test'
 version = '1.0.0'
 
-repositories {
-    mavenCentral()
-    maven {
-        url = 'https://maven.fabricmc.net/'
-    }
-}
+crochet {
+    installations {
+        register('fabric', FabricInstallation) {
+            minecraft = '1.21.1'
 
-dependencies {
-    // TODO
-    crochetMappingsNamedToIntermediary 'net.fabricmc:intermediary:1.20.4'
-    crochetMappingsIntermediaryToNamed 'net.fabricmc:intermediary:1.20.4'
+            dependencies {
+                loader 'net.fabricmc:fabric-loader:0.16.0'
+            }
 
-    implementation 'dev.lukebemish.autoextension:autoextension:0.1.1'
-    implementation project(':subproject')
-}
-
-jar {
-    manifest {
-        attributes(
-            'Main-Class': 'dev.lukebemish.crochet.CrochetTest'
-        )
-    }
-}
-
-allprojects {
-    apply plugin: 'java'
-    apply plugin: 'maven-publish'
-
-    version = rootProject.version
-    group = rootProject.group
-
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                from components.java
+            forSourceSet(project.sourceSets.main) {
+                modImplementation 'net.fabricmc.fabric-api:fabric-api:0.102.0+1.21'
             }
         }
 
-        repositories {
-            maven {
-                name 'repo'
-                url rootProject.file('build/repo')
-            }
+        register('vanilla', VanillaInstallation) {
+            minecraft = '1.21.1'
         }
     }
-
-    tasks.register("resolveRuntimeClasspath", Copy) {
-        from(configurations.runtimeClasspath)
-        into(layout.buildDirectory.dir("runtimeClasspath"))
+    mods {
+        main {
+            include sourceSets.main
+        }
     }
+    runs {
+        vanillaClient {
+            client installations.vanilla
+        }
+        fabricClient {
+            client installations.fabric
+            mod mods.main
+        }
+    }
+}
+
+tasks.register('reformatMappings', MappingsWriter) {
+    inputMappings = file('mappings.tiny')
+    outputMappings = file('mappings.tsrg')
+    targetFormat = IMappingFile.Format.TSRG2
 }
