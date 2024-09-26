@@ -1,7 +1,5 @@
 import dev.lukebemish.crochet.model.FabricInstallation
 import dev.lukebemish.crochet.model.VanillaInstallation
-import dev.lukebemish.crochet.tasks.MappingsWriter
-import net.neoforged.srgutils.IMappingFile
 
 plugins {
     id 'java'
@@ -54,10 +52,4 @@ crochet {
             mod mods.main
         }
     }
-}
-
-tasks.register('reformatMappings', MappingsWriter) {
-    inputMappings = file('mappings.tiny')
-    outputMappings = file('mappings.tsrg')
-    targetFormat = IMappingFile.Format.TSRG2
 }
