@@ -7,9 +7,9 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.Optional;
 import org.gradle.jvm.toolchain.JavaLauncher;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +30,9 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
                         args.add("--cache-dir=" + taskRecord.getKey().toAbsolutePath());
                         args.add("mark");
                         for (var record : taskRecord.getValue()) {
-                            args.add(record.toAbsolutePath().toString());
+                            if (Files.exists(record)) {
+                                args.add(record.toAbsolutePath().toString());
+                            }
                         }
                         daemon.execute(args.toArray(String[]::new));
                     }
@@ -65,9 +67,9 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
 
     private DaemonExecutor daemon;
 
-    private Map<Path, List<Path>> taskRecordJsons = new ConcurrentHashMap<>();
+    private final Map<Path, List<Path>> taskRecordJsons = new ConcurrentHashMap<>();
 
-    private Set<Path> cacheDirs = ConcurrentHashMap.newKeySet();
+    private final Set<Path> cacheDirs = ConcurrentHashMap.newKeySet();
 
     public void addTaskRecordJson(Path cacheDir, Path taskRecordJson) {
         taskRecordJsons.computeIfAbsent(cacheDir.toAbsolutePath(), k -> new ArrayList<>()).add(taskRecordJson.toAbsolutePath());
