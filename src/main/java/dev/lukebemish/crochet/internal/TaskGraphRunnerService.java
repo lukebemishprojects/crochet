@@ -7,9 +7,13 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.Optional;
 import org.gradle.jvm.toolchain.JavaLauncher;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRunnerService.Params>, AutoCloseable {
     public static final String STACKTRACE_PROPERTY = "dev.lukebemish.taskgraphrunner.hidestacktrace";
@@ -19,13 +23,60 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
     public void close() {
         synchronized (this) {
             if (daemon != null) {
-                daemon.close();
-                daemon = null;
+                List<Throwable> suppressed = new ArrayList<>();
+                try {
+                    for (var taskRecord : taskRecordJsons.entrySet()) {
+                        var args = new ArrayList<String>();
+                        args.add("--cache-dir=" + taskRecord.getKey().toAbsolutePath());
+                        args.add("mark");
+                        for (var record : taskRecord.getValue()) {
+                            args.add(record.toAbsolutePath().toString());
+                        }
+                        daemon.execute(args.toArray(String[]::new));
+                    }
+                    for (var cacheDir : cacheDirs) {
+                        var args = new ArrayList<String>();
+                        args.add("--cache-dir=" + cacheDir.toAbsolutePath());
+                        args.add("clean");
+                        // TODO: specify cleaning options
+                        daemon.execute(args.toArray(String[]::new));
+                    }
+                } catch (Throwable t) {
+                    suppressed.add(t);
+                }
+                try {
+                    daemon.close();
+                    daemon = null;
+                } catch (Throwable t) {
+                    suppressed.add(t);
+                }
+                if (!suppressed.isEmpty()) {
+                    var e = new RuntimeException("Failed to close daemon", suppressed.getFirst());
+                    if (suppressed.size() > 1) {
+                        for (var t : suppressed.subList(1, suppressed.size())) {
+                            e.addSuppressed(t);
+                        }
+                    }
+                    throw e;
+                }
             }
         }
     }
 
     private DaemonExecutor daemon;
+
+    private Map<Path, List<Path>> taskRecordJsons = new ConcurrentHashMap<>();
+
+    private Set<Path> cacheDirs = ConcurrentHashMap.newKeySet();
+
+    public void addTaskRecordJson(Path cacheDir, Path taskRecordJson) {
+        taskRecordJsons.computeIfAbsent(cacheDir.toAbsolutePath(), k -> new ArrayList<>()).add(taskRecordJson.toAbsolutePath());
+        addCacheDir(cacheDir);
+    }
+
+    public void addCacheDir(Path cacheDir) {
+        cacheDirs.add(cacheDir.toAbsolutePath());
+    }
 
     public DaemonExecutor start(JavaLauncher javaLauncher, String jarPath, Map<String, String> stringStringMap) {
         synchronized (this) {

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.lukebemish.crochet.internal.PropertiesUtils;
 import dev.lukebemish.crochet.internal.TaskGraphRunnerService;
+import dev.lukebemish.taskgraphrunner.daemon.DaemonExecutor;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Output;
 import dev.lukebemish.taskgraphrunner.model.WorkItem;
@@ -64,8 +65,24 @@ public abstract class TaskGraphExecution extends DefaultTask {
             new File(getProject().getGradle().getGradleUserHomeDir(), "caches/taskgraphrunner")
         );
 
+        getTaskRecordJson().convention(getProject().getLayout().dir(getProject().provider(this::getTemporaryDir)).map(d -> d.file("task-record.json")));
+
         // Default to java 21 for NFRT
         getJavaLauncher().convention(getJavaToolchainService().launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(21))));
+
+        this.getOutputs().upToDateWhen(task -> {
+            var taskRecordJson = getTaskRecordJson().get().getAsFile();
+            if (taskRecordJson.exists()) {
+                // Start the daemon
+                makeDaemon();
+                getTaskGraphRunnerService().get().addTaskRecordJson(getRuntimeCacheDirectory().get().getAsFile().toPath().toAbsolutePath(), taskRecordJson.toPath().toAbsolutePath());
+            }
+            return true;
+        });
+    }
+
+    private DaemonExecutor makeDaemon() {
+        return getTaskGraphRunnerService().get().start(getJavaLauncher().get(), getClasspath().getSingleFile().getAbsolutePath(), PropertiesUtils.networkProperties(getProviderFactory()).get());
     }
 
     @Nested
@@ -83,6 +100,9 @@ public abstract class TaskGraphExecution extends DefaultTask {
 
     @Nested
     public abstract ListProperty<GraphOutput> getTargets();
+
+    @Internal
+    protected abstract RegularFileProperty getTaskRecordJson();
 
     public static abstract class GraphOutput {
         @Input
@@ -164,7 +184,8 @@ public abstract class TaskGraphExecution extends DefaultTask {
             throw new UncheckedIOException(e);
         }
 
-        var daemon = getTaskGraphRunnerService().get().start(getJavaLauncher().get(), getClasspath().getSingleFile().getAbsolutePath(), PropertiesUtils.networkProperties(getProviderFactory()).get());
+        var daemon = makeDaemon();
+        getTaskGraphRunnerService().get().addCacheDir(getRuntimeCacheDirectory().get().getAsFile().toPath().toAbsolutePath());
 
         List<String> arguments = new ArrayList<>();
 
@@ -172,6 +193,7 @@ public abstract class TaskGraphExecution extends DefaultTask {
         arguments.add("--artifact-manifest="+manifest.toAbsolutePath());
         arguments.add("run");
         arguments.add(configPath.toAbsolutePath().toString());
+        arguments.add("--task-record-json="+getTaskRecordJson().get().getAsFile().getAbsolutePath());
 
         daemon.execute(arguments.toArray(String[]::new));
     }
