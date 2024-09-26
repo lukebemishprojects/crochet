@@ -46,13 +46,11 @@ import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 @ApiStatus.Internal
 public class IdeaModelHandlerPlugin implements Plugin<Project> {
@@ -179,6 +177,8 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
     private static final Gson GSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
 
     public abstract static class IdeaSettings {
+        // TODO: run configurations
+
         @Override
         public String toString() {
             JsonObject json = new JsonObject();

@@ -9,7 +9,8 @@ import org.gradle.api.attributes.AttributeDisambiguationRule;
 import org.gradle.api.attributes.Bundling;
 import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.attributes.java.TargetJvmVersion;
-import org.gradle.api.plugins.UnknownPluginException;
+import org.gradle.api.logging.LogLevel;
+import org.gradle.api.logging.configuration.ShowStacktrace;
 import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
@@ -74,8 +75,22 @@ public class CrochetPlugin implements Plugin<Project> {
 
         var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 
+        project.getGradle().getSharedServices().registerIfAbsent("taskGraphRunnerDaemon", TaskGraphRunnerService.class, spec -> {
+            spec.getParameters().getHideStacktrace().convention(project.getGradle().getStartParameter().getShowStacktrace() == ShowStacktrace.INTERNAL_EXCEPTIONS);
+            spec.getParameters().getLogLevel().convention(extension.getQuietLogging().map(it -> it ? closestLogLevel(project.getGradle().getStartParameter().getLogLevel()) : "INFO"));
+        });
+
         applyDisambiguationRules(project);
         applyComponentRules(project);
+    }
+
+    private static String closestLogLevel(LogLevel logLevel) {
+        return switch (logLevel) {
+            case LogLevel.DEBUG -> "DEBUG";
+            case LogLevel.INFO -> "INFO";
+            case LogLevel.LIFECYCLE, LogLevel.WARN -> "WARN";
+            case LogLevel.QUIET, LogLevel.ERROR -> "ERROR";
+        };
     }
 
     private static void applyComponentRules(Project project) {

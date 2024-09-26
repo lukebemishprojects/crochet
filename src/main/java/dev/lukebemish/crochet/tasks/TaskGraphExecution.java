@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.tasks;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.lukebemish.crochet.internal.PropertiesUtils;
+import dev.lukebemish.crochet.internal.TaskGraphRunnerService;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Output;
 import dev.lukebemish.taskgraphrunner.model.WorkItem;
@@ -18,17 +19,16 @@ import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
-import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.OutputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
@@ -50,6 +50,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("UnstableApiUsage")
 public abstract class TaskGraphExecution extends DefaultTask {
     private static final Gson GSON = new GsonBuilder().create();
 
@@ -69,6 +70,9 @@ public abstract class TaskGraphExecution extends DefaultTask {
 
     @Nested
     public abstract Property<ConfigMaker> getConfigMaker();
+
+    @ServiceReference("taskGraphRunnerDaemon")
+    protected abstract Property<TaskGraphRunnerService> getTaskGraphRunnerService();
 
     @InputFiles
     @PathSensitive(PathSensitivity.NONE)
@@ -160,6 +164,8 @@ public abstract class TaskGraphExecution extends DefaultTask {
             throw new UncheckedIOException(e);
         }
 
+        var daemon = getTaskGraphRunnerService().get().start(getJavaLauncher().get(), getClasspath().getSingleFile().getAbsolutePath(), PropertiesUtils.networkProperties(getProviderFactory()).get());
+
         List<String> arguments = new ArrayList<>();
 
         arguments.add("--cache-dir="+getRuntimeCacheDirectory().get().getAsFile().getAbsolutePath());
@@ -167,17 +173,7 @@ public abstract class TaskGraphExecution extends DefaultTask {
         arguments.add("run");
         arguments.add(configPath.toAbsolutePath().toString());
 
-        getExecOperations().javaexec(execSpec -> {
-            // Network properties should be the same as TaskGraphRunner may be doing network stuff
-            execSpec.systemProperties(PropertiesUtils.networkProperties(getProviderFactory()).get());
-
-            // See https://github.com/gradle/gradle/issues/28959
-            execSpec.jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8");
-
-            execSpec.executable(getJavaLauncher().get().getExecutablePath().getAsFile());
-            execSpec.classpath(getClasspath());
-            execSpec.args(arguments);
-        }).rethrowFailure().assertNormalExitValue();
+        daemon.execute(arguments.toArray(String[]::new));
     }
 
     public void artifactsConfiguration(Configuration configuration) {
