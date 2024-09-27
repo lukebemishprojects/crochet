@@ -36,6 +36,12 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
         if (!getAccessTransformers().isEmpty()) {
             options.accessTransformersParameter("accessTransformers");
         }
+        if (!getInjectedInterfaces().isEmpty()) {
+            options.interfaceInjectionDataParameter("injectedInterfaces");
+        }
+        if (!getParchment().isEmpty()) {
+            options.parchmentDataParameter("parchmentData");
+        }
 
         var config = SingleVersionGenerator.convert(getMinecraftVersion().get(), options.build());
         if (!getAccessTransformers().isEmpty()) {
@@ -47,10 +53,32 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                 )
             );
         }
+        if (!getInjectedInterfaces().isEmpty()) {
+            config.parameters.put("injectedInterfaces",
+                new Value.ListValue(
+                    getInjectedInterfaces().getFiles().stream()
+                        .<Value>map(f -> Value.file(f.toPath()))
+                        .toList()
+                )
+            );
+        }
+        if (!getParchment().isEmpty()) {
+            config.parameters.put("parchmentData",
+                Value.file(getParchment().getSingleFile().toPath())
+            );
+        }
         return config;
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.NONE)
     public abstract ConfigurableFileCollection getAccessTransformers();
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.NONE)
+    public abstract ConfigurableFileCollection getInjectedInterfaces();
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.NONE)
+    public abstract ConfigurableFileCollection getParchment();
 }

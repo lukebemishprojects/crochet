@@ -3,9 +3,11 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import org.gradle.api.Named;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
+import org.gradle.api.attributes.Category;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -18,6 +20,9 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public abstract class MinecraftInstallation implements Named {
+    private static final String ACCESS_TRANSFORMER_CATEGORY = "accesstransformer";
+    private static final String INTERFACE_INJECTION_CATEGORY = "interfaceinjection";
+
     private final String name;
     private final Set<SourceSet> sourceSets = new LinkedHashSet<>();
     private final CrochetExtension crochetExtension;
@@ -31,6 +36,17 @@ public abstract class MinecraftInstallation implements Named {
     final Provider<ConsumableConfiguration> accessTransformersElements;
     @SuppressWarnings("UnstableApiUsage")
     final Provider<DependencyScopeConfiguration> accessTransformersApi;
+
+    @SuppressWarnings("UnstableApiUsage")
+    final Provider<DependencyScopeConfiguration> injectedInterfaces;
+    @SuppressWarnings("UnstableApiUsage")
+    final Provider<ResolvableConfiguration> injectedInterfacesPath;
+    @SuppressWarnings("UnstableApiUsage")
+    final Provider<ConsumableConfiguration> injectedInterfacesElements;
+    @SuppressWarnings("UnstableApiUsage")
+    final Provider<DependencyScopeConfiguration> injectedInterfacesApi;
+
+    final Provider<Configuration> parchmentConfiguration;
 
     final TaskProvider<TaskGraphExecution> downloadAssetsTask;
 
@@ -58,14 +74,42 @@ public abstract class MinecraftInstallation implements Named {
             config.fromDependencyCollector(getDependencies().getAccessTransformers());
         });
         this.accessTransformersPath = project.getConfigurations().resolvable(name+"AccessTransformersPath", config -> {
-            // TODO: attributes
+            config.attributes(attributes ->
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY))
+            );
             config.extendsFrom(this.accessTransformersApi.get());
             config.extendsFrom(this.accessTransformers.get());
         });
         this.accessTransformersElements = project.getConfigurations().consumable(name+"AccessTransformersElements", config -> {
-            // TODO: attributes
+            config.attributes(attributes ->
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY))
+            );
             config.extendsFrom(this.accessTransformersApi.get());
         });
+
+        this.injectedInterfacesApi = project.getConfigurations().dependencyScope(name+"InterfaceInjectionsApi", config -> {
+            config.fromDependencyCollector(getDependencies().getInjectedInterfacesApi());
+        });
+        this.injectedInterfaces = project.getConfigurations().dependencyScope(name+"InterfaceInjections", config -> {
+            config.fromDependencyCollector(getDependencies().getInjectedInterfaces());
+        });
+        this.injectedInterfacesPath = project.getConfigurations().resolvable(name+"InterfaceInjectionsPath", config -> {
+            config.attributes(attributes ->
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY))
+            );
+            config.extendsFrom(this.injectedInterfacesApi.get());
+            config.extendsFrom(this.injectedInterfaces.get());
+        });
+        this.injectedInterfacesElements = project.getConfigurations().consumable(name+"InterfaceInjectionsElements", config -> {
+            config.attributes(attributes ->
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY))
+            );
+            config.extendsFrom(this.injectedInterfacesApi.get());
+        });
+
+        this.parchmentConfiguration = project.getConfigurations().register(name+"Parchment", config ->
+            config.fromDependencyCollector(getDependencies().getParchment())
+        );
 
         this.distribution = project.getObjects().property(InstallationDistribution.class);
         this.distribution.convention(InstallationDistribution.JOINED);

@@ -13,7 +13,6 @@ import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -56,6 +55,8 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.vanillaConfigMaker = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
         vanillaConfigMaker.getMinecraftVersion().set(getMinecraft());
         vanillaConfigMaker.getAccessTransformers().from(this.accessTransformersPath);
+        vanillaConfigMaker.getInjectedInterfaces().from(this.injectedInterfacesPath);
+        vanillaConfigMaker.getParchment().from(this.parchmentConfiguration);
         this.binaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftBinaryArtifacts", TaskGraphExecution.class, task -> {
             task.setGroup("crochet setup");
             task.getConfigMaker().set(vanillaConfigMaker);
