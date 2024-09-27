@@ -122,7 +122,7 @@ public abstract class Run implements Named, Dependencies {
                         runConfig.getProgramParameters().set("@" + argFilesTask.get().getArgFile().get().getAsFile().getAbsolutePath().replace("\\", "\\\\"));
                         runConfig.getProject().set(getProject());
                         runConfig.getSourceSet().set(dummySourceSet.get());
-                        runConfig.getWorkingDir().set(getRunDirectory());
+                        runConfig.getWorkingDirectory().set(getRunDirectory());
                         runConfig.getBeforeRun().set(beforeRun -> {
                             beforeRun.forTask(argFilesTask);
                         });

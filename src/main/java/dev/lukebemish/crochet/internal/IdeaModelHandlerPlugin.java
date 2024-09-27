@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.internal;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.gradle.api.Action;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
@@ -93,7 +94,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         public abstract Property<String> getProgramParameters();
         public abstract Property<Project> getProject();
         public abstract Property<SourceSet> getSourceSet();
-        public abstract DirectoryProperty getWorkingDir();
+        public abstract DirectoryProperty getWorkingDirectory();
         public abstract Property<Action<BeforeRunCollector>> getBeforeRun();
     }
 
@@ -177,14 +178,56 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
     private static final Gson GSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
 
     public abstract static class IdeaSettings {
-        // TODO: run configurations
+        private final NamedDomainObjectContainer<IdeaRun> runConfigurations;
+
+        public NamedDomainObjectContainer<IdeaRun> getRunConfigurations() {
+            return this.runConfigurations;
+        }
 
         @Override
         public String toString() {
             JsonObject json = new JsonObject();
             json.addProperty("requiresPostprocessing", true);
             json.addProperty("generateImlFiles", true);
+            var runConfigurations = new JsonArray();
+            for (var run : getRunConfigurations()) {
+                JsonObject runJson = new JsonObject();
+                runJson.addProperty("name", run.getName());
+                runJson.addProperty("type", "application");
+                runJson.addProperty("moduleName", computeModuleName(run.getProject().get(), run.getSourceSet().get()));
+                runJson.addProperty("mainClass", run.getMainClass().get());
+                runJson.addProperty("jvmArgs", run.getJvmArgs().get());
+                runJson.addProperty("programParameters", run.getProgramParameters().get());
+                runJson.addProperty("workingDirectory", run.getWorkingDirectory().get().getAsFile().getAbsolutePath());
+                JsonArray beforeRun = new JsonArray();
+                run.getBeforeRun().get().execute(task -> {
+                    JsonObject singleTask = new JsonObject();
+                    singleTask.addProperty("type", "gradleTask");
+                    singleTask.addProperty("taskName", task.getName());
+                    singleTask.addProperty("projectPath", run.getProject().get().getProjectDir().getAbsolutePath().replaceAll("\\\\", "/"));
+                });
+                runJson.add("beforeRun", beforeRun);
+                runConfigurations.add(runJson);
+            }
+            json.add("runConfigurations", runConfigurations);
             return GSON.toJson(json);
+        }
+
+        @Inject
+        public IdeaSettings(NamedDomainObjectContainer<IdeaRun> runConfigurations) {
+            this.runConfigurations = runConfigurations;
+        }
+
+        private static String computeModuleName(Project project, SourceSet sourceSet) {
+            var name = project.getRootProject().getName();
+            if (project.getPath().equals(":")) {
+                return addSourceSetName(name, sourceSet.getName());
+            }
+            return addSourceSetName(name + project.getPath().replaceAll(":", "."), sourceSet.getName());
+        }
+
+        private static String addSourceSetName(String moduleName, String sourceSetName) {
+            return moduleName + (sourceSetName.isEmpty() ? "" : "." + sourceSetName);
         }
     }
 
@@ -232,7 +275,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                         invoke(application, "setJvmArgs", new Class<?>[] {String.class}, new Object[] {run.getJvmArgs().get()});
                         invoke(application, "setProgramParameters", new Class<?>[] {String.class}, new Object[] {run.getProgramParameters().get()});
                         invoke(application, "moduleRef", new Class<?>[] {Project.class, SourceSet.class}, new Object[] {run.getProject().get(), run.getSourceSet().get()});
-                        invoke(application, "setWorkingDir", new Class<?>[] {String.class}, new Object[] {run.getWorkingDir().get().getAsFile().getAbsolutePath()});
+                        invoke(application, "setWorkingDir", new Class<?>[] {String.class}, new Object[] {run.getWorkingDirectory().get().getAsFile().getAbsolutePath()});
                         invoke(application, "beforeRun", new Class<?>[] {Action.class}, new Object[] {(Action<? extends PolymorphicDomainObjectContainer>) beforeRun -> {
                             run.getBeforeRun().get().execute(task -> {
                                 beforeRun.create(task.getName(), gradleTaskClass, t -> {
@@ -250,7 +293,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                 // - create a corresponding "processIdeaSettings" task
                 // - link up the relevant data to the IdeaModelOptions extension
 
-                ideaProject.getExtensions().create("settings", IdeaSettings.class);
+                ideaProject.getExtensions().create("settings", IdeaSettings.class, ideaRuns);
                 project.getTasks().register("processIdeaSettings");
             }
             project.getTasks().named("processIdeaSettings", task -> {
