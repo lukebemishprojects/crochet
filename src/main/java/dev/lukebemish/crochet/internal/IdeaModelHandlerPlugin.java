@@ -12,6 +12,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.ExtensionAware;
@@ -27,6 +28,8 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -55,6 +58,8 @@ import java.util.Objects;
 
 @ApiStatus.Internal
 public class IdeaModelHandlerPlugin implements Plugin<Project> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(IdeaModelHandlerPlugin.class);
+
     public static abstract class LayoutFileBuildService implements BuildService<LayoutFileBuildService.Params>, AutoCloseable {
         interface Params extends BuildServiceParameters {
             Property<File> getLayoutFile();
@@ -133,10 +138,25 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         }
     }
 
+    @SuppressWarnings("UnstableApiUsage")
+    public abstract static class BuildFeaturesWrapper {
+        @Inject
+        public BuildFeaturesWrapper() {}
+
+        @Inject
+        protected abstract BuildFeatures getBuildFeatures();
+    }
+
     public static IdeaModelOptions retrieve(Project project) {
         if (isIdeaSyncRelated(project)) {
             // We break project isolation here -- not that we have a choice, the whole setup is rather terrible. Thanks IntelliJ...
             var rootProject = project.getRootProject();
+            if (!project.equals(rootProject)) {
+                var features = project.getObjects().newInstance(BuildFeaturesWrapper.class).getBuildFeatures();
+                if (features.getIsolatedProjects().getActive().get()) {
+                    LOGGER.error("Attempted to configure IntelliJ options on a non-root project with project isolation enabled; due to restrictions of IntelliJ's model, this will not work at present");
+                }
+            }
             try {
                 rootProject.getPluginManager().apply("dev.lukebemish.crochet.idea");
             } catch (UnknownPluginException e) {
