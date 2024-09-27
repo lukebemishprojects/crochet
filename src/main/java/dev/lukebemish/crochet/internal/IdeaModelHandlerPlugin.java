@@ -312,6 +312,9 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                 // - enable "requiresPostprocessing" and "generateImlFiles" (handled by the "settings" extension)
                 // - create a corresponding "processIdeaSettings" task
                 // - link up the relevant data to the IdeaModelOptions extension
+                if (ideaProject.getExtensions().findByName("settings") != null) {
+                    LOGGER.error("idea-ext is not present, and something else already registered an 'idea.settings' extension. We're not sure what to do here.");
+                }
 
                 ideaProject.getExtensions().create("settings", IdeaSettings.class, ideaRuns);
                 project.getTasks().register("processIdeaSettings");
