@@ -40,7 +40,9 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
                         var args = new ArrayList<String>();
                         args.add("--cache-dir=" + cacheDir.toAbsolutePath());
                         args.add("clean");
-                        // TODO: specify cleaning options
+                        args.add("--asset-duration=" + getParameters().getRemoveUnusedAssetsAfterDays().get());
+                        args.add("--output-duration=" + getParameters().getRemoveUnusedOutputsAfterDays().get());
+                        args.add("--lock-duration=" + getParameters().getRemoveUnusedLocksAfterDays().get());
                         daemon.execute(args.toArray(String[]::new));
                     }
                 } catch (Throwable t) {
@@ -109,5 +111,11 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
         public abstract Property<String> getLogLevel();
         @Optional
         public abstract Property<Boolean> getHideStacktrace();
+        @Optional
+        public abstract Property<Integer> getRemoveUnusedAssetsAfterDays();
+        @Optional
+        public abstract Property<Integer> getRemoveUnusedOutputsAfterDays();
+        @Optional
+        public abstract Property<Integer> getRemoveUnusedLocksAfterDays();
     }
 }

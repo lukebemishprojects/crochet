@@ -33,6 +33,11 @@ public class CrochetPlugin implements Plugin<Project> {
     private static final String DEV_LAUNCH_VERSION = "1.0.1";
     private static final String TERMINAL_CONSOLE_APPENDER_VERSION = "1.3.0";
 
+    private static final String PROPERTY_TASKGRAPHRUNNER_LOG_LEVEL = "dev.lukebemish.crochet.taskgraphrunner.logging.level";
+    private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_ASSET_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-assets-after";
+    private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_OUTPUT_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-outputs-after";
+    private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_LOCK_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-locks-after";
+
     @Override
     public void apply(@NotNull Project project) {
         if (!project.getGradle().getPlugins().hasPlugin(CrochetRepositoriesPlugin.class)) {
@@ -77,20 +82,14 @@ public class CrochetPlugin implements Plugin<Project> {
 
         project.getGradle().getSharedServices().registerIfAbsent("taskGraphRunnerDaemon", TaskGraphRunnerService.class, spec -> {
             spec.getParameters().getHideStacktrace().convention(project.getGradle().getStartParameter().getShowStacktrace() == ShowStacktrace.INTERNAL_EXCEPTIONS);
-            spec.getParameters().getLogLevel().convention(extension.getQuietLogging().map(it -> it ? closestLogLevel(project.getGradle().getStartParameter().getLogLevel()) : "INFO"));
+            spec.getParameters().getLogLevel().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_LOG_LEVEL).orElse("INFO"));
+            spec.getParameters().getRemoveUnusedAssetsAfterDays().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_REMOVE_ASSET_DURATION).map(Integer::parseInt).orElse(30));
+            spec.getParameters().getRemoveUnusedOutputsAfterDays().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_REMOVE_OUTPUT_DURATION).map(Integer::parseInt).orElse(30));
+            spec.getParameters().getRemoveUnusedLocksAfterDays().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_REMOVE_LOCK_DURATION).map(Integer::parseInt).orElse(1));
         });
 
         applyDisambiguationRules(project);
         applyComponentRules(project);
-    }
-
-    private static String closestLogLevel(LogLevel logLevel) {
-        return switch (logLevel) {
-            case LogLevel.DEBUG -> "DEBUG";
-            case LogLevel.INFO -> "INFO";
-            case LogLevel.LIFECYCLE, LogLevel.WARN -> "WARN";
-            case LogLevel.QUIET, LogLevel.ERROR -> "ERROR";
-        };
     }
 
     private static void applyComponentRules(Project project) {
