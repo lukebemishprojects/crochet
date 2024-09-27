@@ -2,7 +2,6 @@ package dev.lukebemish.crochet.tasks;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.lukebemish.crochet.internal.PropertiesUtils;
 import dev.lukebemish.crochet.internal.TaskGraphRunnerService;
 import dev.lukebemish.taskgraphrunner.daemon.DaemonExecutor;
 import dev.lukebemish.taskgraphrunner.model.Config;
@@ -22,7 +21,6 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
@@ -36,7 +34,6 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.jvm.toolchain.JavaToolchainService;
-import org.gradle.process.ExecOperations;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -82,7 +79,7 @@ public abstract class TaskGraphExecution extends DefaultTask {
     }
 
     private DaemonExecutor makeDaemon() {
-        return getTaskGraphRunnerService().get().start(getJavaLauncher().get(), getClasspath().getSingleFile().getAbsolutePath(), PropertiesUtils.networkProperties(getProviderFactory()).get());
+        return getTaskGraphRunnerService().get().start(getJavaLauncher().get(), getClasspath().getSingleFile().getAbsolutePath());
     }
 
     @Nested
@@ -126,12 +123,6 @@ public abstract class TaskGraphExecution extends DefaultTask {
 
     @Inject
     protected abstract JavaToolchainService getJavaToolchainService();
-
-    @Inject
-    protected abstract ProviderFactory getProviderFactory();
-
-    @Inject
-    protected abstract ExecOperations getExecOperations();
 
     @InputFiles
     @Classpath

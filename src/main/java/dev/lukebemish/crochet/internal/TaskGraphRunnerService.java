@@ -2,14 +2,17 @@ package dev.lukebemish.crochet.internal;
 
 import dev.lukebemish.taskgraphrunner.daemon.DaemonExecutor;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.Optional;
 import org.gradle.jvm.toolchain.JavaLauncher;
 
+import javax.inject.Inject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,21 +85,27 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
         cacheDirs.add(cacheDir.toAbsolutePath());
     }
 
-    public DaemonExecutor start(JavaLauncher javaLauncher, String jarPath, Map<String, String> stringStringMap) {
+    @SuppressWarnings("UnstableApiUsage")
+    public DaemonExecutor start(JavaLauncher javaLauncher, String jarPath) {
         synchronized (this) {
             if (daemon == null) {
                 daemon = new DaemonExecutor(processBuilder -> {
                     List<String> args = new ArrayList<>();
                     args.add(javaLauncher.getExecutablePath().toString());
+                    Map<String, String> properties = new HashMap<>(PropertiesUtils.networkProperties(getProviders()).get());
+                    properties.put("stdout.encoding", "UTF-8");
+                    properties.put("stderr.encoding", "UTF-8");
                     if (getParameters().getLogLevel().isPresent()) {
-                        args.add("-D"+LOG_LEVEL_PROPERTY+"="+getParameters().getLogLevel().get());
+                        properties.put(LOG_LEVEL_PROPERTY, getParameters().getLogLevel().get());
                     }
-                    args.add("-D"+STACKTRACE_PROPERTY+"="+getParameters().getHideStacktrace().getOrElse(false));
-                    for (Map.Entry<String, String> entry : stringStringMap.entrySet()) {
+                    if (getParameters().getHideStacktrace().isPresent()) {
+                        properties.put(STACKTRACE_PROPERTY, getParameters().getHideStacktrace().get().toString());
+                    }
+                    properties.putAll(getProviders().gradlePropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
+                    properties.putAll(getProviders().systemPropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
+                    for (Map.Entry<String, String> entry : properties.entrySet()) {
                         args.add("-D"+entry.getKey()+"="+entry.getValue());
                     }
-                    args.add("-Dstdout.encoding=UTF-8");
-                    args.add("-Dstderr.encoding=UTF-8");
                     args.add("-jar");
                     args.add(jarPath);
                     processBuilder.command(args);
@@ -105,6 +114,9 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
             return daemon;
         }
     }
+
+    @Inject
+    protected abstract ProviderFactory getProviders();
 
     public abstract static class Params implements BuildServiceParameters {
         @Optional
@@ -117,5 +129,8 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
         public abstract Property<Integer> getRemoveUnusedOutputsAfterDays();
         @Optional
         public abstract Property<Integer> getRemoveUnusedLocksAfterDays();
+
+        @Inject
+        public Params() {}
     }
 }
