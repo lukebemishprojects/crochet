@@ -16,17 +16,12 @@ import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.attributes.Usage;
-import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.provider.Property;
-import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
-import org.gradle.jvm.toolchain.JavaLanguageVersion;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -287,7 +282,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             List<String> groups = new ArrayList<>();
 
             groups.add(
-                this.binary.get().getAsFile().getAbsolutePath()
+                (run.getAvoidNeedlessDecompilation().get() ? this.binary : this.binaryLineMapped).get().getAsFile().getAbsolutePath()
                     + File.pathSeparator
                     + this.resources.get().getAsFile().getAbsolutePath()
             );

@@ -9,6 +9,8 @@ import org.gradle.api.Named;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.Dependencies;
 import org.gradle.api.artifacts.dsl.DependencyCollector;
+import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -48,12 +50,16 @@ public abstract class Run implements Named, Dependencies {
     public Run(String name) {
         this.name = name;
         this.classpath = getProject().getConfigurations().maybeCreate("crochetRun"+StringUtils.capitalize(name)+"Classpath");
+        classpath.attributes(attributes -> {
+            attributes.attribute(Usage.USAGE_ATTRIBUTE, getProject().getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+            attributes.attribute(Category.CATEGORY_ATTRIBUTE, getProject().getObjects().named(Category.class, Category.LIBRARY));
+        });
         var defaultRunName = getProject().getBuildTreePath().equals(":") ? getName() : getName() + " (" + getProject().getBuildTreePath() + ")";
         this.getIdeName().convention(defaultRunName);
 
         this.getJvmArgs().add("-Dlog4j2.formatMsgNoLookups=true");
 
-        this.getRunDirectory().convention(getProject().getLayout().getBuildDirectory().dir("runs/"+name));
+        this.getRunDirectory().convention(getProject().getLayout().getBuildDirectory().dir("crochet/runs/"+name));
 
         var rootToolchain = getProject().getExtensions().getByType(JavaPluginExtension.class).getToolchain();
         this.getToolchain().getLanguageVersion().convention(rootToolchain.getLanguageVersion());

@@ -22,7 +22,13 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
                 run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
-                run.classpath.extendsFrom(minecraft);
+                project.afterEvaluate(p -> {
+                    if (run.getAvoidNeedlessDecompilation().get()) {
+                        run.classpath.extendsFrom(minecraft);
+                    } else {
+                        run.classpath.extendsFrom(minecraftLineMapped);
+                    }
+                });
                 run.getArgs().addAll(
                     "--gameDir", ".",
                     "--assetIndex", "${assets_index_name}",

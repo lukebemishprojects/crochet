@@ -128,11 +128,11 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             binaryFiles
         );
 
-        var lineMappedBinaryFiles = project.files(binary);
+        var lineMappedBinaryFiles = project.files(binaryLineMapped);
         lineMappedBinaryFiles.builtBy(lineMappedBinaryArtifactsTask);
         this.project.getDependencies().add(
             minecraftLineMapped.getName(),
-            binaryFiles
+            lineMappedBinaryFiles
         );
 
         var resourcesFiles = project.files(resources);
