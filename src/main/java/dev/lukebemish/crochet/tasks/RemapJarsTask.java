@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.tasks;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFileProperty;
@@ -19,6 +20,8 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import java.io.IOException;
@@ -29,6 +32,9 @@ import java.util.HashSet;
 import java.util.Map;
 
 public abstract class RemapJarsTask extends DefaultTask {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RemapJarsTask.class);
+    private static final String PROPERTY_HIDE_PROJECTARTIFACT_WARNING = "dev.lukebemish.crochet.hidewarnings.remap.projectartifact";
+
     public abstract static class Target {
         @InputFile
         @PathSensitive(PathSensitivity.NONE)
@@ -123,6 +129,11 @@ public abstract class RemapJarsTask extends DefaultTask {
                         .noneMatch(it -> excludeCapabilities.contains(it.getGroup() + ":" + it.getName()))
                 )
                 .map(artifact -> {
+                    if (artifact.getVariant().getOwner() instanceof ProjectComponentIdentifier id) {
+                        if (!getProject().getProviders().gradleProperty(PROPERTY_HIDE_PROJECTARTIFACT_WARNING).map(s -> s.equalsIgnoreCase("true")).getOrElse(false)) {
+                            LOGGER.warn("Found project dependency `{}` on the remap source classpath; this may be an unintentional result of using `modImplementation`, etc. for a non-mod project dependency instead of `implementation`, etc.; if this is intentional, this warning may be hidden with the gradle property `{}.", id.getDisplayName(), PROPERTY_HIDE_PROJECTARTIFACT_WARNING);
+                        }
+                    }
                     var target = getProject().getObjects().newInstance(Target.class);
                     target.getSource().set(artifact.getFile());
                     var targetFile = destinationDirectory.file(artifact.getFile().getName());
@@ -142,7 +153,10 @@ public abstract class RemapJarsTask extends DefaultTask {
             }
             return targets;
         });
-        destinationFiles.from(targetsProvider.map(t -> t.stream().map(Target::getTarget).toList()));
-        this.getTargets().addAll(targetsProvider);
+        var property = getProject().getObjects().listProperty(Target.class);
+        property.set(targetsProvider);
+        property.finalizeValueOnRead();
+        destinationFiles.from(property.map(t -> t.stream().map(Target::getTarget).toList()));
+        this.getTargets().addAll(property);
     }
 }
