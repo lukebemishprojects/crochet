@@ -5,7 +5,6 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'dev.lukebemish.crochet'
-    id "com.dorongold.task-tree" version "4.0.0"
 }
 
 repositories {
