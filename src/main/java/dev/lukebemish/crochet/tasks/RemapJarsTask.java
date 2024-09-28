@@ -17,7 +17,6 @@ import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
@@ -107,6 +106,7 @@ public abstract class RemapJarsTask extends DefaultTask {
 
     public void setup(Configuration source, Configuration exclude, Directory destinationDirectory, ConfigurableFileCollection destinationFiles) {
         destinationFiles.builtBy(this);
+
         this.dependsOn(source);
         var sourceArtifacts = source.getIncoming().getArtifacts().getResolvedArtifacts();
         var excludeArtifacts = exclude.getIncoming().getArtifacts().getResolvedArtifacts();

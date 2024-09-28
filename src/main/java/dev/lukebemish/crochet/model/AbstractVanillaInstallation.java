@@ -86,17 +86,20 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
 
         var minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
         this.minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config -> {
+            config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
             config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
         });
 
         this.minecraftLineMapped = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftLineMapped", config -> {
+            config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
             config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
         });
 
         var decompileCompileClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformCompileClasspath", config -> {
             config.extendsFrom(minecraftDependencies);
+            config.setCanBeConsumed(false);
             config.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
@@ -104,6 +107,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         });
         var decompileRuntimeClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformRuntimeClasspath", config -> {
             config.extendsFrom(minecraftDependencies);
+            config.setCanBeConsumed(false);
             config.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
@@ -153,8 +157,16 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     public abstract Property<String> getMinecraft();
 
     @Override
-    public void forSourceSet(SourceSet sourceSet) {
-        super.forSourceSet(sourceSet);
+    public void forFeature(SourceSet sourceSet) {
+        super.forFeature(sourceSet);
+        project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
+            config.extendsFrom(minecraft);
+        });
+    }
+
+    @Override
+    public void forLocalFeature(SourceSet sourceSet) {
+        super.forLocalFeature(sourceSet);
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
             config.extendsFrom(minecraft);
         });

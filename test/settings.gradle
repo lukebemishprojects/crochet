@@ -11,3 +11,6 @@ pluginManagement {
 includeBuild '../'
 
 rootProject.name = 'crochet-test'
+
+include(':subproject')
+include(':no-crochet')

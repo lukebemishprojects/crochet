@@ -9,7 +9,6 @@ import org.gradle.api.attributes.AttributeDisambiguationRule;
 import org.gradle.api.attributes.Bundling;
 import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.attributes.java.TargetJvmVersion;
-import org.gradle.api.logging.LogLevel;
 import org.gradle.api.logging.configuration.ShowStacktrace;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,6 +27,11 @@ public class CrochetPlugin implements Plugin<Project> {
 
     public static final Attribute<String> DISTRIBUTION_ATTRIBUTE = Attribute.of("net.neoforged.distribution", String.class);
     public static final Attribute<String> OPERATING_SYSTEM_ATTRIBUTE = Attribute.of("net.neoforged.operatingsystem", String.class);
+    // This attribute SHOULD NOT be published -- it is for use only in internal pre-remapping-collecting setups
+    public static final Attribute<String> CROCHET_REMAP_TYPE_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.remap", String.class);
+    public static final String CROCHET_REMAP_TYPE_REMAP = "remap";
+    public static final String CROCHET_REMAP_TYPE_NON_REMAP = "non-remap";
+    public static final String CROCHET_REMAP_TYPE_REMAP_CLASSPATH = "remap-classpath";
 
     private static final String TASK_GRAPH_RUNNER_VERSION = "0.1.0";
     private static final String DEV_LAUNCH_VERSION = "1.0.1";
@@ -51,18 +55,24 @@ public class CrochetPlugin implements Plugin<Project> {
         var objects = project.getObjects();
 
         // TaskGraphRunner
-        project.getConfigurations().register(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, config -> config.attributes(attributes -> {
-            // TaskGraphRunner runs on 21 in general
-            attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
-            // Prefer shadowed jar
-            attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
-        }));
+        project.getConfigurations().register(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, config -> {
+            config.attributes(attributes -> {
+                // TaskGraphRunner runs on 21 in general
+                attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
+                // Prefer shadowed jar
+                attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
+            });
+            config.setCanBeConsumed(false);
+        });
         project.getDependencies().add(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + TASK_GRAPH_RUNNER_VERSION);
 
-        project.getConfigurations().register(TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME, config -> config.attributes(attributes -> {
-            // TaskGraphRunner runs on 21 in general
-            attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
-        }));
+        project.getConfigurations().register(TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME, config -> {
+            config.attributes(attributes -> {
+                // TaskGraphRunner runs on 21 in general
+                attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
+            });
+            config.setCanBeConsumed(false);
+        });
         ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + TASK_GRAPH_RUNNER_VERSION)).capabilities(capabilities -> {
             capabilities.requireCapability("dev.lukebemish:taskgraphrunner-external-tools");
         });
@@ -100,6 +110,7 @@ public class CrochetPlugin implements Plugin<Project> {
     private static void applyDisambiguationRules(Project project) {
         project.getDependencies().attributesSchema(attributesSchema -> {
             attributesSchema.attribute(DISTRIBUTION_ATTRIBUTE).getDisambiguationRules().add(DistributionDisambiguationRule.class);
+            attributesSchema.attribute(CROCHET_REMAP_TYPE_ATTRIBUTE);
 
             String osName = System.getProperty("os.name").toLowerCase();
             String os;

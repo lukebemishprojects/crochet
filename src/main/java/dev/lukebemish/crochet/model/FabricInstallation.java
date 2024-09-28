@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.Log4jSetup;
 import dev.lukebemish.crochet.mappings.ChainedMappingsSource;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
@@ -16,6 +17,9 @@ import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
@@ -68,7 +72,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.getConfigMaker().set(fabricConfigMaker);
         });
 
-        this.remapClasspathConfiguration = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(getName())+"RemapClasspath");
+        this.remapClasspathConfiguration = project.getConfigurations().register("crochet"+StringUtils.capitalize(getName())+"RemapClasspath", config ->
+            config.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP_CLASSPATH);
+            })
+        ).get();
+        this.remapClasspathConfiguration.setCanBeConsumed(false);
 
         this.loaderConfiguration = project.getConfigurations().maybeCreate(getName()+"FabricLoader");
         this.loaderConfiguration.fromDependencyCollector(getDependencies().getLoader());
@@ -153,13 +162,27 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     }
 
     @Override
-    public void forSourceSet(SourceSet sourceSet) {
-        this.forSourceSet(sourceSet, deps -> {});
+    public void forFeature(SourceSet sourceSet) {
+        this.forFeature(sourceSet, deps -> {});
+    }
+
+    @Override
+    public void forLocalFeature(SourceSet sourceSet) {
+        this.forLocalFeature(sourceSet, deps -> {});
+    }
+
+    public void forFeature(SourceSet sourceSet, Action<FabricSourceSetDependencies> action) {
+        super.forFeature(sourceSet);
+        forFeatureShared(sourceSet, action);
+    }
+
+    public void forLocalFeature(SourceSet sourceSet, Action<FabricSourceSetDependencies> action) {
+        super.forLocalFeature(sourceSet);
+        forFeatureShared(sourceSet, action);
     }
 
     @SuppressWarnings("UnstableApiUsage")
-    public void forSourceSet(SourceSet sourceSet, Action<FabricSourceSetDependencies> action) {
-        super.forSourceSet(sourceSet);
+    private void forFeatureShared(SourceSet sourceSet, Action<FabricSourceSetDependencies> action) {
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
             config.extendsFrom(loaderConfiguration);
         });
@@ -167,10 +190,81 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var dependencies = project.getObjects().newInstance(FabricSourceSetDependencies.class);
         action.execute(dependencies);
 
-        var modCompileClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "compileClasspath"));
-        var modRuntimeClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "runtimeClasspath"));
+        var modCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("mod", "compileClasspath"), config -> {
+            config.attributes(attributes -> {
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+            });
+            config.setCanBeConsumed(false);
+        }).get();
+        var modRuntimeClasspath = project.getConfigurations().register(sourceSet.getTaskName("mod", "runtimeClasspath"), config -> {
+            config.attributes(attributes -> {
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).getAttributes(), attributes);
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+            });
+            config.setCanBeConsumed(false);
+        }).get();
+
         var runtimeElements = project.getConfigurations().maybeCreate(sourceSet.getRuntimeElementsConfigurationName());
         var apiElements = project.getConfigurations().maybeCreate(sourceSet.getApiElementsConfigurationName());
+
+        var modRuntimeElements = project.getConfigurations().register(sourceSet.getTaskName("mod", "runtimeElements")).get();
+        var modApiElements = project.getConfigurations().register(sourceSet.getTaskName("mod", "apiElements")).get();
+
+        var nonModRuntimeElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("nonMod", "runtimeElements"));
+        var nonModApiElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("nonMod", "apiElements"));
+
+        FeatureUtils.forSourceSetFeature(project, sourceSet.getName(), context -> {
+            context.withCapabilities(modRuntimeElements);
+            context.withCapabilities(modApiElements);
+            context.withCapabilities(nonModRuntimeElements);
+            context.withCapabilities(nonModApiElements);
+
+            modRuntimeElements.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+                copyAttributes(runtimeElements.getAttributes(), attributes);
+            });
+            modRuntimeElements.setCanBeConsumed(true);
+            modRuntimeElements.setCanBeResolved(false);
+            modRuntimeElements.setCanBeDeclared(false);
+
+            nonModRuntimeElements.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
+                copyAttributes(runtimeElements.getAttributes(), attributes);
+            });
+            nonModRuntimeElements.setCanBeConsumed(true);
+            nonModRuntimeElements.setCanBeResolved(false);
+            nonModRuntimeElements.setCanBeDeclared(false);
+
+            modApiElements.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+                copyAttributes(apiElements.getAttributes(), attributes);
+            });
+            modApiElements.setCanBeConsumed(true);
+            modApiElements.setCanBeResolved(false);
+            modApiElements.setCanBeDeclared(false);
+
+            nonModApiElements.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
+                copyAttributes(apiElements.getAttributes(), attributes);
+            });
+            nonModApiElements.setCanBeConsumed(true);
+            nonModApiElements.setCanBeResolved(false);
+            nonModApiElements.setCanBeDeclared(false);
+
+            nonModApiElements.getOutgoing().getArtifacts().addAllLater(project.provider(apiElements::getAllArtifacts));
+            nonModRuntimeElements.getOutgoing().getArtifacts().addAllLater(project.provider(runtimeElements::getAllArtifacts));
+
+            nonModApiElements.getDependencyConstraints().addAllLater(project.provider(apiElements::getDependencyConstraints));
+            nonModRuntimeElements.getDependencyConstraints().addAllLater(project.provider(runtimeElements::getDependencyConstraints));
+
+            nonModApiElements.getDependencies().addAllLater(project.provider(() ->
+                apiElements.getAllDependencies().stream().filter(dep -> (dep instanceof ProjectDependency) || !modCompileClasspath.getAllDependencies().contains(dep)).toList()
+            ));
+            nonModRuntimeElements.getDependencies().addAllLater(project.provider(() ->
+                runtimeElements.getAllDependencies().stream().filter(dep -> (dep instanceof ProjectDependency) || !modRuntimeClasspath.getAllDependencies().contains(dep)).toList()
+            ));
+        });
 
         var modCompileOnly = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "compileOnly"));
         modCompileOnly.fromDependencyCollector(dependencies.getModCompileOnly());
@@ -179,10 +273,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         modCompileOnlyApi.fromDependencyCollector(dependencies.getModCompileOnlyApi());
         modCompileClasspath.extendsFrom(modCompileOnlyApi);
         apiElements.extendsFrom(modCompileOnlyApi);
+        modApiElements.extendsFrom(modCompileOnlyApi);
         var modRuntimeOnly = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "runtimeOnly"));
         modRuntimeOnly.fromDependencyCollector(dependencies.getModRuntimeOnly());
         modRuntimeClasspath.extendsFrom(modRuntimeOnly);
         runtimeElements.extendsFrom(modRuntimeOnly);
+        modRuntimeElements.extendsFrom(modRuntimeOnly);
         var modLocalRuntime = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "localRuntime"));
         modLocalRuntime.fromDependencyCollector(dependencies.getModLocalRuntime());
         modRuntimeClasspath.extendsFrom(modLocalRuntime);
@@ -191,20 +287,52 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         modCompileClasspath.extendsFrom(modImplementation);
         modRuntimeClasspath.extendsFrom(modImplementation);
         runtimeElements.extendsFrom(modImplementation);
+        apiElements.extendsFrom(modImplementation);
         var modApi = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "api"));
         modApi.fromDependencyCollector(dependencies.getModApi());
         modCompileClasspath.extendsFrom(modApi);
         modRuntimeClasspath.extendsFrom(modApi);
         runtimeElements.extendsFrom(modApi);
+        modRuntimeElements.extendsFrom(modApi);
         apiElements.extendsFrom(modApi);
+        modApiElements.extendsFrom(modApi);
 
         var remappedCompileClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("remapped", "compileClasspath"));
         project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).extendsFrom(remappedCompileClasspath);
         var remappedRuntimeClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("remapped", "runtimeClasspath"));
         project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).extendsFrom(remappedRuntimeClasspath);
 
-        var compileRemappingClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapping", "compileClasspath"));
-        var runtimeRemappingClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapping", "runtimeClasspath"));
+        var compileRemappingClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetRemapping", "compileClasspath"), config -> {
+            config.attributes(attributes -> {
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+            });
+            config.setCanBeConsumed(false);
+        }).get();
+        var runtimeRemappingClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetRemapping", "runtimeClasspath"), config -> {
+            config.attributes(attributes -> {
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).getAttributes(), attributes);
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+            });
+            config.setCanBeConsumed(false);
+        }).get();
+
+        project.getConfigurations().named(sourceSet.getCompileClasspathConfigurationName(), config -> {
+            config.attributes(attributes ->
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP)
+            );
+            config.getDependencies().addAllLater(project.provider(() ->
+                modCompileClasspath.getAllDependencies().stream().filter(dep -> dep instanceof ProjectDependency).toList()
+            ));
+        });
+        project.getConfigurations().named(sourceSet.getRuntimeClasspathConfigurationName(), config -> {
+            config.attributes(attributes ->
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP)
+            );
+            config.getDependencies().addAllLater(project.provider(() ->
+                modRuntimeClasspath.getAllDependencies().stream().filter(dep -> dep instanceof ProjectDependency).toList()
+            ));
+        });
 
         project.getDependencies().add(remapClasspathConfiguration.getName(), project.files(compileRemappingClasspath));
         project.getDependencies().add(remapClasspathConfiguration.getName(), project.files(runtimeRemappingClasspath));
@@ -240,6 +368,11 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
 
         // TODO: isolate project dependencies and treat them differently
+    }
+
+    @SuppressWarnings({"rawtypes", "DataFlowIssue", "unchecked"})
+    private static void copyAttributes(AttributeContainer source, AttributeContainer destination) {
+        source.keySet().forEach(key -> destination.attribute((Attribute) key, source.getAttribute(key)));
     }
 
     @Override

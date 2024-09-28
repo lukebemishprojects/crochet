@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "crochet_test_subproject",
+  "version": "1.0.0",
+  "name": "Crochet Test Mod Subproject",
+  "entrypoints": {
+    "main": [
+      "test.subproject.SubprojectTest"
+    ]
+  }
+}

@@ -1,11 +1,7 @@
-import dev.lukebemish.crochet.model.FabricInstallation
-import dev.lukebemish.crochet.model.VanillaInstallation
-
 plugins {
     id 'java-library'
     id 'maven-publish'
     id 'dev.lukebemish.crochet'
-    id "com.dorongold.task-tree" version "4.0.0"
 }
 
 repositories {
@@ -22,12 +18,12 @@ repositories {
 
 java.withSourcesJar()
 
-group = 'dev.lukebemish.crochet'
+group = 'dev.lukebemish.crochet.crochet-test'
 version = '1.0.0'
 
 crochet {
     installations {
-        register('fabric', FabricInstallation) {
+        register('fabric', dev.lukebemish.crochet.model.FabricInstallation) {
             minecraft = '1.21.1'
 
             dependencies {
@@ -36,12 +32,8 @@ crochet {
             }
 
             forFeature(project.sourceSets.main) {
-                modImplementation project(':subproject')
+                modApi 'net.fabricmc.fabric-api:fabric-api:0.105.0+1.21.1'
             }
-        }
-
-        register('vanilla', VanillaInstallation) {
-            minecraft = '1.21.1'
         }
     }
     mods {
@@ -50,12 +42,14 @@ crochet {
         }
     }
     runs {
-        vanillaClient {
-            client installations.vanilla
-        }
         fabricClient {
             client installations.fabric
             mod mods.main
         }
     }
 }
+
+dependencies {
+    api project(':no-crochet')
+}
+

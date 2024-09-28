@@ -1,7 +1,9 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.gradle.api.Named;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConsumableConfiguration;
@@ -136,10 +138,51 @@ public abstract class MinecraftInstallation implements Named {
         return name;
     }
 
-    public void forSourceSet(SourceSet sourceSet) {
+    public void forFeature(SourceSet sourceSet) {
         if (sourceSets.add(sourceSet)) {
             this.crochetExtension.forSourceSet(this.getName(), sourceSet);
         }
+        FeatureUtils.forSourceSetFeature(crochetExtension.project, sourceSet.getName(), context -> {
+            MutableBoolean atsAdded = new MutableBoolean(false);
+            context.withCapabilities(accessTransformersElements.get());
+            accessTransformersElements.get().getDependencies().configureEach(dep -> {
+                if (!atsAdded.booleanValue()) {
+                    atsAdded.setTrue();
+                    context.publishWithVariants(accessTransformersElements.get());
+                }
+            });
+            accessTransformersElements.get().getOutgoing().getArtifacts().configureEach(artifact -> {
+                if (!atsAdded.booleanValue()) {
+                    atsAdded.setTrue();
+                    context.publishWithVariants(accessTransformersElements.get());
+                }
+            });
+
+            MutableBoolean iisAdded = new MutableBoolean(false);
+            context.withCapabilities(injectedInterfacesElements.get());
+            injectedInterfacesElements.get().getDependencies().configureEach(dep -> {
+                if (!iisAdded.booleanValue()) {
+                    iisAdded.setTrue();
+                    context.publishWithVariants(injectedInterfacesElements.get());
+                }
+            });
+            injectedInterfacesElements.get().getOutgoing().getArtifacts().configureEach(artifact -> {
+                if (!iisAdded.booleanValue()) {
+                    iisAdded.setTrue();
+                    context.publishWithVariants(injectedInterfacesElements.get());
+                }
+            });
+        });
+    }
+
+    public void forLocalFeature(SourceSet sourceSet) {
+        if (sourceSets.add(sourceSet)) {
+            this.crochetExtension.forSourceSet(this.getName(), sourceSet);
+        }
+        FeatureUtils.forSourceSetFeature(crochetExtension.project, sourceSet.getName(), context -> {
+            context.withCapabilities(accessTransformersElements.get());
+            context.withCapabilities(injectedInterfacesElements.get());
+        });
     }
 
     @Nested

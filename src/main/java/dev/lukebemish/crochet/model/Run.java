@@ -50,6 +50,7 @@ public abstract class Run implements Named, Dependencies {
     public Run(String name) {
         this.name = name;
         this.classpath = getProject().getConfigurations().maybeCreate("crochetRun"+StringUtils.capitalize(name)+"Classpath");
+        classpath.setCanBeConsumed(false);
         classpath.attributes(attributes -> {
             attributes.attribute(Usage.USAGE_ATTRIBUTE, getProject().getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             attributes.attribute(Category.CATEGORY_ATTRIBUTE, getProject().getObjects().named(Category.class, Category.LIBRARY));
