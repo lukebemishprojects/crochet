@@ -93,5 +93,6 @@ class MinecraftLibrariesMavenContent {
         descriptor.includeModule("argo", "argo");
         descriptor.includeModule("net.minecraft", "launchwrapper");
         descriptor.includeModule("org.ow2.asm", "asm-all");
+        descriptor.includeGroupAndSubgroups("com.mojang");
     }
 }

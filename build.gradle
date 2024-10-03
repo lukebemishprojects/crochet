@@ -118,6 +118,7 @@ import org.gradle.api.artifacts.repositories.RepositoryContentDescriptor;
 class ${className.get().split(/\./).last()} {
     static void applyContent(RepositoryContentDescriptor descriptor) {
 ${modules.collect { "        descriptor.includeModule(\"${it.group}\", \"${it.name}\");" }.join('\n')}
+        descriptor.includeGroupAndSubgroups("com.mojang");
     }
 }
 """

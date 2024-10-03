@@ -322,14 +322,15 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
             project.getTasks().named("processIdeaSettings", task -> {
                 task.getInputs().property("crochetBinaries", binaries);
                 task.getInputs().property("crochetSources", sources);
+                task.getInputs().property("crochetLineMappedBinaries", lineMappedBinaries);
                 task.getInputs().file(serviceProvider.get().getParameters().getLayoutFile()).withPathSensitivity(PathSensitivity.NONE).skipWhenEmpty();
                 task.usesService(serviceProvider);
                 task.doLast(t -> {
                     Map<String, String> binariesToSourcesPathMap = new HashMap<>();
                     Map<String, String> binariesToLineMappedPathMap = new HashMap<>();
-                    var finalBinaries = binaries.get();
-                    var finalSources = sources.get();
-                    var finalLineMappedBinaries = lineMappedBinaries.get();
+                    var finalBinaries = (List<String>) t.getInputs().getProperties().get("crochetBinaries");
+                    var finalSources = (List<String>) t.getInputs().getProperties().get("crochetSources");
+                    var finalLineMappedBinaries = (List<String>) t.getInputs().getProperties().get("crochetLineMappedBinaries");
                     for (int i = 0; i < finalBinaries.size(); i++) {
                         binariesToSourcesPathMap.put(finalBinaries.get(i), finalSources.get(i));
                         binariesToSourcesPathMap.put(finalLineMappedBinaries.get(i), finalSources.get(i));

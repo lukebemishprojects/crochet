@@ -22,6 +22,7 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final String DEV_LAUNCH_CONFIGURATION_NAME = "crochetDevLaunchClasspath";
     public static final String TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME = "crochetTerminalConsoleAppender";
     public static final String TINY_REMAPPER_CONFIGURATION_NAME = "crochetTinyRemapper";
+    public static final String CHRISTEN_CONFIGURATION_NAME = "crochetChristen";
 
     public static final String VERSION = CrochetPlugin.class.getPackage().getImplementationVersion();
 
@@ -31,11 +32,13 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final Attribute<String> CROCHET_REMAP_TYPE_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.remap", String.class);
     public static final String CROCHET_REMAP_TYPE_REMAP = "remap";
     public static final String CROCHET_REMAP_TYPE_NON_REMAP = "non-remap";
+    public static final String CROCHET_REMAP_TYPE_IGNORE = "non-remap";
     public static final String CROCHET_REMAP_TYPE_REMAP_CLASSPATH = "remap-classpath";
 
     private static final String TASK_GRAPH_RUNNER_VERSION = "0.1.0";
     private static final String DEV_LAUNCH_VERSION = "1.0.1";
     private static final String TERMINAL_CONSOLE_APPENDER_VERSION = "1.3.0";
+    private static final String CHRISTEN_VERSION = "0.1.5";
 
     private static final String PROPERTY_TASKGRAPHRUNNER_LOG_LEVEL = "dev.lukebemish.crochet.taskgraphrunner.logging.level";
     private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_ASSET_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-assets-after";
@@ -81,6 +84,18 @@ public class CrochetPlugin implements Plugin<Project> {
         project.getConfigurations().register(TINY_REMAPPER_CONFIGURATION_NAME);
         project.getDependencies().add(TINY_REMAPPER_CONFIGURATION_NAME, "dev.lukebemish.crochet.wrappers:tiny-remapper:" + VERSION);
 
+        // christen
+        project.getConfigurations().register(CHRISTEN_CONFIGURATION_NAME, config -> {
+            config.attributes(attributes -> {
+                // TaskGraphRunner runs on 21 in general
+                attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
+                // Prefer shadowed jar
+                attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
+            });
+            config.setCanBeConsumed(false);
+        });
+        project.getDependencies().add(CHRISTEN_CONFIGURATION_NAME, "dev.lukebemish:christen:" + CHRISTEN_VERSION);
+
         // runs
         project.getConfigurations().register(DEV_LAUNCH_CONFIGURATION_NAME);
         project.getDependencies().add(DEV_LAUNCH_CONFIGURATION_NAME, "net.neoforged:DevLaunch:" + DEV_LAUNCH_VERSION);
@@ -111,6 +126,7 @@ public class CrochetPlugin implements Plugin<Project> {
         project.getDependencies().attributesSchema(attributesSchema -> {
             attributesSchema.attribute(DISTRIBUTION_ATTRIBUTE).getDisambiguationRules().add(DistributionDisambiguationRule.class);
             attributesSchema.attribute(CROCHET_REMAP_TYPE_ATTRIBUTE);
+
 
             String osName = System.getProperty("os.name").toLowerCase();
             String os;

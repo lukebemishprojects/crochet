@@ -1,5 +1,7 @@
 plugins {
     id 'java-library'
+    id 'maven-publish'
+    id 'com.gradleup.shadow'
 }
 
 group = 'dev.lukebemish.crochet.wrappers'
@@ -18,5 +20,13 @@ dependencies {
 jar {
     manifest {
         attributes 'Implementation-Version' : project.version as String
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
     }
 }

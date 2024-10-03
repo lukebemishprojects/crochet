@@ -2,14 +2,17 @@ package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
+import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.Log4jSetup;
 import dev.lukebemish.crochet.mappings.ChainedMappingsSource;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
 import dev.lukebemish.crochet.mappings.ReversedMappingsSource;
+import dev.lukebemish.crochet.tasks.ArtifactTarget;
 import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
 import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
 import dev.lukebemish.crochet.tasks.RemapJarsTask;
+import dev.lukebemish.crochet.tasks.RemapSourceJarsTask;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.WriteFile;
 import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
@@ -22,6 +25,7 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
@@ -31,11 +35,16 @@ import org.gradle.api.tasks.bundling.Jar;
 import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Configuration loaderConfiguration;
@@ -191,32 +200,46 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var dependencies = project.getObjects().newInstance(FabricSourceSetDependencies.class);
         action.execute(dependencies);
 
-        var modCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("mod", "compileClasspath"), config -> {
+        var modCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetMod", "compileClasspath"), config -> {
             config.attributes(attributes -> {
                 copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
 
             });
+            config.setCanBeDeclared(false);
             config.setCanBeConsumed(false);
         }).get();
-        var modRuntimeClasspath = project.getConfigurations().register(sourceSet.getTaskName("mod", "runtimeClasspath"), config -> {
+        var modRuntimeClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetMod", "runtimeClasspath"), config -> {
             config.attributes(attributes -> {
                 copyAttributes(project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).getAttributes(), attributes);
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             });
+            config.setCanBeDeclared(false);
             config.setCanBeConsumed(false);
         }).get();
 
         var runtimeElements = project.getConfigurations().maybeCreate(sourceSet.getRuntimeElementsConfigurationName());
         var apiElements = project.getConfigurations().maybeCreate(sourceSet.getApiElementsConfigurationName());
 
-        var modRuntimeElements = project.getConfigurations().register(sourceSet.getTaskName("mod", "runtimeElements")).get();
-        var modApiElements = project.getConfigurations().register(sourceSet.getTaskName("mod", "apiElements")).get();
+        var modRuntimeElements = project.getConfigurations().register(sourceSet.getTaskName("crochetMod", "runtimeElements")).get();
+        modRuntimeElements.setCanBeDeclared(false);
+        var modApiElements = project.getConfigurations().register(sourceSet.getTaskName("crochetMod", "apiElements")).get();
+        modApiElements.setCanBeDeclared(false);
 
-        var nonModRuntimeElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("nonMod", "runtimeElements"));
-        var nonModApiElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("nonMod", "apiElements"));
+        var nonModRuntimeElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetNonMod", "runtimeElements"));
+        nonModRuntimeElements.setCanBeDeclared(false);
+        var nonModApiElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetNonMod", "apiElements"));
+        nonModApiElements.setCanBeDeclared(false);
+
+        project.getConfigurations().configureEach(config -> {
+            if (config.getName().equals(sourceSet.getSourcesElementsConfigurationName())) {
+                config.attributes(attributes -> {
+                    attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_IGNORE);
+                });
+            }
+        });
 
         FeatureUtils.forSourceSetFeature(project, sourceSet.getName(), context -> {
             context.withCapabilities(modRuntimeElements);
@@ -230,7 +253,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             });
             modRuntimeElements.setCanBeConsumed(true);
             modRuntimeElements.setCanBeResolved(false);
-            modRuntimeElements.setCanBeDeclared(false);
 
             nonModRuntimeElements.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
@@ -238,7 +260,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             });
             nonModRuntimeElements.setCanBeConsumed(true);
             nonModRuntimeElements.setCanBeResolved(false);
-            nonModRuntimeElements.setCanBeDeclared(false);
 
             modApiElements.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
@@ -246,7 +267,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             });
             modApiElements.setCanBeConsumed(true);
             modApiElements.setCanBeResolved(false);
-            modApiElements.setCanBeDeclared(false);
 
             nonModApiElements.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
@@ -254,7 +274,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             });
             nonModApiElements.setCanBeConsumed(true);
             nonModApiElements.setCanBeResolved(false);
-            nonModApiElements.setCanBeDeclared(false);
 
             nonModApiElements.getOutgoing().getArtifacts().addAllLater(project.provider(apiElements::getAllArtifacts));
             nonModRuntimeElements.getOutgoing().getArtifacts().addAllLater(project.provider(runtimeElements::getAllArtifacts));
@@ -301,9 +320,9 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         apiElements.extendsFrom(modApi);
         modApiElements.extendsFrom(modApi);
 
-        var remappedCompileClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("remapped", "compileClasspath"));
+        var remappedCompileClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapped", "compileClasspath"));
         project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).extendsFrom(remappedCompileClasspath);
-        var remappedRuntimeClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("remapped", "runtimeClasspath"));
+        var remappedRuntimeClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapped", "runtimeClasspath"));
         project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).extendsFrom(remappedRuntimeClasspath);
 
         var compileRemappingClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetRemapping", "compileClasspath"), config -> {
@@ -313,6 +332,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             });
             config.setCanBeConsumed(false);
+            config.setCanBeDeclared(false);
         }).get();
         var runtimeRemappingClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetRemapping", "runtimeClasspath"), config -> {
             config.attributes(attributes -> {
@@ -321,6 +341,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             });
             config.setCanBeConsumed(false);
+            config.setCanBeDeclared(false);
         }).get();
 
         project.getConfigurations().named(sourceSet.getCompileClasspathConfigurationName(), config -> {
@@ -359,21 +380,75 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var remapCompileMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspath"), RemapJarsTask.class, task -> {
             task.setup(modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspath").dir(sourceSet.getName()), remappedCompileMods);
             task.dependsOn(intermediaryToNamed);
+            task.getRemappingClasspath().from(minecraft);
             task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
         });
 
         var remapRuntimeMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspath"), RemapJarsTask.class, task -> {
             task.setup(modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspath").dir(sourceSet.getName()), remappedRuntimeMods);
             task.dependsOn(intermediaryToNamed);
+            task.getRemappingClasspath().from(minecraft);
             task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
         });
+
+        var remapCompileModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspathSources"), RemapSourceJarsTask.class, task -> {
+            task.setup(modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspathSources").dir(sourceSet.getName()));
+            task.dependsOn(intermediaryToNamed);
+            task.getRemappingClasspath().from(minecraft);
+            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+        });
+
+        var remapRuntimeModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspathSources"), RemapSourceJarsTask.class, task -> {
+            task.setup(modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspathSources").dir(sourceSet.getName()));
+            task.dependsOn(intermediaryToNamed);
+            task.getRemappingClasspath().from(minecraft);
+            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+        });
+
+        linkSources(remapCompileMods, remapCompileModSources);
+        linkSources(remapRuntimeMods, remapRuntimeModSources);
 
         extension.idePostSync.configure(task -> {
             task.dependsOn(remapCompileMods);
             task.dependsOn(remapRuntimeMods);
-        });
 
-        // TODO: isolate project dependencies and treat them differently
+            task.dependsOn(remapCompileModSources);
+            task.dependsOn(remapRuntimeModSources);
+        });
+    }
+
+    private void linkSources(TaskProvider<RemapJarsTask> remapJars, TaskProvider<RemapSourceJarsTask> remapSourceJars) {
+        record Pair<T, U>(T first, U second) implements Serializable {}
+
+        if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
+            Provider<Map<String, ArtifactTarget>> sources = remapSourceJars.get().getTargets().map(targets -> {
+                Map<String, ArtifactTarget> map = new HashMap<>();
+                targets.forEach(target -> target.getCapabilities().get().forEach(cap -> map.put(cap, target)));
+                return map;
+            });
+
+            Provider<List<Pair<ArtifactTarget, ArtifactTarget>>> binariesToSources = sources.zip(remapJars.get().getTargets(), (sourceMap, binaryTargets) -> {
+                List<Pair<ArtifactTarget, ArtifactTarget>> map = new ArrayList<>();
+                binaryTargets.forEach(binary -> {
+                    Set<ArtifactTarget> sourceTargets = new HashSet<>();
+                    binary.getCapabilities().get().forEach(cap -> {
+                        ArtifactTarget source = sourceMap.get(cap);
+                        if (source != null) {
+                            sourceTargets.add(source);
+                        }
+                    });
+                    if (sourceTargets.size() == 1) {
+                        map.add(new Pair<>(binary, sourceTargets.iterator().next()));
+                    }
+                });
+                return map;
+            });
+
+            IdeaModelHandlerPlugin.retrieve(project).mapBinariesToSources(
+                binariesToSources.map(pairs -> pairs.stream().map(p -> p.first().getTarget().get()).toList()),
+                binariesToSources.map(pairs -> pairs.stream().map(p -> p.second().getTarget().get()).toList())
+            );
+        }
     }
 
     @SuppressWarnings({"rawtypes", "DataFlowIssue", "unchecked"})

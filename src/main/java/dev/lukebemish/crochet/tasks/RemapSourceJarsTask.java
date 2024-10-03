@@ -1,9 +1,13 @@
 package dev.lukebemish.crochet.tasks;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.artifacts.ArtifactView;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.DocsType;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFileProperty;
@@ -15,7 +19,6 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
@@ -31,16 +34,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-public abstract class RemapJarsTask extends DefaultTask {
+public abstract class RemapSourceJarsTask extends DefaultTask {
     private static final Logger LOGGER = LoggerFactory.getLogger(RemapJarsTask.class);
-    private static final String PROPERTY_HIDE_PROJECTARTIFACT_WARNING = "dev.lukebemish.crochet.hidewarnings.remap.projectartifact";
 
     @Nested
     public abstract ListProperty<ArtifactTarget> getTargets();
 
     @InputFiles
     @Classpath
-    public abstract ConfigurableFileCollection getTinyRemapperClasspath();
+    public abstract ConfigurableFileCollection getChristenClasspath();
 
     @InputFiles
     @Classpath
@@ -60,8 +62,8 @@ public abstract class RemapJarsTask extends DefaultTask {
     public abstract Property<Boolean> getShowStackTrace();
 
     @Inject
-    public RemapJarsTask() {
-        getTinyRemapperClasspath().from(getProject().getConfigurations().getByName(CrochetPlugin.TINY_REMAPPER_CONFIGURATION_NAME));
+    public RemapSourceJarsTask() {
+        getChristenClasspath().from(getProject().getConfigurations().getByName(CrochetPlugin.CHRISTEN_CONFIGURATION_NAME));
 
         getLogLevel().convention(switch (getProject().getGradle().getStartParameter().getLogLevel()) {
             case DEBUG -> "debug";
@@ -86,28 +88,38 @@ public abstract class RemapJarsTask extends DefaultTask {
             }
         }
         getExecOperations().javaexec(spec -> {
-            spec.classpath(getTinyRemapperClasspath());
-            spec.getMainClass().set("dev.lukebemish.crochet.wrappers.tinyremapper.RemapMods");
-            spec.systemProperty("org.slf4j.simpleLogger.defaultLogLevel", getLogLevel().get());
-            spec.systemProperty("dev.lukebemish.crochet.wrappers.hidestacktrace", !getShowStackTrace().get());
+            spec.classpath(getChristenClasspath());
+            spec.getMainClass().set("dev.lukebemish.christen.cli.ChristenMain");
+            spec.args("--christen-mappings="+getMappings().get().getAsFile().getAbsolutePath());
             for (var target : getTargets().get()) {
                 spec.args(
                     target.getSource().get().getAsFile().getAbsolutePath(),
-                    target.getTarget().get().getAsFile().getAbsolutePath()
+                    target.getTarget().get().getAsFile().getAbsolutePath(),
+                    "--classpath="+getRemappingClasspath().getAsPath()
                 );
             }
-            spec.args("--mappings", getMappings().get().getAsFile().getAbsolutePath());
-            spec.args("--classpath", getRemappingClasspath().getAsPath());
         });
     }
 
-    public void setup(Configuration source, Configuration exclude, Directory destinationDirectory, ConfigurableFileCollection destinationFiles) {
-        destinationFiles.builtBy(this);
+    public void setup(Configuration source, Configuration exclude, Directory destinationDirectory) {
+        Action<ArtifactView.ViewConfiguration> action = view -> {
+            view.lenient(true);
+            view.withVariantReselection();
+            view.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+                attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, getProject().getObjects().named(Category.class, Category.DOCUMENTATION));
+                attributes.attribute(DocsType.DOCS_TYPE_ATTRIBUTE, getProject().getObjects().named(DocsType.class, DocsType.SOURCES));
+            });
+        };
 
-        this.dependsOn(source);
+        var sourceSources = source.getIncoming().artifactView(action);
+        var excludeSources = exclude.getIncoming().artifactView(action);
+
+        this.dependsOn(sourceSources.getFiles());
         this.getRemappingClasspath().from(source);
-        var sourceArtifacts = source.getIncoming().getArtifacts().getResolvedArtifacts();
-        var excludeArtifacts = exclude.getIncoming().getArtifacts().getResolvedArtifacts();
+        var sourceArtifacts = sourceSources.getArtifacts().getResolvedArtifacts();
+        var excludeArtifacts = excludeSources.getArtifacts().getResolvedArtifacts();
         var targetsProvider = sourceArtifacts.zip(excludeArtifacts, (artifacts, excluded) -> {
             var excludeCapabilities = new HashSet<String>();
             excluded.forEach(result -> {
@@ -121,11 +133,6 @@ public abstract class RemapJarsTask extends DefaultTask {
                         .noneMatch(it -> excludeCapabilities.contains(it.getGroup() + ":" + it.getName()))
                 )
                 .map(artifact -> {
-                    if (artifact.getVariant().getOwner() instanceof ProjectComponentIdentifier id) {
-                        if (!getProject().getProviders().gradleProperty(PROPERTY_HIDE_PROJECTARTIFACT_WARNING).map(s -> s.equalsIgnoreCase("true")).getOrElse(false)) {
-                            LOGGER.warn("Found project dependency `{}` on the remap source classpath; this may be an unintentional result of using `modImplementation`, etc. for a non-mod project dependency instead of `implementation`, etc.; if this is intentional, this warning may be hidden with the gradle property `{}.", id.getDisplayName(), PROPERTY_HIDE_PROJECTARTIFACT_WARNING);
-                        }
-                    }
                     var target = getProject().getObjects().newInstance(ArtifactTarget.class);
                     target.getSource().set(artifact.getFile());
                     var targetFile = destinationDirectory.file(artifact.getFile().getName());
@@ -151,7 +158,6 @@ public abstract class RemapJarsTask extends DefaultTask {
         var property = getProject().getObjects().listProperty(ArtifactTarget.class);
         property.set(targetsProvider);
         property.finalizeValueOnRead();
-        destinationFiles.from(property.map(t -> t.stream().map(ArtifactTarget::getTarget).toList()));
         this.getTargets().addAll(property);
     }
 }
