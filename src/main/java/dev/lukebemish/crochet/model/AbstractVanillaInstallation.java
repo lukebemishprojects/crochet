@@ -122,7 +122,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.binaryArtifactsTask.configure(task -> {
             task.artifactsConfiguration(decompileCompileClasspath);
             task.artifactsConfiguration(decompileRuntimeClasspath);
-            task.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME));
+            task.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
         });
 
         var binaryFiles = project.files(binary);

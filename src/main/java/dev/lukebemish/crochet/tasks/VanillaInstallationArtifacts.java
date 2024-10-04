@@ -4,21 +4,26 @@ import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Distribution;
 import dev.lukebemish.taskgraphrunner.model.Value;
 import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
+import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 
 import javax.inject.Inject;
 import java.io.IOException;
+import java.util.List;
 
 public abstract class VanillaInstallationArtifacts implements TaskGraphExecution.ConfigMaker {
     @Inject
-    public VanillaInstallationArtifacts() {
+    public VanillaInstallationArtifacts(Project project) {
         getSidedAnnotation().convention(SingleVersionGenerator.Options.SidedAnnotation.FABRIC);
+        getHasAccessTransformers().convention(project.provider(() -> !getAccessTransformers().isEmpty()));
+        getHasInjectedInterfaces().convention(project.provider(() -> !getInjectedInterfaces().isEmpty()));
     }
 
     @Input
@@ -33,10 +38,10 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
         var options = SingleVersionGenerator.Options.builder()
             .sidedAnnotation(getSidedAnnotation().getOrNull())
             .distribution(Distribution.JOINED); // for now we only do joined; we'll figure other stuff out later (probably by after-the-fact splitting)
-        if (!getAccessTransformers().isEmpty()) {
+        if (getHasAccessTransformers().get()) {
             options.accessTransformersParameter("accessTransformers");
         }
-        if (!getInjectedInterfaces().isEmpty()) {
+        if (getHasInjectedInterfaces().get()) {
             options.interfaceInjectionDataParameter("injectedInterfaces");
         }
         if (!getParchment().isEmpty()) {
@@ -52,6 +57,8 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                         .toList()
                 )
             );
+        } else if (getHasAccessTransformers().get()) {
+            config.parameters.put("accessTransformers", new Value.ListValue(List.of()));
         }
         if (!getInjectedInterfaces().isEmpty()) {
             config.parameters.put("injectedInterfaces",
@@ -61,6 +68,8 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                         .toList()
                 )
             );
+        } else if (getHasInjectedInterfaces().get()) {
+            config.parameters.put("injectedInterfaces", new Value.ListValue(List.of()));
         }
         if (!getParchment().isEmpty()) {
             config.parameters.put("parchmentData",
@@ -81,4 +90,9 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
     @InputFiles
     @PathSensitive(PathSensitivity.NONE)
     public abstract ConfigurableFileCollection getParchment();
+
+    @Internal
+    protected abstract Property<Boolean> getHasAccessTransformers();
+    @Internal
+    protected abstract Property<Boolean> getHasInjectedInterfaces();
 }

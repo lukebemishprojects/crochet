@@ -8,6 +8,7 @@ import dev.lukebemish.crochet.mappings.ChainedMappingsSource;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
 import dev.lukebemish.crochet.mappings.ReversedMappingsSource;
 import dev.lukebemish.crochet.tasks.ArtifactTarget;
+import dev.lukebemish.crochet.tasks.ExtractAccessWideners;
 import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
 import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
@@ -56,6 +57,8 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
     private final CrochetExtension extension;
     private final TaskProvider<MappingsWriter> intermediaryToNamed;
+    final Configuration accessWideners;
+    final TaskProvider<ExtractAccessWideners> extractAccessWidenersForTransitives;
 
     @SuppressWarnings("UnstableApiUsage")
     @Inject
@@ -76,6 +79,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         this.vanillaConfigMaker.getSidedAnnotation().set(SingleVersionGenerator.Options.SidedAnnotation.FABRIC);
         this.fabricConfigMaker = project.getObjects().newInstance(FabricInstallationArtifacts.class);
         fabricConfigMaker.getWrapped().set(vanillaConfigMaker);
+
+        this.extractAccessWidenersForTransitives = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+"ExtractAccessWideners", ExtractAccessWideners.class, task -> {
+            task.getOutputDirectory().set(workingDirectory.get().dir("accessWideners"));
+        });
+        fabricConfigMaker.getExtractedAccessWideners().builtBy(this.extractAccessWidenersForTransitives);
+        fabricConfigMaker.getExtractedAccessWideners().from(project.fileTree(extractAccessWidenersForTransitives.flatMap(ExtractAccessWideners::getOutputDirectory)));
 
         this.binaryArtifactsTask.configure(task -> {
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("downloadClientMappings.output", mappings, project.getObjects()));
@@ -106,6 +115,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         this.binaryArtifactsTask.configure(task -> {
             task.dependsOn(intermediaryMappings);
         });
+
+        this.accessWideners = project.getConfigurations().register(name+"AccessWideners", config -> {
+            config.fromDependencyCollector(getDependencies().getAccessWideners());
+            config.setCanBeConsumed(false);
+        }).get();
+        fabricConfigMaker.getAccessWideners().from(accessWideners);
 
         var intermediaryJar = workingDirectory.map(it -> it.file("intermediary.jar"));
         this.binaryArtifactsTask.configure(task -> {
@@ -205,7 +220,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
-
             });
             config.setCanBeDeclared(false);
             config.setCanBeConsumed(false);
@@ -219,6 +233,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             config.setCanBeDeclared(false);
             config.setCanBeConsumed(false);
         }).get();
+
+        this.extractAccessWidenersForTransitives.configure(task -> {
+            task.getModJars().from(modCompileClasspath);
+        });
 
         var runtimeElements = project.getConfigurations().maybeCreate(sourceSet.getRuntimeElementsConfigurationName());
         var apiElements = project.getConfigurations().maybeCreate(sourceSet.getApiElementsConfigurationName());
@@ -412,8 +430,9 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.dependsOn(remapCompileMods);
             task.dependsOn(remapRuntimeMods);
 
-            task.dependsOn(remapCompileModSources);
-            task.dependsOn(remapRuntimeModSources);
+            // TODO: these are disabled for now
+            //task.dependsOn(remapCompileModSources);
+            //task.dependsOn(remapRuntimeModSources);
         });
     }
 
@@ -470,6 +489,11 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.getMinecraftVersion().set(getMinecraft());
             task.dependsOn(writeLog4jConfig);
         });
+        // TODO: project deps mod groups
+        run.classpath.attributes(attributes ->
+            // Handle project dependencies correctly, hopefully?
+            attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP)
+        );
         run.classpath.extendsFrom(loaderConfiguration);
         run.classpath.extendsFrom(mappingsClasspath);
         run.classpath.extendsFrom(project.getConfigurations().getByName(CrochetPlugin.TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME));

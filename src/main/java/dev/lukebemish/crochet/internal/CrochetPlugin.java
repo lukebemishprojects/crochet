@@ -18,7 +18,7 @@ public class CrochetPlugin implements Plugin<Project> {
     // TODO: re-implement this stuff
     public static final String LOCAL_RUNTIME_CONFIGURATION_NAME = "localRuntime";
     public static final String TASK_GRAPH_RUNNER_CONFIGURATION_NAME = "crochetTaskGraphRunnerClasspath";
-    public static final String TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME = "crochetTaskGraphRunnerDependencies";
+    public static final String TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME = "crochetTaskGraphRunnerDependencies";
     public static final String DEV_LAUNCH_CONFIGURATION_NAME = "crochetDevLaunchClasspath";
     public static final String TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME = "crochetTerminalConsoleAppender";
     public static final String TINY_REMAPPER_CONFIGURATION_NAME = "crochetTinyRemapper";
@@ -69,15 +69,18 @@ public class CrochetPlugin implements Plugin<Project> {
         });
         project.getDependencies().add(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + TASK_GRAPH_RUNNER_VERSION);
 
-        project.getConfigurations().register(TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME, config -> {
+        project.getConfigurations().register(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, config -> {
             config.attributes(attributes -> {
                 // TaskGraphRunner runs on 21 in general
                 attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
             });
             config.setCanBeConsumed(false);
         });
-        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_DEPENDENCIES_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + TASK_GRAPH_RUNNER_VERSION)).capabilities(capabilities -> {
+        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + TASK_GRAPH_RUNNER_VERSION)).capabilities(capabilities -> {
             capabilities.requireCapability("dev.lukebemish:taskgraphrunner-external-tools");
+        });
+        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish.crochet:tools:" + VERSION)).attributes(attributes -> {
+            attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
         });
 
         // tiny-remapper

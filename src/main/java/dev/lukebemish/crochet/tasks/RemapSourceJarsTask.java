@@ -23,8 +23,6 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import java.io.IOException;
@@ -35,7 +33,6 @@ import java.util.HashSet;
 import java.util.Map;
 
 public abstract class RemapSourceJarsTask extends DefaultTask {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RemapJarsTask.class);
 
     @Nested
     public abstract ListProperty<ArtifactTarget> getTargets();

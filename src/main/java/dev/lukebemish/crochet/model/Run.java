@@ -9,6 +9,7 @@ import org.gradle.api.Named;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.Dependencies;
 import org.gradle.api.artifacts.dsl.DependencyCollector;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.DirectoryProperty;
@@ -100,8 +101,8 @@ public abstract class Run implements Named, Dependencies {
         if (Boolean.getBoolean("idea.active")) {
             SourceSetContainer sourceSets = getProject().getExtensions().getByType(SourceSetContainer.class);
             var dummySourceSet = sourceSets.register("crochet_wrapper_"+name, sourceSet -> {
-                getProject().getConfigurations().getByName(sourceSet.getImplementationConfigurationName()).extendsFrom(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
-                getProject().getConfigurations().getByName(sourceSet.getImplementationConfigurationName()).extendsFrom(classpath);
+                getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).extendsFrom(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
+                getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).extendsFrom(classpath);
                 sourceSet.getResources().setSrcDirs(List.of());
                 sourceSet.getJava().setSrcDirs(List.of());
             });
@@ -112,6 +113,13 @@ public abstract class Run implements Named, Dependencies {
                         if (TypeOf.typeOf(SourceDirectorySet.class).isAssignableFrom(schema.getPublicType())) {
                             ((SourceDirectorySet) sourceSet.getExtensions().getByName(schema.getName())).setSrcDirs(List.of());
                         }
+                    });
+                    getProject().getConfigurations().named(sourceSet.getRuntimeClasspathConfigurationName(), config -> {
+                        config.attributes(attributes -> {
+                            for (var key : classpath.getAttributes().keySet()) {
+                                attributes.attribute((Attribute) key, classpath.getAttributes().getAttribute(key));
+                            }
+                        });
                     });
                 });
 

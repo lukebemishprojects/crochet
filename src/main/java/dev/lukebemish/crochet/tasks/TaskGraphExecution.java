@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.tasks;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.lukebemish.crochet.internal.TaskGraphRunnerService;
+import dev.lukebemish.crochet.internal.Unit;
 import dev.lukebemish.taskgraphrunner.daemon.DaemonExecutor;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Output;
@@ -192,14 +193,24 @@ public abstract class TaskGraphExecution extends DefaultTask {
     public void artifactsConfiguration(Configuration configuration) {
         Provider<Set<ResolvedArtifactResult>> artifacts = configuration.getIncoming().getArtifacts().getResolvedArtifacts();
 
-        getArtifactFiles().addAll(artifacts.map(new FileExtractor()));
+        getArtifactFiles().addAll(artifacts.map(getProject().getObjects().newInstance(FileExtractor.class, Unit.provider(getProject()))));
         getArtifactIdentifiers().addAll(artifacts.map(new IdExtractor()));
     }
 
-    public class FileExtractor implements Transformer<List<RegularFile>, Collection<ResolvedArtifactResult>> {
+    public abstract static class FileExtractor implements Transformer<List<RegularFile>, Collection<ResolvedArtifactResult>> {
+        private final Provider<Unit> unitProvider;
+
+        @Inject
+        public FileExtractor(Provider<Unit> unitProvider) {
+            this.unitProvider = unitProvider;
+        }
+
+        @Inject
+        protected abstract ProjectLayout getProjectLayout();
+
         @Override
         public List<RegularFile> transform(Collection<ResolvedArtifactResult> artifacts) {
-            return artifacts.stream().map(r -> getProjectLayout().file(getProject().provider(() -> r.getFile().getAbsoluteFile())).get()).collect(Collectors.toList());
+            return artifacts.stream().map(r -> getProjectLayout().file(unitProvider.map(ignored -> r.getFile().getAbsoluteFile())).get()).collect(Collectors.toList());
         }
     }
 
@@ -207,9 +218,12 @@ public abstract class TaskGraphExecution extends DefaultTask {
         @Override
         public List<String> transform(Collection<ResolvedArtifactResult> artifacts) {
             return artifacts.stream().map(resolvedArtifactResult -> {
+                var variant = resolvedArtifactResult.getVariant();
+                while (variant.getExternalVariant().isPresent()) {
+                    variant = variant.getExternalVariant().get();
+                }
                 var file = resolvedArtifactResult.getFile();
-                var artifactIdentifier = resolvedArtifactResult.getId();
-                var identifier = artifactIdentifier.getComponentIdentifier();
+                var identifier = variant.getOwner();
                 if (identifier instanceof ModuleComponentIdentifier moduleId) {
                     var key = moduleId.getGroup() + ":" + moduleId.getModule() + ":" + moduleId.getVersion();
                     var name = file.getName();
@@ -223,6 +237,11 @@ public abstract class TaskGraphExecution extends DefaultTask {
                         key = key + "@" + extension;
                     }
                     return key;
+                } else {
+                    if (variant.getCapabilities().size() == 1) {
+                        var capability = variant.getCapabilities().getFirst();
+                        return capability.getGroup() + ":" + capability.getName() + ":" + capability.getVersion();
+                    }
                 }
                 return "";
             }).collect(Collectors.toList());

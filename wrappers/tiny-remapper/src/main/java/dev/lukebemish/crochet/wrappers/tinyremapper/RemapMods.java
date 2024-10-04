@@ -85,9 +85,11 @@ public class RemapMods implements Callable<Integer>  {
                     if (aw != null) {
                         var awEntry = zip.getEntry(aw.getAsString());
                         if (awEntry != null) {
-                            var content = zip.getInputStream(awEntry).readAllBytes();
-                            var header = AccessWidenerReader.readHeader(content);
-                            out.put(aw.getAsString(), new AWData(header, content));
+                            try (var stream = zip.getInputStream(awEntry)) {
+                                var content = stream.readAllBytes();
+                                var header = AccessWidenerReader.readHeader(content);
+                                out.put(aw.getAsString(), new AWData(header, content));
+                            }
                         }
                     }
                 } catch (Exception e) {
@@ -101,7 +103,7 @@ public class RemapMods implements Callable<Integer>  {
 
     record AWData(AccessWidenerReader.Header header, byte[] content) {}
 
-    static byte[] remapAccessWidener(byte[] input, Remapper remapper) {
+    static byte[] remapAccessWidener(byte[] input, IMappingFile mappings) {
         var header = AccessWidenerReader.readHeader(input);
         if (!header.getNamespace().equals("intermediary")) {
             return input;
@@ -112,7 +114,43 @@ public class RemapMods implements Callable<Integer>  {
         AccessWidenerWriter writer = new AccessWidenerWriter(version);
         AccessWidenerRemapper awRemapper = new AccessWidenerRemapper(
             writer,
-            remapper,
+            new Remapper() {
+                @Override
+                public String mapDesc(String descriptor) {
+                    return mappings.remapDescriptor(descriptor);
+                }
+
+                @Override
+                public String mapFieldName(String owner, String name, String descriptor) {
+                    var iClass = mappings.getClass(owner);
+                    if (iClass == null) {
+                        return name;
+                    }
+                    var iField = iClass.getField(name);
+                    if (iField == null) {
+                        return name;
+                    }
+                    return iField.getMapped();
+                }
+
+                @Override
+                public String mapMethodName(String owner, String name, String descriptor) {
+                    var iClass = mappings.getClass(owner);
+                    if (iClass == null) {
+                        return name;
+                    }
+                    var iMethod = iClass.getMethod(name, descriptor);
+                    if (iMethod == null) {
+                        return name;
+                    }
+                    return iMethod.getMapped();
+                }
+
+                @Override
+                public String map(String internalName) {
+                    return mappings.remapClass(internalName);
+                }
+            },
             "intermediary",
             "named"
         );
@@ -186,7 +224,7 @@ public class RemapMods implements Callable<Integer>  {
                 var awTransforms = new HashMap<String, ZipTransforms.IoUnaryOperator<byte[]>>();
                 for (var entry : accessWideners.entrySet()) {
                     var data = entry.getValue();
-                    var remapped = remapAccessWidener(data.content, tinyRemapper.getEnvironment().getRemapper());
+                    var remapped = remapAccessWidener(data.content, mappings);
                     if (remapped != data.content) {
                         awTransforms.put(entry.getKey(), bytes -> remapped);
                     }

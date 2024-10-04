@@ -7,4 +7,6 @@ public abstract class FabricInstallationDependencies extends InstallationDepende
     public abstract DependencyCollector getLoader();
 
     public abstract DependencyCollector getIntermediary();
+
+    public abstract DependencyCollector getAccessWideners();
 }
