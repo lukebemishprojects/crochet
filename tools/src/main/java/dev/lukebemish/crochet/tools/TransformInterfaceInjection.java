@@ -118,7 +118,7 @@ class TransformInterfaceInjection implements Runnable {
         var builder = new StringBuilder();
         var reader = new SignatureReader(remappedSignature);
         reader.acceptType(new ParameterCollectingVisitor(builder));
-        return remappedBinary.replace('/', '.').replace('$', '.') + builder.substring("does.not.Exist".length());
+        return remappedBinary + builder.substring("does.not.Exist".length());
     }
 
     private static class ParameterCollectingVisitor extends SignatureVisitor {
@@ -139,7 +139,7 @@ class TransformInterfaceInjection implements Runnable {
 
         @Override
         public void visitClassType(String name) {
-            outer.append(name.replace('/', '.').replace('$', '.'));
+            outer.append(name.replace('/', '.'));
         }
 
         @Override
