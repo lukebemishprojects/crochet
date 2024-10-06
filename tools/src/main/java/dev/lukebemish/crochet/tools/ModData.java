@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.wrappers.tinyremapper;
+package dev.lukebemish.crochet.tools;
 
 import java.io.IOException;
 import java.nio.file.Path;

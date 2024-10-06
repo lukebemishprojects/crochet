@@ -104,9 +104,9 @@ public abstract class TaskGraphExecution extends DefaultTask {
 
     public static abstract class GraphOutput {
         @Input
-        abstract Property<String> getOutputName();
+        public abstract Property<String> getOutputName();
         @OutputFile
-        abstract RegularFileProperty getOutputFile();
+        public abstract RegularFileProperty getOutputFile();
 
         public static GraphOutput of(String outputName, Provider<RegularFile> outputFile, ObjectFactory factory) {
             var instance = factory.newInstance(GraphOutput.class);
@@ -129,8 +129,10 @@ public abstract class TaskGraphExecution extends DefaultTask {
     @Classpath
     public abstract ConfigurableFileCollection getClasspath();
 
-    @Inject
-    protected abstract ProjectLayout getProjectLayout();
+    public void copyArtifactsFrom(TaskGraphExecution other) {
+        getArtifactFiles().set(other.getArtifactFiles());
+        getArtifactIdentifiers().set(other.getArtifactIdentifiers());
+    }
 
     public void copyConfigFrom(TaskGraphExecution other) {
         getConfigMaker().set(other.getConfigMaker());

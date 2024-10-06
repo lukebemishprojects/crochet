@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.tasks;
 
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
@@ -19,4 +20,7 @@ public abstract class ArtifactTarget {
 
     @Internal
     public abstract ListProperty<String> getCapabilities();
+
+    @Internal
+    public abstract Property<String> getSanitizedName();
 }

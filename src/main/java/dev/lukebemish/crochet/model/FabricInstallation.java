@@ -12,7 +12,7 @@ import dev.lukebemish.crochet.tasks.ExtractFabricDependencies;
 import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
 import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
-import dev.lukebemish.crochet.tasks.RemapJarsTask;
+import dev.lukebemish.crochet.tasks.RemapModsConfigMaker;
 import dev.lukebemish.crochet.tasks.RemapSourceJarsTask;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.WriteFile;
@@ -25,12 +25,14 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Jar;
 
 import javax.inject.Inject;
@@ -46,6 +48,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Configuration loaderConfiguration;
@@ -57,6 +62,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
     private final CrochetExtension extension;
     private final TaskProvider<MappingsWriter> intermediaryToNamed;
+    private final TaskProvider<MappingsWriter> namedToIntermediary;
     final Configuration accessWideners;
     final TaskProvider<ExtractFabricDependencies> extractFabricForDependencies;
 
@@ -141,6 +147,8 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         namedReversed.getInputMappings().set(named);
         var chainedSpec = objects.newInstance(ChainedMappingsSource.class);
         chainedSpec.getInputSources().set(List.of(intermediaryReversed, namedReversed));
+        var reversedChainedSpec = objects.newInstance(ReversedMappingsSource.class);
+        reversedChainedSpec.getInputMappings().set(chainedSpec);
 
         this.intermediaryToNamed = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"IntermediaryToNamed", MappingsWriter.class, task -> {
             task.getInputMappings().set(chainedSpec);
@@ -156,6 +164,28 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                     String text = Files.readString(file, StandardCharsets.UTF_8);
                     var firstLine = text.indexOf('\n');
                     var newHeader = "tiny\t2\t0\tintermediary\tnamed";
+                    var newText = newHeader + text.substring(firstLine);
+                    Files.writeString(file, newText, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        });
+
+        this.namedToIntermediary = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"NamedToIntermediary", MappingsWriter.class, task -> {
+            task.getInputMappings().set(reversedChainedSpec);
+            task.dependsOn(intermediaryMappings);
+            task.dependsOn(this.binaryArtifactsTask);
+            task.getTargetFormat().set(IMappingFile.Format.TINY);
+            task.getOutputMappings().set(workingDirectory.map(dir -> dir.file("named-to-intermediary.tiny")));
+            // Ensure that the header is nicely present for various tools
+            task.doLast(t -> {
+                var mappingWriter = (MappingsWriter) t;
+                var file = mappingWriter.getOutputMappings().getAsFile().get().toPath();
+                try {
+                    String text = Files.readString(file, StandardCharsets.UTF_8);
+                    var firstLine = text.indexOf('\n');
+                    var newHeader = "tiny\t2\t0\tnamed\tintermediary";
                     var newText = newHeader + text.substring(firstLine);
                     Files.writeString(file, newText, StandardCharsets.UTF_8);
                 } catch (IOException e) {
@@ -198,16 +228,16 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
     public void forFeature(SourceSet sourceSet, Action<FabricSourceSetDependencies> action) {
         super.forFeature(sourceSet);
-        forFeatureShared(sourceSet, action);
+        forFeatureShared(sourceSet, action, false);
     }
 
     public void forLocalFeature(SourceSet sourceSet, Action<FabricSourceSetDependencies> action) {
         super.forLocalFeature(sourceSet);
-        forFeatureShared(sourceSet, action);
+        forFeatureShared(sourceSet, action, true);
     }
 
     @SuppressWarnings("UnstableApiUsage")
-    private void forFeatureShared(SourceSet sourceSet, Action<FabricSourceSetDependencies> action) {
+    private void forFeatureShared(SourceSet sourceSet, Action<FabricSourceSetDependencies> action, boolean local) {
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
             config.extendsFrom(loaderConfiguration);
         });
@@ -293,9 +323,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             nonModApiElements.setCanBeConsumed(true);
             nonModApiElements.setCanBeResolved(false);
 
-            nonModApiElements.getOutgoing().getArtifacts().addAllLater(project.provider(apiElements::getAllArtifacts));
-            nonModRuntimeElements.getOutgoing().getArtifacts().addAllLater(project.provider(runtimeElements::getAllArtifacts));
-
             nonModApiElements.getDependencyConstraints().addAllLater(project.provider(apiElements::getDependencyConstraints));
             nonModRuntimeElements.getDependencyConstraints().addAllLater(project.provider(runtimeElements::getDependencyConstraints));
 
@@ -305,6 +332,76 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             nonModRuntimeElements.getDependencies().addAllLater(project.provider(() ->
                 runtimeElements.getAllDependencies().stream().filter(dep -> (dep instanceof ProjectDependency) || !modRuntimeClasspath.getAllDependencies().contains(dep)).toList()
             ));
+
+            if (!local) {
+                var jarTask = project.getTasks().named(sourceSet.getJarTaskName(), Jar.class);
+
+                AtomicBoolean hasSetup = new AtomicBoolean(false);
+                AtomicReference<String> classifier = new AtomicReference<>();
+                AtomicReference<RegularFile> oldJarLocation = new AtomicReference<>();
+
+                BiConsumer<TaskGraphExecution, Jar> configurator = (remapJar, jar) -> {
+                    if (hasSetup.getAndSet(true)) {
+                        return;
+                    }
+                    var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
+                    var oldArchiveFile = jarTask.get().getArchiveFile().get();
+                    var existingClassifier = jarTask.get().getArchiveClassifier().get();
+
+                    classifier.set(existingClassifier);
+                    oldJarLocation.set(oldArchiveFile);
+
+                    jarTask.get().getArchiveClassifier().set(existingClassifier.isEmpty() ? "dev" : existingClassifier + "-dev");
+                    var remappingClasspath = project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getIncoming().artifactView(view -> view.attributes(attributes ->
+                        attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
+                    )).getFiles();
+                    configMaker.remapSingleJar(remapJar, input -> {
+                        input.set(jarTask.flatMap(AbstractArchiveTask::getArchiveFile));
+                    }, output -> {
+                        output.set(oldArchiveFile);
+                    }, mappings -> {
+                    }, remappingClasspath);
+
+                    configMaker.getMappings().set(namedToIntermediary.flatMap(MappingsWriter::getOutputMappings));
+                    remapJar.getConfigMaker().set(configMaker);
+
+                    remapJar.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
+                    remapJar.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
+                    remapJar.dependsOn(jarTask);
+                };
+
+                var remapJarTask = project.getTasks().register(sourceSet.getTaskName("remap", "jar"), TaskGraphExecution.class, task -> {
+                    configurator.accept(task, jarTask.get());
+                });
+
+                jarTask.configure(task -> {
+                    configurator.accept(remapJarTask.get(), task);
+                });
+
+                project.getTasks().named("build", t -> t.dependsOn(remapJarTask));
+
+                nonModRuntimeElements.getOutgoing().getArtifacts().addAll(runtimeElements.getAllArtifacts());
+                runtimeElements.getOutgoing().getArtifacts().clear();
+                nonModApiElements.getOutgoing().getArtifacts().addAll(apiElements.getAllArtifacts());
+                apiElements.getOutgoing().getArtifacts().clear();
+
+                project.artifacts(artifacts -> {
+                    configurator.accept(remapJarTask.get(), jarTask.get());
+                    artifacts.add(runtimeElements.getName(), oldJarLocation.get(), spec -> {
+                        spec.setClassifier(classifier.get());
+                        spec.setType(ArtifactTypeDefinition.JAR_TYPE);
+                        spec.builtBy(remapJarTask);
+                    });
+                    artifacts.add(apiElements.getName(), oldJarLocation.get(), spec -> {
+                        spec.setClassifier(classifier.get());
+                        spec.setType(ArtifactTypeDefinition.JAR_TYPE);
+                        spec.builtBy(remapJarTask);
+                    });
+                });
+            } else {
+                nonModApiElements.getOutgoing().getArtifacts().addAllLater(project.provider(apiElements::getAllArtifacts));
+                nonModRuntimeElements.getOutgoing().getArtifacts().addAllLater(project.provider(runtimeElements::getAllArtifacts));
+            }
         });
 
         var modCompileOnly = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "compileOnly"));
@@ -395,18 +492,28 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var remappedRuntimeMods = project.files();
         project.getDependencies().add(remappedRuntimeClasspath.getName(), remappedRuntimeMods);
 
-        var remapCompileMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspath"), RemapJarsTask.class, task -> {
-            task.setup(modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspath").dir(sourceSet.getName()), remappedCompileMods);
+        var remapCompileMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspath"), TaskGraphExecution.class, task -> {
+            var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
+            configMaker.setup(task, modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspath").dir(sourceSet.getName()), remappedCompileMods);
             task.dependsOn(intermediaryToNamed);
-            task.getRemappingClasspath().from(minecraft);
-            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            configMaker.getRemappingClasspath().from(minecraft);
+            configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            task.getConfigMaker().set(configMaker);
+
+            task.copyArtifactsFrom(this.binaryArtifactsTask.get());
+            task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
-        var remapRuntimeMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspath"), RemapJarsTask.class, task -> {
-            task.setup(modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspath").dir(sourceSet.getName()), remappedRuntimeMods);
+        var remapRuntimeMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspath"), TaskGraphExecution.class, task -> {
+            var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
+            configMaker.setup(task, modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspath").dir(sourceSet.getName()), remappedRuntimeMods);
             task.dependsOn(intermediaryToNamed);
-            task.getRemappingClasspath().from(minecraft);
-            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            configMaker.getRemappingClasspath().from(minecraft);
+            configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            task.getConfigMaker().set(configMaker);
+
+            task.copyArtifactsFrom(this.binaryArtifactsTask.get());
+            task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
         var remapCompileModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspathSources"), RemapSourceJarsTask.class, task -> {
@@ -436,7 +543,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
     }
 
-    private void linkSources(TaskProvider<RemapJarsTask> remapJars, TaskProvider<RemapSourceJarsTask> remapSourceJars) {
+    private void linkSources(TaskProvider<TaskGraphExecution> remapJars, TaskProvider<RemapSourceJarsTask> remapSourceJars) {
         record Pair<T, U>(T first, U second) implements Serializable {}
 
         if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
@@ -446,7 +553,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 return map;
             });
 
-            Provider<List<Pair<ArtifactTarget, ArtifactTarget>>> binariesToSources = sources.zip(remapJars.get().getTargets(), (sourceMap, binaryTargets) -> {
+            Provider<List<Pair<ArtifactTarget, ArtifactTarget>>> binariesToSources = sources.zip(remapJars.get().getConfigMaker().flatMap(configMaker -> ((RemapModsConfigMaker) configMaker).getTargets()), (sourceMap, binaryTargets) -> {
                 List<Pair<ArtifactTarget, ArtifactTarget>> map = new ArrayList<>();
                 binaryTargets.forEach(binary -> {
                     Set<ArtifactTarget> sourceTargets = new HashSet<>();

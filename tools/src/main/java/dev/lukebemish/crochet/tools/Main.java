@@ -8,6 +8,7 @@ public class Main {
         System.exit(new CommandLine(new Main())
             .addSubcommand(new TransformAccessWideners())
             .addSubcommand(new TransformInterfaceInjection())
+            .addSubcommand(new RemapMods())
             .execute(args)
         );
     }

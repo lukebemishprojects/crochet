@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.wrappers.tinyremapper;
+package dev.lukebemish.crochet.tools;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

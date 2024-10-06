@@ -53,15 +53,13 @@ class TransformInterfaceInjection implements Runnable {
     )
     Path mappingsFile;
 
-    private final Gson GSON = new Gson();
-
     @Override
     public void run() {
         try {
             Map<String, Set<String>> neoInjections = new LinkedHashMap<>();
             for (var neoInput : neoInputs) {
                 try (var reader = Files.newBufferedReader(neoInput)) {
-                    var json = GSON.fromJson(reader, JsonObject.class);
+                    var json = Utils.GSON.fromJson(reader, JsonObject.class);
                     for (var entry : json.entrySet()) {
                         var key = entry.getKey();
                         var value = entry.getValue().getAsJsonArray();
@@ -79,7 +77,7 @@ class TransformInterfaceInjection implements Runnable {
             var remapper = Utils.remapperForFile(mappings);
             for (var fabricInput : inputs) {
                 try (var reader = Files.newBufferedReader(fabricInput)) {
-                    var json = GSON.fromJson(reader, JsonObject.class);
+                    var json = Utils.GSON.fromJson(reader, JsonObject.class);
                     for (var entry : json.entrySet()) {
                         var key = remapper.map(entry.getKey());
                         var value = entry.getValue().getAsJsonArray();
@@ -95,12 +93,12 @@ class TransformInterfaceInjection implements Runnable {
             for (var entry : neoInjections.entrySet()) {
                 var key = entry.getKey();
                 var value = entry.getValue();
-                var array = GSON.toJsonTree(value).getAsJsonArray();
+                var array = Utils.GSON.toJsonTree(value).getAsJsonArray();
                 json.add(key, array);
             }
 
             try (var writer = Files.newBufferedWriter(outputFile)) {
-                GSON.toJson(json, writer);
+                Utils.GSON.toJson(json, writer);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

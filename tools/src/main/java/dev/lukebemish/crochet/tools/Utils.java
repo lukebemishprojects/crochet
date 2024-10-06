@@ -1,10 +1,13 @@
 package dev.lukebemish.crochet.tools;
 
+import com.google.gson.Gson;
 import net.neoforged.srgutils.IMappingFile;
 import org.objectweb.asm.commons.Remapper;
 
 final class Utils {
     private Utils() {}
+
+    static final Gson GSON = new Gson();
 
     static Remapper remapperForFile(IMappingFile mappings) {
         return new Remapper() {
