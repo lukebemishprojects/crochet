@@ -4,6 +4,7 @@ import net.fabricmc.accesswidener.AccessWidenerReader;
 import net.fabricmc.accesswidener.AccessWidenerRemapper;
 import net.fabricmc.accesswidener.AccessWidenerVisitor;
 import net.neoforged.srgutils.IMappingFile;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -34,7 +35,7 @@ class TransformAccessWideners implements Runnable {
         description = "Input access widener file",
         arity = "0..*"
     )
-    List<Path> inputs;
+    List<Path> inputs = List.of();
 
     @CommandLine.Option(
         names = {"-o", "--output"},
@@ -153,43 +154,7 @@ class TransformAccessWideners implements Runnable {
 
             AccessWidenerRemapper awRemapper = new AccessWidenerRemapper(
                 atWriter,
-                new Remapper() {
-                    @Override
-                    public String mapDesc(String descriptor) {
-                        return mappings.remapDescriptor(descriptor);
-                    }
-
-                    @Override
-                    public String mapFieldName(String owner, String name, String descriptor) {
-                        var iClass = mappings.getClass(owner);
-                        if (iClass == null) {
-                            return name;
-                        }
-                        var iField = iClass.getField(name);
-                        if (iField == null) {
-                            return name;
-                        }
-                        return iField.getMapped();
-                    }
-
-                    @Override
-                    public String mapMethodName(String owner, String name, String descriptor) {
-                        var iClass = mappings.getClass(owner);
-                        if (iClass == null) {
-                            return name;
-                        }
-                        var iMethod = iClass.getMethod(name, descriptor);
-                        if (iMethod == null) {
-                            return name;
-                        }
-                        return iMethod.getMapped();
-                    }
-
-                    @Override
-                    public String map(String internalName) {
-                        return mappings.remapClass(internalName);
-                    }
-                },
+                Utils.remapperForFile(mappings),
                 "intermediary",
                 "named"
             );

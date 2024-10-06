@@ -7,6 +7,7 @@ public class Main {
     public static void main(String[] args) {
         System.exit(new CommandLine(new Main())
             .addSubcommand(new TransformAccessWideners())
+            .addSubcommand(new TransformInterfaceInjection())
             .execute(args)
         );
     }

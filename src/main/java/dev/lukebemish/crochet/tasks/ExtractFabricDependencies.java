@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.tasks;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.fabricmc.accesswidener.AccessWidenerReader;
 import net.fabricmc.accesswidener.AccessWidenerVisitor;
@@ -10,10 +11,8 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
@@ -26,11 +25,13 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipFile;
 
-public abstract class ExtractAccessWideners extends DefaultTask {
+public abstract class ExtractFabricDependencies extends DefaultTask {
     @InputFiles
     @PathSensitive(PathSensitivity.NONE)
     public abstract ConfigurableFileCollection getModJars();
@@ -39,13 +40,13 @@ public abstract class ExtractAccessWideners extends DefaultTask {
     public abstract DirectoryProperty getOutputDirectory();
 
     private static final Gson GSON = new GsonBuilder().create();
-    private static final Logger LOGGER = LoggerFactory.getLogger(ExtractAccessWideners.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ExtractFabricDependencies.class);
 
     @Inject
     protected abstract FileSystemOperations getFileSystemOperations();
 
     @Inject
-    public ExtractAccessWideners() {}
+    public ExtractFabricDependencies() {}
 
     private sealed interface Widener {
         record Field(String owner, String name, String descriptor, AccessWidenerReader.AccessType access) implements Widener {}
@@ -60,6 +61,7 @@ public abstract class ExtractAccessWideners extends DefaultTask {
         });
         var intermediaryWideners = new HashSet<Widener>();
         var namedWideners = new HashSet<Widener>();
+        var interfaceInjections = new HashMap<String, Set<String>>();
         for (var file : getModJars()) {
             try (var zip = new ZipFile(file)) {
                 var fmj = zip.getEntry("fabric.mod.json");
@@ -105,6 +107,20 @@ public abstract class ExtractAccessWideners extends DefaultTask {
                                         }
                                     });
                                     reader.read(bytes);
+                                }
+                            }
+                        }
+                        var custom = json.get("custom");
+                        if (custom != null) {
+                            var ii = custom.getAsJsonObject().get("loom:injected_interfaces");
+                            if (ii != null) {
+                                for (var entry : ii.getAsJsonObject().entrySet()) {
+                                    var key = entry.getKey();
+                                    var value = entry.getValue().getAsJsonArray();
+                                    var set = interfaceInjections.computeIfAbsent(key, k -> new HashSet<>());
+                                    for (var element : value) {
+                                        set.add(element.getAsString());
+                                    }
                                 }
                             }
                         }
@@ -159,6 +175,20 @@ public abstract class ExtractAccessWideners extends DefaultTask {
             var outPath = getOutputDirectory().get().getAsFile().toPath().resolve("named.accesswidener");
             try (var out = Files.newOutputStream(outPath)) {
                 out.write(writer.write());
+            }
+        }
+        if (!interfaceInjections.isEmpty()) {
+            var outPath = getOutputDirectory().get().getAsFile().toPath().resolve("interface_injections.json");
+            var json = new JsonObject();
+            interfaceInjections.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+                var key = entry.getKey();
+                var value = entry.getValue();
+                var array = new JsonArray();
+                value.stream().sorted().forEach(array::add);
+                json.add(key, array);
+            });
+            try (var out = Files.newBufferedWriter(outPath, StandardCharsets.UTF_8)) {
+                GSON.toJson(json, out);
             }
         }
     }

@@ -8,7 +8,7 @@ import dev.lukebemish.crochet.mappings.ChainedMappingsSource;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
 import dev.lukebemish.crochet.mappings.ReversedMappingsSource;
 import dev.lukebemish.crochet.tasks.ArtifactTarget;
-import dev.lukebemish.crochet.tasks.ExtractAccessWideners;
+import dev.lukebemish.crochet.tasks.ExtractFabricDependencies;
 import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
 import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
@@ -58,7 +58,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     private final CrochetExtension extension;
     private final TaskProvider<MappingsWriter> intermediaryToNamed;
     final Configuration accessWideners;
-    final TaskProvider<ExtractAccessWideners> extractAccessWidenersForTransitives;
+    final TaskProvider<ExtractFabricDependencies> extractFabricForDependencies;
 
     @SuppressWarnings("UnstableApiUsage")
     @Inject
@@ -80,11 +80,11 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         this.fabricConfigMaker = project.getObjects().newInstance(FabricInstallationArtifacts.class);
         fabricConfigMaker.getWrapped().set(vanillaConfigMaker);
 
-        this.extractAccessWidenersForTransitives = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+"ExtractAccessWideners", ExtractAccessWideners.class, task -> {
-            task.getOutputDirectory().set(workingDirectory.get().dir("accessWideners"));
+        this.extractFabricForDependencies = project.getTasks().register("crochet"+StringUtils.capitalize(getName())+"ExtractForDependencies", ExtractFabricDependencies.class, task -> {
+            task.getOutputDirectory().set(workingDirectory.get().dir("extracted"));
         });
-        fabricConfigMaker.getExtractedAccessWideners().builtBy(this.extractAccessWidenersForTransitives);
-        fabricConfigMaker.getExtractedAccessWideners().from(project.fileTree(extractAccessWidenersForTransitives.flatMap(ExtractAccessWideners::getOutputDirectory)));
+        fabricConfigMaker.getAccessWideners().from(project.fileTree(extractFabricForDependencies.flatMap(ExtractFabricDependencies::getOutputDirectory)).builtBy(extractFabricForDependencies).filter(it -> it.getName().endsWith(".accesswidener")));
+        fabricConfigMaker.getInterfaceInjection().from(project.fileTree(extractFabricForDependencies.flatMap(ExtractFabricDependencies::getOutputDirectory)).builtBy(extractFabricForDependencies).filter(it -> it.getName().equals("interface_injections.json")));
 
         this.binaryArtifactsTask.configure(task -> {
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("downloadClientMappings.output", mappings, project.getObjects()));
@@ -234,7 +234,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             config.setCanBeConsumed(false);
         }).get();
 
-        this.extractAccessWidenersForTransitives.configure(task -> {
+        this.extractFabricForDependencies.configure(task -> {
             task.getModJars().from(modCompileClasspath);
         });
 
