@@ -265,7 +265,8 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         }).get();
 
         this.extractFabricForDependencies.configure(task -> {
-            task.getModJars().from(modCompileClasspath);
+            task.getCompileModJars().from(modCompileClasspath);
+            task.getRuntimeModJars().from(modRuntimeClasspath);
         });
 
         var runtimeElements = project.getConfigurations().maybeCreate(sourceSet.getRuntimeElementsConfigurationName());

@@ -4,13 +4,11 @@ import net.fabricmc.accesswidener.AccessWidenerReader;
 import net.fabricmc.accesswidener.AccessWidenerRemapper;
 import net.fabricmc.accesswidener.AccessWidenerVisitor;
 import net.neoforged.srgutils.IMappingFile;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.commons.Remapper;
 import picocli.CommandLine;
 
 import java.io.File;
@@ -20,7 +18,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
@@ -58,6 +60,19 @@ class TransformAccessWideners implements Runnable {
     )
     File targetFile;
 
+    private sealed interface Target {
+        record Class(String name) implements Target {}
+        record Field(String owner, String name, String descriptor) implements Target {}
+        record Method(String owner, String name, String descriptor) implements Target {}
+    }
+
+    private enum Visibility {
+        PUBLIC,
+        PROTECTED,
+        PRIVATE,
+        PACKAGE_PRIVATE
+    }
+
     @Override
     public void run() {
         try (var mappingsStream = Files.newInputStream(mappingsFile);
@@ -66,18 +81,7 @@ class TransformAccessWideners implements Runnable {
 
             var lines = new ArrayList<String>();
             var atWriter = new AccessWidenerVisitor() {
-                enum Visibility {
-                    PUBLIC("public"),
-                    PROTECTED("protected"),
-                    PRIVATE("private"),
-                    PACKAGE_PRIVATE("default");
-
-                    private final String alias;
-
-                    Visibility(String alias) {
-                        this.alias = alias;
-                    }
-                }
+                private final Map<Target, Set<AccessWidenerReader.AccessType>> targetAccesses = new LinkedHashMap<>();
 
                 record MethodState(Visibility visibility, boolean isStatic, boolean isInterface) {}
 
@@ -121,34 +125,72 @@ class TransformAccessWideners implements Runnable {
                     return new MethodState(visibility.getPlain(), isStatic.getPlain(), isInterface.getPlain());
                 }
 
+                public void processAll() {
+                    targetAccesses.forEach((target, accesses) -> {
+                        switch (target) {
+                            case Target.Class aClass -> {
+                                for (var access : accesses) {
+                                    lines.add(switch (access) {
+                                        case ACCESSIBLE -> "public "+aClass.name.replace('/', '.');
+                                        case EXTENDABLE -> "public-f "+aClass.name.replace('/', '.');
+                                        case MUTABLE -> throw new UnsupportedOperationException("`mutable` is not a known access type for classes`");
+                                    });
+                                }
+                            }
+                            case Target.Field field -> {
+                                for (var access : accesses) {
+                                    lines.add(switch (access) {
+                                        case ACCESSIBLE -> "public "+field.owner.replace('/', '.')+" "+field.name+" "+field.descriptor;
+                                        case EXTENDABLE -> throw new UnsupportedOperationException("`extendable` is not a known access type for fields`");
+                                        case MUTABLE -> "private-f "+field.owner.replace('/', '.')+" "+field.name;
+                                    });
+                                }
+                            }
+                            case Target.Method method -> {
+                                if (accesses.contains(AccessWidenerReader.AccessType.ACCESSIBLE) && accesses.contains(AccessWidenerReader.AccessType.EXTENDABLE)) {
+                                    lines.add("public-f "+method.owner.replace('/', '.')+" "+method.name+method.descriptor);
+                                    accesses.remove(AccessWidenerReader.AccessType.EXTENDABLE);
+                                    accesses.remove(AccessWidenerReader.AccessType.ACCESSIBLE);
+                                }
+                                for (var access : accesses) {
+                                    lines.add(switch (access) {
+                                        case ACCESSIBLE -> {
+                                            var originalAccess = stateOfMethod(method.owner, method.name, method.descriptor);
+                                            yield ((originalAccess != null && originalAccess.visibility == Visibility.PRIVATE && !originalAccess.isStatic && !originalAccess.isInterface && !"<init>".equals(method.name)) ? "public+f " : "public ")+method.owner.replace('/', '.')+" "+method.name+method.descriptor;
+                                        }
+                                        case EXTENDABLE -> "protected-f "+method.owner.replace('/', '.')+" "+method.name+method.descriptor;
+                                        case MUTABLE -> throw new UnsupportedOperationException("`mutable` is not a known access type for methods`");
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+
                 @Override
                 public void visitClass(String name, AccessWidenerReader.AccessType access, boolean transitive) {
-                    lines.add(switch (access) {
-                        case ACCESSIBLE -> "public "+name.replace('/', '.');
-                        case EXTENDABLE -> "public-f "+name.replace('/', '.');
-                        case MUTABLE -> throw new UnsupportedOperationException("`mutable` is not a known access type for classes`");
-                    });
+                    targetAccesses.computeIfAbsent(new Target.Class(name), k -> EnumSet.noneOf(AccessWidenerReader.AccessType.class)).add(access);
                 }
 
                 @Override
                 public void visitField(String owner, String name, String descriptor, AccessWidenerReader.AccessType access, boolean transitive) {
-                    lines.add(switch (access) {
-                        case ACCESSIBLE -> "public "+owner.replace('/', '.')+" "+name+" "+descriptor;
-                        case EXTENDABLE -> throw new UnsupportedOperationException("`extendable` is not a known access type for fields`");
-                        case MUTABLE -> "private-f "+owner.replace('/', '.')+" "+name;
-                    });
+                    targetAccesses.computeIfAbsent(new Target.Field(owner, name, descriptor), k -> EnumSet.noneOf(AccessWidenerReader.AccessType.class)).add(access);
+                    if (access == AccessWidenerReader.AccessType.ACCESSIBLE) {
+                        visitClass(owner, AccessWidenerReader.AccessType.ACCESSIBLE, transitive);
+                    }
                 }
 
                 @Override
                 public void visitMethod(String owner, String name, String descriptor, AccessWidenerReader.AccessType access, boolean transitive) {
-                    lines.add(switch (access) {
+                    targetAccesses.computeIfAbsent(new Target.Method(owner, name, descriptor), k -> EnumSet.noneOf(AccessWidenerReader.AccessType.class)).add(access);
+                    switch (access) {
                         case ACCESSIBLE -> {
-                            var originalAccess = stateOfMethod(owner, name, descriptor);
-                            yield ((originalAccess != null && originalAccess.visibility == Visibility.PRIVATE && !originalAccess.isStatic && !originalAccess.isInterface && !"<init>".equals(name)) ? "public+f " : "public ")+owner.replace('/', '.')+" "+name+descriptor;
+                            visitClass(owner, AccessWidenerReader.AccessType.ACCESSIBLE, transitive);
                         }
-                        case EXTENDABLE -> "protected-f "+owner.replace('/', '.')+" "+name+descriptor;
-                        case MUTABLE -> throw new UnsupportedOperationException("`mutable` is not a known access type for methods`");
-                    });
+                        case EXTENDABLE -> {
+                            visitClass(owner, AccessWidenerReader.AccessType.EXTENDABLE, transitive);
+                        }
+                    }
                 }
             };
 
@@ -171,6 +213,8 @@ class TransformAccessWideners implements Runnable {
                 AccessWidenerReader reader = new AccessWidenerReader(visitor);
                 reader.read(bytes);
             }
+
+            atWriter.processAll();
 
             Files.write(outputFile, lines, StandardCharsets.UTF_8);
         } catch (IOException e) {
