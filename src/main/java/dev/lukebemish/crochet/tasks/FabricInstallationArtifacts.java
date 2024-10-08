@@ -4,6 +4,7 @@ import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;
+import dev.lukebemish.taskgraphrunner.model.InputValue;
 import dev.lukebemish.taskgraphrunner.model.MappingsFormat;
 import dev.lukebemish.taskgraphrunner.model.MappingsSource;
 import dev.lukebemish.taskgraphrunner.model.Output;
@@ -90,7 +91,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             Input target = null;
             boolean capture = false;
             for (var arg : existing.args) {
-                if (arg instanceof Argument.ValueInput valueInput && valueInput.input instanceof Input.DirectInput directInput && directInput.value() instanceof Value.StringValue stringValue && "--inJar".equals(stringValue.value())) {
+                if (arg instanceof Argument.ValueInput valueInput && valueInput.input instanceof InputValue.DirectInput directInput && directInput.value() instanceof Value.StringValue stringValue && "--inJar".equals(stringValue.value())) {
                     capture = true;
                 } else if (capture && arg instanceof Argument.FileInput fileInput) {
                     target = fileInput.input;
@@ -140,7 +141,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             Argument.direct("--map"),
             new Argument.FileInput(null, new Input.TaskInput(new Output("mojangToIntermediaryMappings", "output")), PathSensitivity.NONE),
             Argument.direct("--cfg"),
-            new Argument.LibrariesFile(null, List.of(new Input.TaskInput(new Output("listLibraries", "output"))), new Input.DirectInput(new Value.StringValue("-e=")))
+            new Argument.LibrariesFile(null, List.of(new Input.TaskInput(new Output("listLibraries", "output"))), new InputValue.DirectInput(new Value.StringValue("-e=")))
         )));
         wrapped.aliases.put("intermediary", new Output("intermediaryRename", "output"));
 
