@@ -65,15 +65,14 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
         ));
 
         if (!getAccessWideners().isEmpty()) {
-            var transformAccessWideners = new TaskModel.Tool(
+            var transformAccessWideners = new TaskModel.DaemonExecutedTool(
                 "transformAccessWideners",
                 List.of(
-                    Argument.direct("-jar"),
-                    new Argument.FileInput(null, new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)), PathSensitivity.NONE),
                     Argument.direct("transform-access-wideners"),
                     new Argument.FileOutput("--output={}", "output", "cfg"),
                     new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToMojangMappings", "output")), PathSensitivity.NONE)
-                )
+                ),
+                new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
             );
 
             wrapped.tasks.add(transformAccessWideners);
@@ -87,7 +86,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             );
             transformAccessWideners.args.add(new Argument.Zip("--input={}", List.of(new Input.ParameterInput("accessWideners")), PathSensitivity.NONE));
 
-            var existing = (TaskModel.Tool) wrapped.tasks.stream().filter(t -> t.name().equals("accessTransformers")).findFirst().orElseThrow();
+            var existing = (TaskModel.DaemonExecutedTool) wrapped.tasks.stream().filter(t -> t.name().equals("accessTransformers")).findFirst().orElseThrow();
             Input target = null;
             boolean capture = false;
             for (var arg : existing.args) {
@@ -103,15 +102,14 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
         }
 
         if (!getInterfaceInjection().isEmpty()) {
-            var transformInterfaceInjection = new TaskModel.Tool(
+            var transformInterfaceInjection = new TaskModel.DaemonExecutedTool(
                 "transformInterfaceInjection",
                 List.of(
-                    Argument.direct("-jar"),
-                    new Argument.FileInput(null, new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)), PathSensitivity.NONE),
                     Argument.direct("transform-interface-injection"),
                     new Argument.FileOutput("--output={}", "output", "json"),
                     new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToMojangMappings", "output")), PathSensitivity.NONE)
-                )
+                ),
+                new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
             );
 
             wrapped.tasks.add(transformInterfaceInjection);
@@ -131,9 +129,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             existing.interfaceInjection = new Input.ListInput(List.of(new Input.TaskInput(new Output(transformInterfaceInjection.name(), "output"))));
         }
 
-        wrapped.tasks.add(new TaskModel.Tool("intermediaryRename", List.of(
-            Argument.direct("-jar"),
-            new Argument.FileInput(null, new Input.DirectInput(Value.tool("autorenamingtool")), PathSensitivity.NONE),
+        wrapped.tasks.add(new TaskModel.DaemonExecutedTool("intermediaryRename", List.of(
             Argument.direct("--input"),
             new Argument.FileInput(null, new Input.TaskInput(wrapped.aliases.get("binary")), PathSensitivity.NONE),
             Argument.direct("--output"),
@@ -142,7 +138,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             new Argument.FileInput(null, new Input.TaskInput(new Output("mojangToIntermediaryMappings", "output")), PathSensitivity.NONE),
             Argument.direct("--cfg"),
             new Argument.LibrariesFile(null, List.of(new Input.TaskInput(new Output("listLibraries", "output"))), new InputValue.DirectInput(new Value.StringValue("-e=")))
-        )));
+        ), new Input.DirectInput(Value.tool("autorenamingtool"))));
         wrapped.aliases.put("intermediary", new Output("intermediaryRename", "output"));
 
         return wrapped;

@@ -77,11 +77,9 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
 
         outputNames.sort(Comparator.naturalOrder());
 
-        var remapTask = new TaskModel.Tool("remapMods", List.of(
-            Argument.direct("-jar"),
-            new Argument.FileInput(null, new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE),
+        var remapTask = new TaskModel.DaemonExecutedTool("remapMods", List.of(
             Argument.direct("remap-mods")
-        ));
+        ), new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)));
 
         for (var name : outputNames) {
             remapTask.args.add(new Argument.FileInput(null, new Input.ParameterInput(name), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
