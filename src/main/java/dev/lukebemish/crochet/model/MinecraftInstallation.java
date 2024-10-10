@@ -18,7 +18,13 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.LinkedHashSet;
+import java.util.Properties;
 import java.util.Set;
 
 public abstract class MinecraftInstallation implements Named {
@@ -67,6 +73,21 @@ public abstract class MinecraftInstallation implements Named {
             task.setGroup("crochet setup");
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("assets", assetsProperties, project.getObjects()));
+            task.getOutputs().upToDateWhen(t -> {
+                var file = assetsProperties.get().getAsFile();
+                if (!file.exists()) {
+                    return false;
+                }
+                var properties = new Properties();
+                try (var reader = new FileReader(file)) {
+                    properties.load(reader);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                var index = properties.getProperty("asset_index");
+                var root = Paths.get(properties.getProperty("assets_root"));
+                return Files.exists(root.resolve("indexes").resolve(index+".json"));
+            });
         });
 
         this.accessTransformersApi = project.getConfigurations().dependencyScope(name+"AccessTransformersApi", config -> {
