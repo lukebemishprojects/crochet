@@ -60,8 +60,6 @@ public abstract class RemapSourceJarsTask extends DefaultTask {
 
     @Inject
     public RemapSourceJarsTask() {
-        getChristenClasspath().from(getProject().getConfigurations().getByName(CrochetPlugin.CHRISTEN_CONFIGURATION_NAME));
-
         getLogLevel().convention(switch (getProject().getGradle().getStartParameter().getLogLevel()) {
             case DEBUG -> "debug";
             case INFO, LIFECYCLE -> "info";

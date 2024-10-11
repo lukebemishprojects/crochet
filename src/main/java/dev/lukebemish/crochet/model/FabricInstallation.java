@@ -13,7 +13,7 @@ import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
 import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
 import dev.lukebemish.crochet.tasks.MappingsWriter;
 import dev.lukebemish.crochet.tasks.RemapModsConfigMaker;
-import dev.lukebemish.crochet.tasks.RemapSourceJarsTask;
+import dev.lukebemish.crochet.tasks.RemapModsSourcesConfigMaker;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.WriteFile;
 import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
@@ -208,7 +208,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         mappingsJarFiles.builtBy(mappingsJar);
         project.getDependencies().add(mappingsClasspath.getName(), mappingsJarFiles);
 
-        this.intermediaryMinecraft = project.getConfigurations().maybeCreate("crochet"+StringUtils.capitalize(getName())+"IntermediaryMinecraft");
+        this.intermediaryMinecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"IntermediaryMinecraft", config -> {
+            config.setCanBeConsumed(false);
+            config.extendsFrom(minecraftDependencies);
+            config.extendsFrom(minecraftResources);
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+        });
 
         var intermediaryJarFiles = project.files();
         intermediaryJarFiles.from(intermediaryJar);
@@ -497,7 +502,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
             configMaker.setup(task, modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspath").dir(sourceSet.getName()), remappedCompileMods);
             task.dependsOn(intermediaryToNamed);
-            configMaker.getRemappingClasspath().from(minecraft);
+            configMaker.getRemappingClasspath().from(compileRemappingClasspath);
             configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
             task.getConfigMaker().set(configMaker);
 
@@ -509,7 +514,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
             configMaker.setup(task, modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspath").dir(sourceSet.getName()), remappedRuntimeMods);
             task.dependsOn(intermediaryToNamed);
-            configMaker.getRemappingClasspath().from(minecraft);
+            configMaker.getRemappingClasspath().from(runtimeRemappingClasspath);
             configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
             task.getConfigMaker().set(configMaker);
 
@@ -517,18 +522,28 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
-        var remapCompileModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspathSources"), RemapSourceJarsTask.class, task -> {
-            task.setup(modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspathSources").dir(sourceSet.getName()));
+        var remapCompileModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspathSources"), TaskGraphExecution.class, task -> {
+            var configMaker = project.getObjects().newInstance(RemapModsSourcesConfigMaker.class);
+            configMaker.setup(task, modCompileClasspath, loaderConfiguration, workingDirectory.get().dir("compileClasspathSources").dir(sourceSet.getName()));
             task.dependsOn(intermediaryToNamed);
-            task.getRemappingClasspath().from(minecraft);
-            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            configMaker.getRemappingClasspath().from(compileRemappingClasspath);
+            configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            task.getConfigMaker().set(configMaker);
+
+            task.copyArtifactsFrom(this.binaryArtifactsTask.get());
+            task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
-        var remapRuntimeModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspathSources"), RemapSourceJarsTask.class, task -> {
-            task.setup(modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspathSources").dir(sourceSet.getName()));
+        var remapRuntimeModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspathSources"), TaskGraphExecution.class, task -> {
+            var configMaker = project.getObjects().newInstance(RemapModsSourcesConfigMaker.class);
+            configMaker.setup(task, modRuntimeClasspath, loaderConfiguration, workingDirectory.get().dir("runtimeClasspathSources").dir(sourceSet.getName()));
             task.dependsOn(intermediaryToNamed);
-            task.getRemappingClasspath().from(minecraft);
-            task.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            configMaker.getRemappingClasspath().from(runtimeRemappingClasspath);
+            configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
+            task.getConfigMaker().set(configMaker);
+
+            task.copyArtifactsFrom(this.binaryArtifactsTask.get());
+            task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
         linkSources(remapCompileMods, remapCompileModSources);
@@ -539,16 +554,17 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.dependsOn(remapRuntimeMods);
 
             // TODO: these are disabled for now
-            //task.dependsOn(remapCompileModSources);
-            //task.dependsOn(remapRuntimeModSources);
+            task.dependsOn(remapCompileModSources);
+            task.dependsOn(remapRuntimeModSources);
         });
     }
 
-    private void linkSources(TaskProvider<TaskGraphExecution> remapJars, TaskProvider<RemapSourceJarsTask> remapSourceJars) {
+    private void linkSources(TaskProvider<TaskGraphExecution> remapJars, TaskProvider<TaskGraphExecution> remapSourceJars) {
         record Pair<T, U>(T first, U second) implements Serializable {}
 
         if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
-            Provider<Map<String, ArtifactTarget>> sources = remapSourceJars.get().getTargets().map(targets -> {
+            Provider<Map<String, ArtifactTarget>> sources = remapSourceJars.get().getConfigMaker().map(configMaker -> {
+                var targets = ((RemapModsSourcesConfigMaker) configMaker).getTargets().get();
                 Map<String, ArtifactTarget> map = new HashMap<>();
                 targets.forEach(target -> target.getCapabilities().get().forEach(cap -> map.put(cap, target)));
                 return map;

@@ -4,12 +4,17 @@ import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;
+import dev.lukebemish.taskgraphrunner.model.Output;
 import dev.lukebemish.taskgraphrunner.model.TaskModel;
 import dev.lukebemish.taskgraphrunner.model.Value;
 import org.apache.commons.io.FileUtils;
+import org.gradle.api.Action;
 import org.gradle.api.Transformer;
+import org.gradle.api.artifacts.ArtifactView;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.DocsType;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileCollection;
@@ -22,8 +27,6 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import java.io.IOException;
@@ -37,10 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigMaker {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RemapModsConfigMaker.class);
-    private static final String PROPERTY_HIDE_PROJECTARTIFACT_WARNING = "dev.lukebemish.crochet.hidewarnings.remap.projectartifact";
-
+public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.ConfigMaker {
     @Nested
     public abstract ListProperty<ArtifactTarget> getTargets();
 
@@ -53,7 +53,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
     public abstract RegularFileProperty getMappings();
 
     @Inject
-    public RemapModsConfigMaker() {}
+    public RemapModsSourcesConfigMaker() {}
 
     @Override
     public Config makeConfig() throws IOException {
@@ -75,21 +75,47 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
 
         outputNames.sort(Comparator.naturalOrder());
 
-        var remapTask = new TaskModel.DaemonExecutedTool("remapMods", List.of(
-            Argument.direct("remap-mods")
+        var combineSourcesTask = new TaskModel.DaemonExecutedTool("combineSources", List.of(
+            Argument.direct("combine-sources")
         ), new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)));
 
-        remapTask.classpathScopedJvm = true;
-
+        combineSourcesTask.args.add(new Argument.FileOutput("--output={}", "output", "zip"));
+        combineSourcesTask.args.add(new Argument.FileOutput("--duplicate={}", "duplicates", "txt"));
         for (var name : outputNames) {
-            remapTask.args.add(new Argument.FileInput(null, new Input.ParameterInput(name), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
-            remapTask.args.add(new Argument.FileOutput(null, name, "jar"));
+            combineSourcesTask.args.add(new Argument.FileInput("--input={}", new Input.ParameterInput(name), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
         }
 
-        remapTask.args.add(new Argument.FileInput("--mappings={}", new Input.ParameterInput("mappings"), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
-        remapTask.args.add(new Argument.Classpath("--classpath={}", List.of(new Input.ParameterInput("remappingClasspath"))));
+        config.tasks.add(combineSourcesTask);
+
+        var remapTask = new TaskModel.DaemonExecutedTool(
+            "remapSources",
+            List.of(
+                new Argument.FileInput(null, new Input.TaskInput(new Output(combineSourcesTask.name(), "output")), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE),
+                new Argument.FileOutput(null, "output", "zip"),
+                new Argument.Classpath("--classpath={}", List.of(new Input.ParameterInput("remappingClasspath"))),
+                Argument.direct("--in-format=ARCHIVE"),
+                Argument.direct("--out-format=ARCHIVE"),
+                Argument.direct("--enable-christen"),
+                new Argument.FileInput("--christen-mappings={}", new Input.ParameterInput("mappings"), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE)
+            ),
+            new Input.DirectInput(Value.artifact("dev.lukebemish:christen:" + CrochetPlugin.CHRISTEN_VERSION + ":all"))
+        );
 
         config.tasks.add(remapTask);
+
+        var separateSourcesTask = new TaskModel.DaemonExecutedTool("separateSources", List.of(
+            Argument.direct("separate-modified-sources")
+        ), new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)));
+
+        for (var name : outputNames) {
+            separateSourcesTask.args.add(new Argument.FileInput(null, new Input.ParameterInput(name), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
+            separateSourcesTask.args.add(new Argument.FileOutput(null, name, "jar"));
+        }
+
+        separateSourcesTask.args.add(new Argument.FileInput("--modified={}", new Input.TaskInput(new Output(remapTask.name(), "output")), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
+        separateSourcesTask.args.add(new Argument.FileInput("--duplicate={}", new Input.TaskInput(new Output(combineSourcesTask.name(), "duplicates")), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
+
+        config.tasks.add(separateSourcesTask);
 
         config.parameters.put("mappings", Value.file(getMappings().get().getAsFile().toPath()));
         config.parameters.put("remappingClasspath", new Value.ListValue(getRemappingClasspath().getFiles().stream().<Value>map(f -> Value.file(f.toPath())).toList()));
@@ -101,12 +127,25 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         return config;
     }
 
-    public void setup(TaskGraphExecution outer, Configuration source, Configuration exclude, Directory destinationDirectory, ConfigurableFileCollection destinationFiles) {
-        destinationFiles.builtBy(this);
+    @SuppressWarnings("UnstableApiUsage")
+    public void setup(TaskGraphExecution outer, Configuration source, Configuration exclude, Directory destinationDirectory) {
+        Action<ArtifactView.ViewConfiguration> action = view -> {
+            view.lenient(true);
+            view.withVariantReselection();
+            view.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+                attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, outer.getProject().getObjects().named(Category.class, Category.DOCUMENTATION));
+                attributes.attribute(DocsType.DOCS_TYPE_ATTRIBUTE, outer.getProject().getObjects().named(DocsType.class, DocsType.SOURCES));
+            });
+        };
 
-        outer.dependsOn(source);
-        var sourceArtifacts = source.getIncoming().getArtifacts().getResolvedArtifacts();
-        var excludeArtifacts = exclude.getIncoming().getArtifacts().getResolvedArtifacts();
+        var sourceSources = source.getIncoming().artifactView(action);
+        var excludeSources = exclude.getIncoming().artifactView(action);
+
+        outer.dependsOn(sourceSources.getFiles());
+        var sourceArtifacts = sourceSources.getArtifacts().getResolvedArtifacts();
+        var excludeArtifacts = excludeSources.getArtifacts().getResolvedArtifacts();
         var targetsProvider = sourceArtifacts.zip(excludeArtifacts, (artifacts, excluded) -> {
             var excludeCapabilities = new HashSet<String>();
             excluded.forEach(result -> {
@@ -120,11 +159,6 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
                         .noneMatch(it -> excludeCapabilities.contains(it.getGroup() + ":" + it.getName()))
                 )
                 .map(artifact -> {
-                    if (artifact.getVariant().getOwner() instanceof ProjectComponentIdentifier id) {
-                        if (!outer.getProject().getProviders().gradleProperty(PROPERTY_HIDE_PROJECTARTIFACT_WARNING).map(s -> s.equalsIgnoreCase("true")).getOrElse(false)) {
-                            LOGGER.warn("Found project dependency `{}` on the remap source classpath; this may be an unintentional result of using `modImplementation`, etc. for a non-mod project dependency instead of `implementation`, etc.; if this is intentional, this warning may be hidden with the gradle property `{}.", id.getDisplayName(), PROPERTY_HIDE_PROJECTARTIFACT_WARNING);
-                        }
-                    }
                     var target = outer.getProject().getObjects().newInstance(ArtifactTarget.class);
                     target.getSource().set(artifact.getFile());
                     var targetFile = destinationDirectory.file(artifact.getFile().getName());
@@ -152,7 +186,6 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         var property = outer.getProject().getObjects().listProperty(ArtifactTarget.class);
         property.set(targetsProvider);
         property.finalizeValueOnRead();
-        destinationFiles.from(property.map(t -> t.stream().map(ArtifactTarget::getTarget).toList()));
         this.getTargets().addAll(property);
 
         outer.getTargets().addAll(property.map(outer.getProject().getObjects().newInstance(TargetToOutputTransformer.class)));
@@ -201,7 +234,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
             var list = new ArrayList<TaskGraphExecution.GraphOutput>();
             for (var target : artifactTargets) {
                 var output = getObjects().newInstance(TaskGraphExecution.GraphOutput.class);
-                output.getOutputName().set(target.getSanitizedName().map(it -> "remapMods." + it));
+                output.getOutputName().set(target.getSanitizedName().map(it -> "separateSources." + it));
                 output.getOutputFile().set(target.getTarget());
                 list.add(output);
             }

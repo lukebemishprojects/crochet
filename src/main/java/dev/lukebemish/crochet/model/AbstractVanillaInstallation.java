@@ -22,6 +22,8 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     final Project project;
     final Configuration minecraft;
     final Configuration minecraftLineMapped;
+    final Configuration minecraftDependencies;
+    final Configuration minecraftResources;
     final TaskProvider<TaskGraphExecution> binaryArtifactsTask;
     final TaskProvider<TaskGraphExecution> sourcesArtifactsTask;
     final TaskProvider<TaskGraphExecution> lineMappedBinaryArtifactsTask;
@@ -84,16 +86,19 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             task.copyConfigFrom(binaryArtifactsTask.get());
         });
 
-        var minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
+        this.minecraftResources = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftResources");
+        this.minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
         this.minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config -> {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
+            config.extendsFrom(minecraftResources);
             config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
         });
 
         this.minecraftLineMapped = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftLineMapped", config -> {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
+            config.extendsFrom(minecraftResources);
             config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
         });
 
@@ -143,11 +148,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         resourcesFiles.builtBy(binaryArtifactsTask);
 
         this.project.getDependencies().add(
-            minecraft.getName(),
-            resourcesFiles
-        );
-        this.project.getDependencies().add(
-            minecraftLineMapped.getName(),
+            minecraftResources.getName(),
             resourcesFiles
         );
 

@@ -41,7 +41,8 @@ class RemapMods implements Runnable {
     static class Target {
         @CommandLine.Parameters(index = "0", description = "File to remap.")
         Path source;
-        @CommandLine.Parameters(index = "1", description = "Location to place remapped file.") Path target;
+        @CommandLine.Parameters(index = "1", description = "Location to place remapped file.")
+        Path target;
     }
 
     @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
@@ -146,8 +147,14 @@ class RemapMods implements Runnable {
                 builder = builder.extension(new MixinExtension(remapMixins::contains));
             }
 
+            var toRemapSet = new HashSet<Path>();
+            for (var target : remapTargets) {
+                toRemapSet.add(target.source);
+            }
+
             var tinyRemapper = builder.build();
-            tinyRemapper.readClassPathAsync(remappingClasspath.toArray(Path[]::new));
+            // Note: this requires classpathScopedJvm = true if ran as a daemon-executed tool due to NIO filesystem silliness
+            tinyRemapper.readClassPathAsync(remappingClasspath.stream().filter(p -> !toRemapSet.contains(p)).toArray(Path[]::new));
 
             InputTag[] tags = new InputTag[remapTargets.size()];
             for (int i = 0; i < remapTargets.size(); i++) {

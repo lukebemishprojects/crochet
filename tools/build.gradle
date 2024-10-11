@@ -38,6 +38,17 @@ jar {
             'Implementation-Version' : project.version as String
         ])
     }
+    archiveClassifier.set('slim')
+}
+
+shadowJar {
+    manifest {
+        attributes([
+            'Main-Class' : 'dev.lukebemish.crochet.tools.Main',
+            'Implementation-Version' : project.version as String
+        ])
+    }
+    archiveClassifier.set('')
 }
 
 publishing {

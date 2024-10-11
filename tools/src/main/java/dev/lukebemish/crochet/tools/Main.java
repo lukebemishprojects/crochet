@@ -9,6 +9,8 @@ public class Main {
             .addSubcommand(new TransformAccessWideners())
             .addSubcommand(new TransformInterfaceInjection())
             .addSubcommand(new RemapMods())
+            .addSubcommand(new CombineSources())
+            .addSubcommand(new SeparateModifiedSources())
             .execute(args)
         );
     }
