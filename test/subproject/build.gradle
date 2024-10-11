@@ -53,3 +53,10 @@ dependencies {
     api project(':no-crochet')
 }
 
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}

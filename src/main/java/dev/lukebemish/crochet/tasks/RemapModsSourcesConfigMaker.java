@@ -198,6 +198,10 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
         input.accept(target.getSource());
         output.accept(target.getTarget());
         getTargets().add(target);
+        var graphOutput = task.getProject().getObjects().newInstance(TaskGraphExecution.GraphOutput.class);
+        graphOutput.getOutputName().set(target.getSanitizedName().map(it -> "separateSources." + it));
+        graphOutput.getOutputFile().set(target.getTarget());
+        task.getTargets().add(graphOutput);
         mappings.accept(getMappings());
         getRemappingClasspath().from(remappingClasspath);
         task.doFirst(rawTask -> {

@@ -5,8 +5,6 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 
@@ -15,7 +13,7 @@ public abstract class ArtifactTarget {
     @PathSensitive(PathSensitivity.NONE)
     public abstract RegularFileProperty getSource();
 
-    @OutputFile
+    @Internal
     public abstract RegularFileProperty getTarget();
 
     @Internal

@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Configuration loaderConfiguration;
@@ -340,70 +341,146 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             ));
 
             if (!local) {
-                var jarTask = project.getTasks().named(sourceSet.getJarTaskName(), Jar.class);
+                {
+                    // Remap jar
+                    var jarTask = project.getTasks().named(sourceSet.getJarTaskName(), Jar.class);
 
-                AtomicBoolean hasSetup = new AtomicBoolean(false);
-                AtomicReference<String> classifier = new AtomicReference<>();
-                AtomicReference<RegularFile> oldJarLocation = new AtomicReference<>();
+                    AtomicBoolean hasSetup = new AtomicBoolean(false);
+                    AtomicReference<String> classifier = new AtomicReference<>();
+                    AtomicReference<RegularFile> oldJarLocation = new AtomicReference<>();
 
-                BiConsumer<TaskGraphExecution, Jar> configurator = (remapJar, jar) -> {
-                    if (hasSetup.getAndSet(true)) {
-                        return;
-                    }
-                    var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
-                    var oldArchiveFile = jarTask.get().getArchiveFile().get();
-                    var existingClassifier = jarTask.get().getArchiveClassifier().get();
+                    BiConsumer<TaskGraphExecution, Jar> configurator = (remapJar, jar) -> {
+                        if (hasSetup.getAndSet(true)) {
+                            return;
+                        }
+                        var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
+                        var oldArchiveFile = jarTask.get().getArchiveFile().get();
+                        var existingClassifier = jarTask.get().getArchiveClassifier().get();
 
-                    classifier.set(existingClassifier);
-                    oldJarLocation.set(oldArchiveFile);
+                        classifier.set(existingClassifier);
+                        oldJarLocation.set(oldArchiveFile);
 
-                    jarTask.get().getArchiveClassifier().set(existingClassifier.isEmpty() ? "dev" : existingClassifier + "-dev");
-                    var remappingClasspath = project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getIncoming().artifactView(view -> view.attributes(attributes ->
-                        attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
-                    )).getFiles();
-                    configMaker.remapSingleJar(remapJar, input -> {
-                        input.set(jarTask.flatMap(AbstractArchiveTask::getArchiveFile));
-                    }, output -> {
-                        output.set(oldArchiveFile);
-                    }, mappings -> {
-                    }, remappingClasspath);
+                        jarTask.get().getArchiveClassifier().set(existingClassifier.isEmpty() ? "dev" : existingClassifier + "-dev");
+                        var remappingClasspath = project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getIncoming().artifactView(view -> view.attributes(attributes ->
+                            attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
+                        )).getFiles();
+                        configMaker.remapSingleJar(remapJar, input -> {
+                            input.set(jarTask.flatMap(AbstractArchiveTask::getArchiveFile));
+                        }, output -> {
+                            output.set(oldArchiveFile);
+                        }, mappings -> {
+                        }, remappingClasspath);
 
-                    configMaker.getMappings().set(namedToIntermediary.flatMap(MappingsWriter::getOutputMappings));
-                    remapJar.getConfigMaker().set(configMaker);
+                        configMaker.getMappings().set(namedToIntermediary.flatMap(MappingsWriter::getOutputMappings));
+                        remapJar.getConfigMaker().set(configMaker);
 
-                    remapJar.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
-                    remapJar.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
-                    remapJar.dependsOn(jarTask);
-                };
+                        remapJar.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
+                        remapJar.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
+                        remapJar.dependsOn(jarTask);
+                    };
 
-                var remapJarTask = project.getTasks().register(sourceSet.getTaskName("remap", "jar"), TaskGraphExecution.class, task -> {
-                    configurator.accept(task, jarTask.get());
-                });
-
-                jarTask.configure(task -> {
-                    configurator.accept(remapJarTask.get(), task);
-                });
-
-                project.getTasks().named("build", t -> t.dependsOn(remapJarTask));
-
-                nonModRuntimeElements.getOutgoing().getArtifacts().addAll(runtimeElements.getAllArtifacts());
-                runtimeElements.getOutgoing().getArtifacts().clear();
-                nonModApiElements.getOutgoing().getArtifacts().addAll(apiElements.getAllArtifacts());
-                apiElements.getOutgoing().getArtifacts().clear();
-
-                project.artifacts(artifacts -> {
-                    configurator.accept(remapJarTask.get(), jarTask.get());
-                    artifacts.add(runtimeElements.getName(), oldJarLocation.get(), spec -> {
-                        spec.setClassifier(classifier.get());
-                        spec.setType(ArtifactTypeDefinition.JAR_TYPE);
-                        spec.builtBy(remapJarTask);
+                    var remapJarTask = project.getTasks().register(sourceSet.getTaskName("remap", "jar"), TaskGraphExecution.class, task -> {
+                        configurator.accept(task, jarTask.get());
                     });
-                    artifacts.add(apiElements.getName(), oldJarLocation.get(), spec -> {
-                        spec.setClassifier(classifier.get());
-                        spec.setType(ArtifactTypeDefinition.JAR_TYPE);
-                        spec.builtBy(remapJarTask);
+
+                    jarTask.configure(task -> {
+                        configurator.accept(remapJarTask.get(), task);
                     });
-                });
+
+                    project.getTasks().named("build", t -> t.dependsOn(remapJarTask));
+
+                    nonModRuntimeElements.getOutgoing().getArtifacts().addAll(runtimeElements.getAllArtifacts());
+                    runtimeElements.getOutgoing().getArtifacts().clear();
+                    nonModApiElements.getOutgoing().getArtifacts().addAll(apiElements.getAllArtifacts());
+                    apiElements.getOutgoing().getArtifacts().clear();
+
+                    project.artifacts(artifacts -> {
+                        configurator.accept(remapJarTask.get(), jarTask.get());
+                        artifacts.add(runtimeElements.getName(), oldJarLocation.get(), spec -> {
+                            spec.setClassifier(classifier.get());
+                            spec.setType(ArtifactTypeDefinition.JAR_TYPE);
+                            spec.builtBy(remapJarTask);
+                        });
+                        artifacts.add(apiElements.getName(), oldJarLocation.get(), spec -> {
+                            spec.setClassifier(classifier.get());
+                            spec.setType(ArtifactTypeDefinition.JAR_TYPE);
+                            spec.builtBy(remapJarTask);
+                        });
+                    });
+                }
+
+                {
+                    // Remap sources jar
+                    AtomicBoolean hasSetup = new AtomicBoolean(false);
+                    AtomicReference<String> classifier = new AtomicReference<>();
+                    AtomicReference<RegularFile> oldJarLocation = new AtomicReference<>();
+
+                    BiConsumer<TaskGraphExecution, Jar> configurator = (remapSourcesJar, sourcesJar) -> {
+                        if (hasSetup.getAndSet(true)) {
+                            return;
+                        }
+                        var configMaker = project.getObjects().newInstance(RemapModsSourcesConfigMaker.class);
+                        var oldArchiveFile = sourcesJar.getArchiveFile().get();
+                        var existingClassifier = sourcesJar.getArchiveClassifier().get();
+
+                        classifier.set(existingClassifier);
+                        oldJarLocation.set(oldArchiveFile);
+
+                        sourcesJar.getArchiveClassifier().set(existingClassifier.isEmpty() ? "dev" : existingClassifier + "-dev");
+                        var remappingClasspath = project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getIncoming().artifactView(view -> view.attributes(attributes ->
+                            attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
+                        )).getFiles();
+                        configMaker.remapSingleJar(remapSourcesJar, input -> {
+                            input.set(sourcesJar.getArchiveFile());
+                        }, output -> {
+                            output.set(oldArchiveFile);
+                        }, mappings -> {
+                        }, remappingClasspath);
+
+                        configMaker.getMappings().set(namedToIntermediary.flatMap(MappingsWriter::getOutputMappings));
+                        remapSourcesJar.getConfigMaker().set(configMaker);
+
+                        remapSourcesJar.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
+                        remapSourcesJar.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
+                        remapSourcesJar.dependsOn(sourcesJar);
+                    };
+
+                    AtomicBoolean registered = new AtomicBoolean(false);
+
+                    var remapTaskName = sourceSet.getTaskName("remap", "SourcesJar");
+
+                    Consumer<Jar> maybeConfigure = jarTask -> {
+                        if (registered.compareAndSet(false, true)) {
+                            var remapTask = project.getTasks().register(remapTaskName, TaskGraphExecution.class);
+                            configurator.accept(remapTask.get(), jarTask);
+                            project.getTasks().named("build", t -> t.dependsOn(remapTask));
+
+                            var sourcesElements = project.getConfigurations().maybeCreate(sourceSet.getSourcesElementsConfigurationName());
+                            sourcesElements.getOutgoing().getArtifacts().clear();
+
+                            project.artifacts(artifacts -> {
+                                artifacts.add(sourcesElements.getName(), oldJarLocation.get(), spec -> {
+                                    spec.setClassifier(classifier.get());
+                                    spec.setType(ArtifactTypeDefinition.JAR_TYPE);
+                                    spec.builtBy(remapTask);
+                                });
+                            });
+                        }
+                    };
+
+                    project.getTasks().withType(Jar.class, jarTask -> {
+                        if (jarTask.getName().equals(sourceSet.getSourcesJarTaskName())) {
+                            maybeConfigure.accept(jarTask);
+                        }
+                    });
+
+                    project.afterEvaluate(p -> {
+                        var sourceJarTask = project.getTasks().findByName(sourceSet.getSourcesJarTaskName());
+                        if (sourceJarTask instanceof Jar jarTask) {
+                            maybeConfigure.accept(jarTask);
+                        }
+                    });
+                }
             } else {
                 nonModApiElements.getOutgoing().getArtifacts().addAllLater(project.provider(apiElements::getAllArtifacts));
                 nonModRuntimeElements.getOutgoing().getArtifacts().addAllLater(project.provider(runtimeElements::getAllArtifacts));

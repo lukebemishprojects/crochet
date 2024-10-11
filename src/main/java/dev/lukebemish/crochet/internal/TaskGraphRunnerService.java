@@ -29,15 +29,17 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
                 List<Throwable> suppressed = new ArrayList<>();
                 try {
                     for (var taskRecord : taskRecordJsons.entrySet()) {
-                        var args = new ArrayList<String>();
-                        args.add("--cache-dir=" + taskRecord.getKey().toAbsolutePath());
-                        args.add("mark");
-                        for (var record : taskRecord.getValue()) {
-                            if (Files.exists(record)) {
-                                args.add(record.toAbsolutePath().toString());
+                        if (Files.exists(taskRecord.getKey().toAbsolutePath())) {
+                            var args = new ArrayList<String>();
+                            args.add("--cache-dir=" + taskRecord.getKey().toAbsolutePath());
+                            args.add("mark");
+                            for (var record : taskRecord.getValue()) {
+                                if (Files.exists(record)) {
+                                    args.add(record.toAbsolutePath().toString());
+                                }
                             }
+                            daemon.execute(args.toArray(String[]::new));
                         }
-                        daemon.execute(args.toArray(String[]::new));
                     }
                     for (var cacheDir : cacheDirs) {
                         var args = new ArrayList<String>();

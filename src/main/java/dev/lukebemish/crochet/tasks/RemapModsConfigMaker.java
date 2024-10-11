@@ -165,6 +165,10 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         input.accept(target.getSource());
         output.accept(target.getTarget());
         getTargets().add(target);
+        var graphOutput = task.getProject().getObjects().newInstance(TaskGraphExecution.GraphOutput.class);
+        graphOutput.getOutputName().set(target.getSanitizedName().map(it -> "remapMods." + it));
+        graphOutput.getOutputFile().set(target.getTarget());
+        task.getTargets().add(graphOutput);
         mappings.accept(getMappings());
         getRemappingClasspath().from(remappingClasspath);
         task.doFirst(rawTask -> {
