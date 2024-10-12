@@ -20,6 +20,7 @@ import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
 import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
+import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -371,6 +372,9 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                         }, mappings -> {
                         }, remappingClasspath);
 
+                        configMaker.getStripNestedJars().set(false);
+                        configMaker.getIncludedInterfaceInjections().from(injectedInterfacesElements.get().getOutgoing().getArtifacts().getFiles());
+
                         configMaker.getMappings().set(namedToIntermediary.flatMap(MappingsWriter::getOutputMappings));
                         remapJar.getConfigMaker().set(configMaker);
 
@@ -677,8 +681,15 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     }
 
     @Override
+    protected FabricInstallationDependencies makeDependencies(Project project) {
+        return project.getObjects().newInstance(FabricInstallationDependencies.class, this);
+    }
+
+    @Override
     @Nested
-    public abstract FabricInstallationDependencies getDependencies();
+    public FabricInstallationDependencies getDependencies() {
+        return (FabricInstallationDependencies) dependencies;
+    }
 
     public void dependencies(Action<FabricInstallationDependencies> action) {
         action.execute(getDependencies());

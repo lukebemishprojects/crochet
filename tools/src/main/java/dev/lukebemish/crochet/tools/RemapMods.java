@@ -1,6 +1,8 @@
 package dev.lukebemish.crochet.tools;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.lukebemish.taskgraphrunner.signatures.TypeSignature;
 import net.fabricmc.accesswidener.AccessWidenerReader;
 import net.fabricmc.accesswidener.AccessWidenerRemapper;
 import net.fabricmc.accesswidener.AccessWidenerWriter;
@@ -11,6 +13,7 @@ import net.fabricmc.tinyremapper.OutputConsumerPath;
 import net.fabricmc.tinyremapper.TinyRemapper;
 import net.fabricmc.tinyremapper.extension.mixin.MixinExtension;
 import net.neoforged.srgutils.IMappingFile;
+import org.objectweb.asm.commons.Remapper;
 import picocli.CommandLine;
 
 import java.io.ByteArrayInputStream;
@@ -44,6 +47,15 @@ class RemapMods implements Runnable {
         @CommandLine.Parameters(index = "1", description = "Location to place remapped file.")
         Path target;
     }
+
+    @CommandLine.Option(names = "--strip-nested-jars", description = "Strip nested jars.", defaultValue = "true")
+    boolean stripNestedJars = true;
+
+    @CommandLine.Option(names = "--include-jar", description = "Jars to include via jar-in-jar")
+    List<Path> includeJars = new ArrayList<>();
+
+    @CommandLine.Option(names = "--include-interface-injection", description = "Interface injections to include as exposed in the remapped jar.")
+    List<Path> interfaceInjections = new ArrayList<>();
 
     @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
     List<Target> targets;
@@ -171,13 +183,48 @@ class RemapMods implements Runnable {
             List<OutputConsumerPath> paths = new ArrayList<>();
             List<IOException> exceptions = new ArrayList<>();
 
+            JsonObject interfaceInjections;
+            if (this.interfaceInjections.isEmpty()) {
+                interfaceInjections = null;
+            } else {
+                interfaceInjections = new JsonObject();
+                for (var path : this.interfaceInjections) {
+                    var json = Utils.GSON.fromJson(Files.newBufferedReader(path), JsonObject.class);
+                    json.entrySet().forEach(e -> {
+                        var key = e.getKey();
+                        var value = e.getValue().getAsJsonArray();
+                        var existing = interfaceInjections.getAsJsonArray(key);
+                        if (existing == null) {
+                            existing = new JsonArray();
+                            interfaceInjections.add(key, existing);
+                        }
+                        for (var v : value) {
+                            Remapper remapper = tinyRemapper.getEnvironment().getRemapper();
+                            var binary = TypeSignature.fromNeo(v.getAsString(), it -> tinyRemapper.getEnvironment().getClass(it) != null).binary();
+                            remapper.mapSignature(binary, true);
+                            existing.add(binary.substring(1, binary.length() - 1));
+                        }
+                    });
+                }
+            }
+
             try {
                 for (int i = 0; i < remapTargets.size(); i++) {
                     var target = remapTargets.get(i);
 
                     var transforms = ZipTransforms.create();
                     transforms.withJson(Map.of("fabric.mod.json", json -> {
-                        json.remove("jars");
+                        if (stripNestedJars) {
+                            json.remove("jars");
+                        }
+                        if (interfaceInjections != null && !interfaceInjections.isEmpty()) {
+                            var custom = json.get("custom");
+                            if (custom == null) {
+                                custom = new JsonObject();
+                                json.add("custom", custom);
+                            }
+                            custom.getAsJsonObject().add("loom:injected_interfaces", interfaceInjections);
+                        }
                         return json;
                     }));
                     var accessWideners = readAccessWideners(target.source);

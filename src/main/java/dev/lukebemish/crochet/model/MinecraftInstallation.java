@@ -5,6 +5,7 @@ import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.gradle.api.Named;
+import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
@@ -67,6 +68,8 @@ public abstract class MinecraftInstallation implements Named {
         this.crochetExtension = extension;
 
         var project = this.crochetExtension.project;
+
+        this.dependencies = makeDependencies(project);
 
         this.assetsProperties = project.getLayout().getBuildDirectory().file("crochet/installations/"+name+"/assets.properties");
         this.downloadAssetsTask = project.getTasks().register(name+"CrochetDownloadAssets", TaskGraphExecution.class, task -> {
@@ -206,8 +209,16 @@ public abstract class MinecraftInstallation implements Named {
         });
     }
 
+    protected final InstallationDependencies dependencies;
+
+    protected InstallationDependencies makeDependencies(Project project) {
+        return project.getObjects().newInstance(InstallationDependencies.class, this);
+    }
+
     @Nested
-    public abstract InstallationDependencies getDependencies();
+    public InstallationDependencies getDependencies() {
+        return this.dependencies;
+    }
 
     abstract void forRun(Run run, RunType runType);
 }

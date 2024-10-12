@@ -9,6 +9,9 @@ group = 'dev.lukebemish.crochet'
 version = '0.1.0'
 
 repositories {
+    // TODO: remove
+    mavenLocal()
+
     mavenCentral()
     maven {
         url = 'https://maven.fabricmc.net/'
@@ -22,6 +25,12 @@ dependencies {
     implementation 'net.fabricmc:access-widener:2.1.0'
     implementation 'com.google.code.gson:gson:2.11.0'
     annotationProcessor 'info.picocli:picocli-codegen:4.7.6'
+
+    implementation('dev.lukebemish:taskgraphrunner:0.1.0') {
+        capabilities {
+            requireCapability("dev.lukebemish:taskgraphrunner-signatures")
+        }
+    }
 
     // TODO: conventions
     compileOnly 'org.jetbrains:annotations:23.1.0'

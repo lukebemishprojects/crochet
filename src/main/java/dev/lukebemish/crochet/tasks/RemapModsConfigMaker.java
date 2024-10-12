@@ -16,6 +16,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -52,8 +53,21 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
     @PathSensitive(PathSensitivity.NONE)
     public abstract RegularFileProperty getMappings();
 
+    @org.gradle.api.tasks.Input
+    public abstract Property<Boolean> getStripNestedJars();
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
+    public abstract ConfigurableFileCollection getIncludedJars();
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
+    public abstract ConfigurableFileCollection getIncludedInterfaceInjections();
+
     @Inject
-    public RemapModsConfigMaker() {}
+    public RemapModsConfigMaker() {
+        getStripNestedJars().convention(true);
+    }
 
     @Override
     public Config makeConfig() throws IOException {
@@ -84,6 +98,20 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         for (var name : outputNames) {
             remapTask.args.add(new Argument.FileInput(null, new Input.ParameterInput(name), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
             remapTask.args.add(new Argument.FileOutput(null, name, "jar"));
+        }
+
+        if (!getStripNestedJars().get()) {
+            remapTask.args.add(Argument.direct("--strip-nested-jars=false"));
+        }
+        if (!getIncludedJars().getFiles().isEmpty()) {
+            for (var file : getIncludedJars().getFiles()) {
+                remapTask.args.add(new Argument.FileInput("--include-jar={}", new Input.DirectInput(Value.file(file.toPath())), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
+            }
+        }
+        if (!getIncludedInterfaceInjections().getFiles().isEmpty()) {
+            for (var file : getIncludedInterfaceInjections().getFiles()) {
+                remapTask.args.add(new Argument.FileInput("--include-interface-injection={}", new Input.DirectInput(Value.file(file.toPath())), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
+            }
         }
 
         remapTask.args.add(new Argument.FileInput("--mappings={}", new Input.ParameterInput("mappings"), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));

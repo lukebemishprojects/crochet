@@ -1,19 +1,15 @@
 package dev.lukebemish.crochet.tools;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import dev.lukebemish.taskgraphrunner.signatures.TypeSignature;
 import net.neoforged.srgutils.IMappingFile;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.Remapper;
-import org.objectweb.asm.signature.SignatureReader;
-import org.objectweb.asm.signature.SignatureVisitor;
 import picocli.CommandLine;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -106,108 +102,8 @@ class TransformInterfaceInjection implements Runnable {
     }
 
     private String remapAndConvert(Remapper remapper, String full) {
-        var initialBracket = full.indexOf('<');
-        if (initialBracket == -1) {
-            return remapper.map(full);
-        }
-        var remappedBinary = remapper.map(full.substring(0, initialBracket));
-        var justGenerics = full.substring(initialBracket);
-        String remappedSignature = remapper.mapSignature("Ldoes/not/Exist" + justGenerics + ";", true);
-        var builder = new StringBuilder();
-        var reader = new SignatureReader(remappedSignature);
-        reader.acceptType(new ParameterCollectingVisitor(builder));
-        return remappedBinary + builder.substring("does.not.Exist".length());
-    }
-
-    private static class ParameterCollectingVisitor extends SignatureVisitor {
-        private final List<String> parameters = new ArrayList<>();
-        private final StringBuilder outer;
-        private int arrayCount;
-
-        private ParameterCollectingVisitor(StringBuilder outer) {
-            super(Opcodes.ASM9);
-            this.outer = outer;
-        }
-
-        @Override
-        public void visitTypeVariable(String name) {
-            outer.append(name);
-            visitEnd();
-        }
-
-        @Override
-        public void visitClassType(String name) {
-            outer.append(name.replace('/', '.'));
-        }
-
-        @Override
-        public SignatureVisitor visitArrayType() {
-            arrayCount++;
-            return this;
-        }
-
-        @Override
-        public void visitInnerClassType(String name) {
-            dumpTypeBuffer();
-            outer.append(".").append(name);
-        }
-
-        @Override
-        public void visitTypeArgument() {
-            this.parameters.add("?");
-        }
-
-        @Override
-        public SignatureVisitor visitTypeArgument(char wildcard) {
-            StringBuilder parameter = new StringBuilder();
-            ParameterCollectingVisitor nested = new ParameterCollectingVisitor(parameter) {
-                @Override
-                public void visitEnd() {
-                    super.visitEnd();
-                    parameters.add(parameter.toString());
-                }
-            };
-            switch (wildcard) {
-                case '+' -> nested.outer.append("? extends ");
-                case '-' -> nested.outer.append("? super ");
-            }
-            return nested;
-        }
-
-        @Override
-        public void visitBaseType(char descriptor) {
-            switch (descriptor) {
-                case 'V' -> outer.append("void");
-                case 'Z' -> outer.append("boolean");
-                case 'C' -> outer.append("char");
-                case 'B' -> outer.append("byte");
-                case 'S' -> outer.append("short");
-                case 'I' -> outer.append("int");
-                case 'F' -> outer.append("float");
-                case 'J' -> outer.append("long");
-                case 'D' -> outer.append("double");
-            }
-            visitEnd();
-        }
-
-        @Override
-        public void visitEnd() {
-            dumpTypeBuffer();
-            outer.append("[]".repeat(arrayCount));
-        }
-
-        private void dumpTypeBuffer() {
-            if (!parameters.isEmpty()) {
-                outer.append('<');
-                for (int i = 0; i < parameters.size(); i++) {
-                    if (i != 0) {
-                        outer.append(", ");
-                    }
-                    outer.append(parameters.get(i));
-                }
-                outer.append('>');
-            }
-            parameters.clear();
-        }
+        var remappedSignature = remapper.mapSignature("L" + full + ";", true);
+        var signature = TypeSignature.fromBinary(remappedSignature);
+        return signature.neo();
     }
 }

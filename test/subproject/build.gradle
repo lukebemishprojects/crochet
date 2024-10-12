@@ -29,6 +29,7 @@ crochet {
             dependencies {
                 loader 'net.fabricmc:fabric-loader:0.16.0'
                 parchment 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'
+                publishInjectedInterfaces file('interfaces.json')
             }
 
             forFeature(project.sourceSets.main) {
