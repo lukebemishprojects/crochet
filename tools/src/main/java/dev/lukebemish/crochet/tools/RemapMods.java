@@ -191,7 +191,8 @@ class RemapMods implements Runnable {
                 for (var path : this.interfaceInjections) {
                     var json = Utils.GSON.fromJson(Files.newBufferedReader(path), JsonObject.class);
                     json.entrySet().forEach(e -> {
-                        var key = e.getKey();
+                        Remapper remapper = tinyRemapper.getEnvironment().getRemapper();
+                        var key = remapper.map(e.getKey());
                         var value = e.getValue().getAsJsonArray();
                         var existing = interfaceInjections.getAsJsonArray(key);
                         if (existing == null) {
@@ -199,9 +200,8 @@ class RemapMods implements Runnable {
                             interfaceInjections.add(key, existing);
                         }
                         for (var v : value) {
-                            Remapper remapper = tinyRemapper.getEnvironment().getRemapper();
                             var binary = TypeSignature.fromNeo(v.getAsString(), it -> tinyRemapper.getEnvironment().getClass(it) != null).binary();
-                            remapper.mapSignature(binary, true);
+                            binary = remapper.mapSignature(binary, true);
                             existing.add(binary.substring(1, binary.length() - 1));
                         }
                     });

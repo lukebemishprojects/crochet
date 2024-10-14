@@ -381,6 +381,11 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                         remapJar.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
                         remapJar.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
                         remapJar.dependsOn(jarTask);
+
+                        // Set up mixin remapping flags via jar manifest
+                        jar.manifest(m -> m.attributes(Map.of(
+                            "Fabric-Loom-Mixin-Remap-Type", "STATIC"
+                        )));
                     };
 
                     var remapJarTask = project.getTasks().register(sourceSet.getTaskName("remap", "jar"), TaskGraphExecution.class, task -> {
@@ -589,7 +594,8 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
             task.copyArtifactsFrom(this.binaryArtifactsTask.get());
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
-        });
+        }).get();
+        remappedCompileMods.builtBy(remapCompileMods);
 
         var remapRuntimeMods = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "RuntimeClasspath"), TaskGraphExecution.class, task -> {
             var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
@@ -601,7 +607,8 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
             task.copyArtifactsFrom(this.binaryArtifactsTask.get());
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
-        });
+        }).get();
+        remappedRuntimeMods.builtBy(remapRuntimeMods);
 
         var remapCompileModSources = project.getTasks().register(sourceSet.getTaskName("crochetRemap", "CompileClasspathSources"), TaskGraphExecution.class, task -> {
             var configMaker = project.getObjects().newInstance(RemapModsSourcesConfigMaker.class);
@@ -640,7 +647,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
     }
 
-    private void linkSources(TaskProvider<TaskGraphExecution> remapJars, TaskProvider<TaskGraphExecution> remapSourceJars) {
+    private void linkSources(TaskGraphExecution remapJars, TaskProvider<TaskGraphExecution> remapSourceJars) {
         record Pair<T, U>(T first, U second) implements Serializable {}
 
         if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
@@ -651,7 +658,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 return map;
             });
 
-            Provider<List<Pair<ArtifactTarget, ArtifactTarget>>> binariesToSources = sources.zip(remapJars.get().getConfigMaker().flatMap(configMaker -> ((RemapModsConfigMaker) configMaker).getTargets()), (sourceMap, binaryTargets) -> {
+            Provider<List<Pair<ArtifactTarget, ArtifactTarget>>> binariesToSources = sources.zip(remapJars.getConfigMaker().flatMap(configMaker -> ((RemapModsConfigMaker) configMaker).getTargets()), (sourceMap, binaryTargets) -> {
                 List<Pair<ArtifactTarget, ArtifactTarget>> map = new ArrayList<>();
                 binaryTargets.forEach(binary -> {
                     Set<ArtifactTarget> sourceTargets = new HashSet<>();

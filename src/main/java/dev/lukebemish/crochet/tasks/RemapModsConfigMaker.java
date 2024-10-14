@@ -130,7 +130,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
     }
 
     public void setup(TaskGraphExecution outer, Configuration source, Configuration exclude, Directory destinationDirectory, ConfigurableFileCollection destinationFiles) {
-        destinationFiles.builtBy(this);
+        destinationFiles.builtBy(outer);
 
         outer.dependsOn(source);
         var sourceArtifacts = source.getIncoming().getArtifacts().getResolvedArtifacts();
@@ -180,7 +180,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         var property = outer.getProject().getObjects().listProperty(ArtifactTarget.class);
         property.set(targetsProvider);
         property.finalizeValueOnRead();
-        destinationFiles.from(property.map(t -> t.stream().map(ArtifactTarget::getTarget).toList()));
+        destinationFiles.from(property.map(list -> new ArrayList<>(list.stream().map(a -> a.getTarget().get()).toList())));
         this.getTargets().addAll(property);
 
         outer.getTargets().addAll(property.map(outer.getProject().getObjects().newInstance(TargetToOutputTransformer.class)));
