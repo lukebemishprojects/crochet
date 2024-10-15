@@ -295,7 +295,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         runClasspath.attributes(attributes -> {
             attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
         });
-        // TODO: see if we can avoid using the jar and just use classes/resources and classpath grouping
 
         run.classpath.extendsFrom(remappedClasspath);
 
@@ -413,8 +412,8 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var excludedCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetExcluded", "compileClasspath"), config -> {
             config.attributes(attributes -> {
-                // Does not have the remap type attribute at this point
                 copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
+                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
             });
             config.setCanBeConsumed(false);
         }).get();
@@ -699,7 +698,9 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         modCompileClasspath.extendsFrom(modImplementation);
         modRuntimeClasspath.extendsFrom(modImplementation);
         runtimeElements.extendsFrom(modImplementation);
+        modRuntimeElements.extendsFrom(modImplementation);
         apiElements.extendsFrom(modImplementation);
+        modApiElements.extendsFrom(modImplementation);
         var modApi = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "api"));
         modApi.fromDependencyCollector(dependencies.getModApi());
         modCompileClasspath.extendsFrom(modApi);
@@ -859,15 +860,9 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             excludesSet.add(this.resources.get().getAsFile());
             return excludesSet;
         });
+
+        // The ide sync task does not depend on the arg files task, since this provider will create a task dependency from the arg files task on the run contents
         var fileGroups = ClasspathGroupUtilities.modGroupsFromDependencies(run.classpath, excluded);
-        /*var fileGroups = ClasspathGroupUtilities.addMods(
-            ClasspathGroupUtilities.combineGroups(
-                ClasspathGroupUtilities.modGroupsFromDependencies(remappedRunClasspath, excluded),
-                ClasspathGroupUtilities.modGroupsFromDependencies(nonRemappedRunClasspath, excluded)
-            ),
-            run.getRunMods()
-        );*/
-        //Provider<List<SequencedSet<File>>> fileGroups = project.provider(ArrayList::new);
         run.getJvmArgs().add(fileGroups.map(groups ->
             "-Dfabric.classPathGroups=" + groups.stream().map(set -> set.stream().map(File::getAbsolutePath).collect(Collectors.joining(File.pathSeparator))).collect(Collectors.joining(File.pathSeparator+File.pathSeparator))
         ));
