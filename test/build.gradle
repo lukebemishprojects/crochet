@@ -43,18 +43,13 @@ crochet {
             minecraft = '1.21.1'
         }
     }
-    mods {
-        main {
-            include sourceSets.main
-        }
-    }
     runs {
         vanillaClient {
             client installations.vanilla
         }
         fabricClient {
             client installations.fabric
-            mod mods.main
+            implementation project(':')
         }
     }
 }

@@ -28,10 +28,12 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final Attribute<String> OPERATING_SYSTEM_ATTRIBUTE = Attribute.of("net.neoforged.operatingsystem", String.class);
     // This attribute SHOULD NOT be published -- it is for use only in internal pre-remapping-collecting setups
     public static final Attribute<String> CROCHET_REMAP_TYPE_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.remap", String.class);
-    public static final String CROCHET_REMAP_TYPE_REMAP = "remap";
-    public static final String CROCHET_REMAP_TYPE_NON_REMAP = "non-remap";
-    public static final String CROCHET_REMAP_TYPE_IGNORE = "non-remap";
-    public static final String CROCHET_REMAP_TYPE_REMAP_CLASSPATH = "remap-classpath";
+    // Dependencies on things that'll need to be remapped when it's all said and done
+    public static final String CROCHET_REMAP_TYPE_REMAP = "to-remap";
+    // Dependencies on other projects contents', non-remapped components
+    public static final String CROCHET_REMAP_TYPE_NON_REMAP = "not-to-remap";
+    public static final String CROCHET_REMAP_TYPE_REMAPPED = "remapped";
+    public static final String CROCHET_CLASSPATH_GROUPING_CATEGORY = "crochet.classpathgrouping";
 
     private static final String TASK_GRAPH_RUNNER_VERSION = "0.1.0";
     private static final String DEV_LAUNCH_VERSION = "1.0.1";

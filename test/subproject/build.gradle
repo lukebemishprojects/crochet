@@ -37,15 +37,10 @@ crochet {
             }
         }
     }
-    mods {
-        main {
-            include sourceSets.main
-        }
-    }
     runs {
         fabricClient {
             client installations.fabric
-            mod mods.main
+            implementation project(':subproject')
         }
     }
 }

@@ -146,7 +146,9 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
         outer.dependsOn(sourceSources.getFiles());
         var sourceArtifacts = sourceSources.getArtifacts().getResolvedArtifacts();
         var excludeArtifacts = excludeSources.getArtifacts().getResolvedArtifacts();
-        var targetsProvider = sourceArtifacts.zip(excludeArtifacts, (artifacts, excluded) -> {
+        var targetsProvider = outer.getProject().provider(() -> {
+            var artifacts = sourceArtifacts.get();
+            var excluded = excludeArtifacts.get();
             var excludeCapabilities = new HashSet<String>();
             excluded.forEach(result -> {
                 result.getVariant().getCapabilities().forEach(capability -> {

@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.model;
 
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Named;
+import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.Dependencies;
 import org.gradle.api.artifacts.dsl.DependencyCollector;
@@ -34,6 +35,7 @@ public abstract class Mod implements Dependencies, Named {
     public void include(SourceSet sourceSet) {
         getInclude().add(sourceSet.getOutput());
         classpath.extendsFrom(getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()));
+        getProject().getExtensions().getByType(CrochetExtension.class).forSourceSetInstallation(sourceSet, installation -> installation.forMod(this, sourceSet));
     }
 
     public void include(Mod mod) {

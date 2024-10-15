@@ -110,6 +110,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
     public abstract static class IdeaModelOptions {
         private final SourceBinaryLinker sourceBinaryLinker;
         private final NamedDomainObjectContainer<IdeaRun> runs;
+        private final List<Object> taskDependencies = new ArrayList<>();
 
         @Inject
         public IdeaModelOptions(SourceBinaryLinker sourceBinaryLinker, NamedDomainObjectContainer<IdeaRun> runs) {
@@ -131,6 +132,10 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
 
         public void mapBinaryToSourceWithLineMaps(Provider<RegularFile> binary, Provider<RegularFile> source, Provider<RegularFile> lineMappedBinary) {
             mapBinariesToSourcesWithLineMaps(binary.map(List::of), source.map(List::of), lineMappedBinary.map(List::of));
+        }
+
+        public void dependsOn(Object task) {
+            taskDependencies.add(task);
         }
 
         public NamedDomainObjectContainer<IdeaRun> getRuns() {
@@ -261,7 +266,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         ListProperty<String> binaries = project.getObjects().listProperty(String.class);
         ListProperty<String> lineMappedBinaries = project.getObjects().listProperty(String.class);
         NamedDomainObjectContainer<IdeaRun> ideaRuns = project.getObjects().domainObjectContainer(IdeaRun.class);
-        project.getExtensions().create(IdeaModelOptions.class, "crochetIdeaModelOptions", IdeaModelOptions.class, (SourceBinaryLinker) (newBinaries, newSources, newLineMappedBinaries) -> {
+        var extension = project.getExtensions().create(IdeaModelOptions.class, "crochetIdeaModelOptions", IdeaModelOptions.class, (SourceBinaryLinker) (newBinaries, newSources, newLineMappedBinaries) -> {
             sources.addAll(newSources.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
             binaries.addAll(newBinaries.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
             lineMappedBinaries.addAll(newLineMappedBinaries.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
@@ -321,6 +326,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
             }
             project.getTasks().named("processIdeaSettings", task -> {
                 task.getInputs().property("crochetBinaries", binaries);
+                task.dependsOn(extension.taskDependencies.toArray());
                 task.getInputs().property("crochetSources", sources);
                 task.getInputs().property("crochetLineMappedBinaries", lineMappedBinaries);
                 task.getInputs().file(serviceProvider.get().getParameters().getLayoutFile()).withPathSensitivity(PathSensitivity.NONE).skipWhenEmpty();

@@ -10,6 +10,7 @@ import org.gradle.api.component.AdhocComponentWithVariants;
 import org.gradle.api.component.ConfigurationVariantDetails;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.jspecify.annotations.Nullable;
 
 import javax.inject.Inject;
 
@@ -82,8 +83,8 @@ public final class FeatureUtils {
                 }
             }
             if (foundRuntimeElements.booleanValue() && foundApiElements.booleanValue() && !executed.booleanValue()) {
-                action.execute(project.getObjects().newInstance(Context.class, sourceSet, foundFirst.getValue()));
                 executed.setTrue();
+                action.execute(project.getObjects().newInstance(Context.class, sourceSet, foundFirst.getValue()));
             }
         };
         project.getConfigurations().all(configAction);

@@ -1,5 +1,6 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.tasks.GenerateArgFiles;
@@ -9,7 +10,6 @@ import org.gradle.api.Named;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.Dependencies;
 import org.gradle.api.artifacts.dsl.DependencyCollector;
-import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.DirectoryProperty;
@@ -56,6 +56,7 @@ public abstract class Run implements Named, Dependencies {
             attributes.attribute(Usage.USAGE_ATTRIBUTE, getProject().getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             attributes.attribute(Category.CATEGORY_ATTRIBUTE, getProject().getObjects().named(Category.class, Category.LIBRARY));
         });
+        classpath.extendsFrom(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
         var defaultRunName = getProject().getBuildTreePath().equals(":") ? getName() : getName() + " (" + getProject().getBuildTreePath() + ")";
         this.getIdeName().convention(defaultRunName);
 
@@ -86,7 +87,6 @@ public abstract class Run implements Named, Dependencies {
             task.setGroup("crochet");
             task.setDescription("Run the "+name+" configuration");
             task.getMainClass().set(DEV_LAUNCH_MAIN_CLASS);
-            task.classpath(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
             task.classpath(classpath);
             task.dependsOn(argFilesTask);
             task.workingDir(getRunDirectory());
@@ -101,25 +101,23 @@ public abstract class Run implements Named, Dependencies {
         if (Boolean.getBoolean("idea.active")) {
             SourceSetContainer sourceSets = getProject().getExtensions().getByType(SourceSetContainer.class);
             var dummySourceSet = sourceSets.register("crochet_wrapper_"+name, sourceSet -> {
-                getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).extendsFrom(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
-                getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).extendsFrom(classpath);
                 sourceSet.getResources().setSrcDirs(List.of());
                 sourceSet.getJava().setSrcDirs(List.of());
             });
 
             getProject().afterEvaluate(p -> {
                 dummySourceSet.configure(sourceSet -> {
+                    var runtimeClasspath = getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName());
+                    runtimeClasspath.extendsFrom(classpath);
+                    ConfigurationUtils.copyAttributes(classpath.getAttributes(), runtimeClasspath.getAttributes());
+                    runtimeClasspath.shouldResolveConsistentlyWith(classpath);
+                });
+
+                dummySourceSet.configure(sourceSet -> {
                     sourceSet.getExtensions().getExtensionsSchema().forEach(schema -> {
                         if (TypeOf.typeOf(SourceDirectorySet.class).isAssignableFrom(schema.getPublicType())) {
                             ((SourceDirectorySet) sourceSet.getExtensions().getByName(schema.getName())).setSrcDirs(List.of());
                         }
-                    });
-                    getProject().getConfigurations().named(sourceSet.getRuntimeClasspathConfigurationName(), config -> {
-                        config.attributes(attributes -> {
-                            for (var key : classpath.getAttributes().keySet()) {
-                                attributes.attribute((Attribute) key, classpath.getAttributes().getAttribute(key));
-                            }
-                        });
                     });
                 });
 
@@ -208,7 +206,7 @@ public abstract class Run implements Named, Dependencies {
         }
     }
 
-    public abstract DependencyCollector getClasspath();
+    public abstract DependencyCollector getImplementation();
 
     public void client(MinecraftInstallation installation) {
         installation(installation, RunType.CLIENT);

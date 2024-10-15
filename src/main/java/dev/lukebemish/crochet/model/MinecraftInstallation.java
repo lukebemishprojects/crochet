@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.gradle.api.Named;
 import org.gradle.api.Project;
@@ -27,6 +28,7 @@ import java.nio.file.Paths;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class MinecraftInstallation implements Named {
     private static final String ACCESS_TRANSFORMER_CATEGORY = "accesstransformer";
@@ -76,6 +78,8 @@ public abstract class MinecraftInstallation implements Named {
             task.setGroup("crochet setup");
             task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("assets", assetsProperties, project.getObjects()));
+            // Bounce, to avoid capturing the installation in the args
+            var assetsProperties = this.assetsProperties;
             task.getOutputs().upToDateWhen(t -> {
                 var file = assetsProperties.get().getAsFile();
                 if (!file.exists()) {
@@ -127,9 +131,6 @@ public abstract class MinecraftInstallation implements Named {
             config.extendsFrom(this.injectedInterfaces.get());
         });
         this.injectedInterfacesElements = project.getConfigurations().consumable(name+"InterfaceInjectionsElements", config -> {
-            config.attributes(attributes ->
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY))
-            );
             config.extendsFrom(this.injectedInterfacesApi.get());
         });
 
@@ -139,6 +140,9 @@ public abstract class MinecraftInstallation implements Named {
 
         this.distribution = project.getObjects().property(InstallationDistribution.class);
         this.distribution.convention(InstallationDistribution.JOINED);
+
+        // Execute any pending actions
+        crochetExtension.executePendingActions(name, this);
     }
 
     public Property<InstallationDistribution> getDistribution() {
@@ -167,32 +171,34 @@ public abstract class MinecraftInstallation implements Named {
             this.crochetExtension.forSourceSet(this.getName(), sourceSet);
         }
         FeatureUtils.forSourceSetFeature(crochetExtension.project, sourceSet.getName(), context -> {
-            MutableBoolean atsAdded = new MutableBoolean(false);
+            AtomicBoolean atsAdded = new AtomicBoolean(false);
             context.withCapabilities(accessTransformersElements.get());
+            accessTransformersElements.get().attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY));
+            });
             accessTransformersElements.get().getDependencies().configureEach(dep -> {
-                if (!atsAdded.booleanValue()) {
-                    atsAdded.setTrue();
+                if (!atsAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(accessTransformersElements.get());
                 }
             });
             accessTransformersElements.get().getOutgoing().getArtifacts().configureEach(artifact -> {
-                if (!atsAdded.booleanValue()) {
-                    atsAdded.setTrue();
+                if (!atsAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(accessTransformersElements.get());
                 }
             });
 
-            MutableBoolean iisAdded = new MutableBoolean(false);
+            AtomicBoolean iisAdded = new AtomicBoolean(false);
             context.withCapabilities(injectedInterfacesElements.get());
+            injectedInterfacesElements.get().attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY));
+            });
             injectedInterfacesElements.get().getDependencies().configureEach(dep -> {
-                if (!iisAdded.booleanValue()) {
-                    iisAdded.setTrue();
+                if (!iisAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(injectedInterfacesElements.get());
                 }
             });
             injectedInterfacesElements.get().getOutgoing().getArtifacts().configureEach(artifact -> {
-                if (!iisAdded.booleanValue()) {
-                    iisAdded.setTrue();
+                if (!iisAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(injectedInterfacesElements.get());
                 }
             });
@@ -221,4 +227,6 @@ public abstract class MinecraftInstallation implements Named {
     }
 
     abstract void forRun(Run run, RunType runType);
+
+    void forMod(Mod mod, SourceSet sourceSet) {}
 }

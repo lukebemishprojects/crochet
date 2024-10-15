@@ -1,5 +1,6 @@
 package dev.lukebemish.crochet.model;
 
+import org.gradle.api.Action;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -72,6 +73,26 @@ public abstract class CrochetExtension {
         var existing = sourceSets.put(sourceSet, installation);
         if (existing != null) {
             throw new IllegalStateException("Source set " + sourceSet.getName() + " is already associated with installation " + existing);
+        }
+    }
+
+    private final Map<String, List<Action<MinecraftInstallation>>> pendingActions = new HashMap<>();
+
+    void forSourceSetInstallation(SourceSet sourceSet, Action<MinecraftInstallation> action) {
+        var existing = sourceSets.get(sourceSet);
+        if (existing == null) {
+            pendingActions.computeIfAbsent(sourceSet.getName(), k -> new ArrayList<>()).add(action);
+        } else {
+            installations.named(existing, MinecraftInstallation.class).configure(action);
+        }
+    }
+
+    void executePendingActions(String name, MinecraftInstallation installation) {
+        var actions = pendingActions.remove(name);
+        if (actions != null) {
+            for (var action : actions) {
+                action.execute(installation);
+            }
         }
     }
 }

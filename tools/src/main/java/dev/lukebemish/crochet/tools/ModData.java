@@ -26,6 +26,9 @@ class ModData {
     ModData(Path jarPath) throws IOException {
         try (var jarFile = new JarFile(jarPath.toFile())) {
             var manifest = jarFile.getManifest();
+            if (manifest == null) {
+                return;
+            }
             var mainAttributes = manifest.getMainAttributes();
             var remapValue = mainAttributes.getValue(SHOULD_REMAP);
             var mixinRemapType = mainAttributes.getValue(MixinRemapType.KEY);
