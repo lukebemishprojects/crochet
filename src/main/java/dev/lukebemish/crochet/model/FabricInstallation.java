@@ -26,7 +26,6 @@ import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Category;
-import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
@@ -257,10 +256,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
          */
 
         var runClasspath = run.classpath;
-        runClasspath.attributes(attributes -> {
-            attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-            attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES_AND_RESOURCES));
-        });
 
         var modClasspath = project.getConfigurations().register("crochet"+StringUtils.capitalize(run.getName())+"RunModClasspath", config -> {
             config.attributes(attributes -> {
