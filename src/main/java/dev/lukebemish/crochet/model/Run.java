@@ -17,8 +17,6 @@ import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
-import org.gradle.api.provider.SetProperty;
 import org.gradle.api.reflect.TypeOf;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.Nested;
@@ -111,6 +109,8 @@ public abstract class Run implements Named, Dependencies {
                     runtimeClasspath.extendsFrom(classpath);
                     ConfigurationUtils.copyAttributes(classpath.getAttributes(), runtimeClasspath.getAttributes());
                     runtimeClasspath.shouldResolveConsistentlyWith(classpath);
+
+                    sourceSet.setRuntimeClasspath(getProject().files(runtimeClasspath));
                 });
 
                 dummySourceSet.configure(sourceSet -> {
@@ -151,32 +151,6 @@ public abstract class Run implements Named, Dependencies {
     }
 
     public abstract Property<String> getIdeName();
-
-    public void mod(Mod mod) {
-        getRunMods().add(mod);
-        classpath.extendsFrom(mod.classpath);
-    }
-
-    public void mod(Provider<Mod> mod) {
-        getRunMods().add(mod);
-        classpath.extendsFrom(mod.get().classpath);
-    }
-
-    public void mods(Iterable<?> mods) {
-        for (var part : mods) {
-            if (part instanceof Mod mod) {
-                mod(mod);
-            } else if (part instanceof Provider<?> provider && provider.get() instanceof Mod mod) {
-                mod(mod);
-            } else {
-                throw new IllegalArgumentException("Unsupported mod type: "+part.getClass());
-            }
-        }
-    }
-
-    public void mods(Object... mods) {
-        mods(List.of(mods));
-    }
 
     public abstract DirectoryProperty getRunDirectory();
 
@@ -227,8 +201,6 @@ public abstract class Run implements Named, Dependencies {
         });
         installation.forRun(this, runType);
     }
-
-    protected abstract SetProperty<Mod> getRunMods();
 
     public abstract Property<Boolean> getAvoidNeedlessDecompilation();
 }

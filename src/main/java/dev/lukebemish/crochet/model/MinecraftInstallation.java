@@ -1,10 +1,9 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.gradle.api.Named;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -12,6 +11,7 @@ import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -171,8 +171,9 @@ public abstract class MinecraftInstallation implements Named {
             this.crochetExtension.forSourceSet(this.getName(), sourceSet);
         }
         FeatureUtils.forSourceSetFeature(crochetExtension.project, sourceSet.getName(), context -> {
+            forFeatureShared(context);
+
             AtomicBoolean atsAdded = new AtomicBoolean(false);
-            context.withCapabilities(accessTransformersElements.get());
             accessTransformersElements.get().attributes(attributes -> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY));
             });
@@ -188,7 +189,6 @@ public abstract class MinecraftInstallation implements Named {
             });
 
             AtomicBoolean iisAdded = new AtomicBoolean(false);
-            context.withCapabilities(injectedInterfacesElements.get());
             injectedInterfacesElements.get().attributes(attributes -> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY));
             });
@@ -210,9 +210,28 @@ public abstract class MinecraftInstallation implements Named {
             this.crochetExtension.forSourceSet(this.getName(), sourceSet);
         }
         FeatureUtils.forSourceSetFeature(crochetExtension.project, sourceSet.getName(), context -> {
-            context.withCapabilities(accessTransformersElements.get());
-            context.withCapabilities(injectedInterfacesElements.get());
+            forFeatureShared(context);
         });
+    }
+
+    private void forFeatureShared(FeatureUtils.Context context) {
+        context.withCapabilities(accessTransformersElements.get());
+        context.withCapabilities(injectedInterfacesElements.get());
+        var classes = context.getRuntimeElements().getOutgoing().getVariants().findByName("classes");
+        var resources = context.getRuntimeElements().getOutgoing().getVariants().findByName("resources");
+        if (classes != null && resources != null) {
+            context.getRuntimeElements().getOutgoing().getVariants().register("classesAndResources", variant -> {
+                ConfigurationUtils.copyAttributes(classes.getAttributes(), variant.getAttributes());
+                ConfigurationUtils.copyAttributes(resources.getAttributes(), variant.getAttributes());
+                variant.getAttributes().attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, crochetExtension.project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES_AND_RESOURCES));
+                for (var artifact : classes.getArtifacts()) {
+                    variant.getArtifacts().add(artifact);
+                }
+                for (var artifact : resources.getArtifacts()) {
+                    variant.getArtifacts().add(artifact);
+                }
+            });
+        }
     }
 
     protected final InstallationDependencies dependencies;
@@ -227,6 +246,4 @@ public abstract class MinecraftInstallation implements Named {
     }
 
     abstract void forRun(Run run, RunType runType);
-
-    void forMod(Mod mod, SourceSet sourceSet) {}
 }

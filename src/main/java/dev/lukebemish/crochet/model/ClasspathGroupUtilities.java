@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.model;
 
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.result.ResolvedVariantResult;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.provider.Provider;
 
 import java.io.File;
@@ -24,10 +25,11 @@ final class ClasspathGroupUtilities {
                 if (excludedFiles.contains(artifact.getFile())) {
                     continue;
                 }
-                System.out.println(artifact.getFile());
-                System.out.println(artifact.getVariant());
-                var key = artifact.getVariant();
-                map.computeIfAbsent(key, k -> new LinkedHashSet<>()).add(artifact.getFile());
+                var libraryElements = artifact.getVariant().getAttributes().getAttribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE);
+                if (libraryElements != null && LibraryElements.CLASSES_AND_RESOURCES.equals(libraryElements.getName())) {
+                    var key = artifact.getVariant();
+                    map.computeIfAbsent(key, k -> new LinkedHashSet<>()).add(artifact.getFile());
+                }
             }
             map.sequencedValues().removeIf(set -> set.size() <= 1);
             var outSet = new ArrayList<>(map.values());
@@ -75,9 +77,5 @@ final class ClasspathGroupUtilities {
             }
             return list;
         });
-    }
-
-    public static Provider<List<SequencedSet<File>>> addMods(Provider<List<SequencedSet<File>>> initialProvider, Provider<Set<Mod>> modsProvider) {
-        return combineGroups(initialProvider, modsProvider.map(mods -> new ArrayList<>(mods.stream().map(mod -> new LinkedHashSet<>(mod.components.getFiles())).toList())));
     }
 }

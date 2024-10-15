@@ -64,9 +64,6 @@ public abstract class CrochetExtension {
     @Nested
     public abstract NamedDomainObjectContainer<Run> getRuns();
 
-    @Nested
-    public abstract NamedDomainObjectContainer<Mod> getMods();
-
     private final Map<SourceSet, String> sourceSets = new HashMap<>();
 
     void forSourceSet(String installation, SourceSet sourceSet) {
