@@ -9,7 +9,6 @@ import dev.lukebemish.taskgraphrunner.model.TaskModel;
 import dev.lukebemish.taskgraphrunner.model.Value;
 import org.apache.commons.io.FileUtils;
 import org.gradle.api.Action;
-import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.ArtifactView;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -19,7 +18,6 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFile;
@@ -75,14 +73,10 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
 
         outputNames.sort(Comparator.naturalOrder());
 
-        var combineSourcesTask = new TaskModel.DaemonExecutedTool("combineSources", List.of(
-            Argument.direct("combine-sources")
-        ), new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)));
+        var combineSourcesTask = new TaskModel.InjectSources("combineSources", List.of());
 
-        combineSourcesTask.args.add(new Argument.FileOutput("--output={}", "output", "zip"));
-        combineSourcesTask.args.add(new Argument.FileOutput("--duplicate={}", "duplicates", "txt"));
         for (var name : outputNames) {
-            combineSourcesTask.args.add(new Argument.FileInput("--input={}", new Input.ParameterInput(name), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
+            combineSourcesTask.inputs.add(new Input.ParameterInput(name));
         }
 
         config.tasks.add(combineSourcesTask);
@@ -103,20 +97,6 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
 
         config.tasks.add(remapTask);
 
-        var separateSourcesTask = new TaskModel.DaemonExecutedTool("separateSources", List.of(
-            Argument.direct("separate-modified-sources")
-        ), new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)));
-
-        for (var name : outputNames) {
-            separateSourcesTask.args.add(new Argument.FileInput(null, new Input.ParameterInput(name), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
-            separateSourcesTask.args.add(new Argument.FileOutput(null, name, "jar"));
-        }
-
-        separateSourcesTask.args.add(new Argument.FileInput("--modified={}", new Input.TaskInput(new Output(remapTask.name(), "output")), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
-        separateSourcesTask.args.add(new Argument.FileInput("--duplicate={}", new Input.TaskInput(new Output(combineSourcesTask.name(), "duplicates")), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE));
-
-        config.tasks.add(separateSourcesTask);
-
         config.parameters.put("mappings", Value.file(getMappings().get().getAsFile().toPath()));
         config.parameters.put("remappingClasspath", new Value.ListValue(getRemappingClasspath().getFiles().stream().<Value>map(f -> Value.file(f.toPath())).toList()));
 
@@ -129,6 +109,8 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
 
     @SuppressWarnings("UnstableApiUsage")
     public void setup(TaskGraphExecution outer, Configuration source, Configuration exclude, Directory destinationDirectory) {
+        var targetFile = destinationDirectory.file("sources.zip");
+
         Action<ArtifactView.ViewConfiguration> action = view -> {
             view.lenient(true);
             view.withVariantReselection();
@@ -163,7 +145,6 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
                 .map(artifact -> {
                     var target = outer.getProject().getObjects().newInstance(ArtifactTarget.class);
                     target.getSource().set(artifact.getFile());
-                    var targetFile = destinationDirectory.file(artifact.getFile().getName());
                     target.getTarget().set(targetFile);
                     for (var capability : artifact.getVariant().getCapabilities()) {
                         target.getCapabilities().add(capability.getGroup() + ":" + capability.getName());
@@ -190,7 +171,10 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
         property.finalizeValueOnRead();
         this.getTargets().addAll(property);
 
-        outer.getTargets().addAll(property.map(outer.getProject().getObjects().newInstance(TargetToOutputTransformer.class)));
+        var output = outer.getProject().getObjects().newInstance(TaskGraphExecution.GraphOutput.class);
+        output.getOutputFile().set(targetFile);
+        output.getOutputName().set("remapSources.output");
+        outer.getTargets().add(output);
     }
 
     public void remapSingleJar(TaskGraphExecution task, Consumer<RegularFileProperty> input, Consumer<RegularFileProperty> output, Consumer<RegularFileProperty> mappings, FileCollection remappingClasspath) {
@@ -201,7 +185,7 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
         output.accept(target.getTarget());
         getTargets().add(target);
         var graphOutput = task.getProject().getObjects().newInstance(TaskGraphExecution.GraphOutput.class);
-        graphOutput.getOutputName().set(target.getSanitizedName().map(it -> "separateSources." + it));
+        graphOutput.getOutputName().set("remapSources.output");
         graphOutput.getOutputFile().set(target.getTarget());
         task.getTargets().add(graphOutput);
         mappings.accept(getMappings());
@@ -229,22 +213,5 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
                 throw new UncheckedIOException(e);
             }
         });
-    }
-
-    public static abstract class TargetToOutputTransformer implements Transformer<List<TaskGraphExecution.GraphOutput>, List<ArtifactTarget>> {
-        @Inject
-        protected abstract ObjectFactory getObjects();
-
-        @Override
-        public List<TaskGraphExecution.GraphOutput> transform(List<ArtifactTarget> artifactTargets) {
-            var list = new ArrayList<TaskGraphExecution.GraphOutput>();
-            for (var target : artifactTargets) {
-                var output = getObjects().newInstance(TaskGraphExecution.GraphOutput.class);
-                output.getOutputName().set(target.getSanitizedName().map(it -> "separateSources." + it));
-                output.getOutputFile().set(target.getTarget());
-                list.add(output);
-            }
-            return list;
-        }
     }
 }
