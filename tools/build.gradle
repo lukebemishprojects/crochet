@@ -42,6 +42,14 @@ dependencies {
     compileOnly 'org.jetbrains:annotations:23.1.0'
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+    withSourcesJar()
+    withJavadocJar()
+}
+
 compileJava {
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
 }

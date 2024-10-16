@@ -163,6 +163,14 @@ tasks.named('jar', Jar) {
     }
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+    withSourcesJar()
+    withJavadocJar()
+}
+
 abstract class DownloadManifest extends DefaultTask {
     @OutputFile
     abstract RegularFileProperty getOutputFile()
