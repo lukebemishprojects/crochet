@@ -230,6 +230,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                     singleTask.addProperty("type", "gradleTask");
                     singleTask.addProperty("taskName", task.getName());
                     singleTask.addProperty("projectPath", run.getProject().get().getProjectDir().getAbsolutePath().replaceAll("\\\\", "/"));
+                    beforeRun.add(singleTask);
                 });
                 runJson.add("beforeRun", beforeRun);
                 runConfigurations.add(runJson);
