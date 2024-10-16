@@ -1,17 +1,23 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
     id 'com.gradleup.shadow'
+    id 'dev.lukebemish.managedversioning'
 }
 
 group = 'dev.lukebemish.crochet'
-// TODO: managed versioning
-version = '0.1.0'
+
+managedVersioning {
+    versionFile.set project.file('../version.properties')
+    gitWorkingDir.set project.file('../')
+    versionPRs()
+    versionSnapshots()
+
+    apply()
+}
 
 repositories {
-    // TODO: remove
-    mavenLocal()
-
     mavenCentral()
     maven {
         url = 'https://maven.fabricmc.net/'
@@ -43,8 +49,8 @@ compileJava {
 jar {
     manifest {
         attributes([
-            'Main-Class' : 'dev.lukebemish.crochet.tools.Main',
-            'Implementation-Version' : project.version as String
+            // These do _not_ contain an implementation version, to avoid needless cache invalidation
+            'Main-Class' : 'dev.lukebemish.crochet.tools.Main'
         ])
     }
     archiveClassifier.set('slim')
@@ -53,8 +59,8 @@ jar {
 shadowJar {
     manifest {
         attributes([
-            'Main-Class' : 'dev.lukebemish.crochet.tools.Main',
-            'Implementation-Version' : project.version as String
+            // These do _not_ contain an implementation version, to avoid needless cache invalidation
+            'Main-Class' : 'dev.lukebemish.crochet.tools.Main'
         ])
     }
     archiveClassifier.set('')
@@ -63,7 +69,23 @@ shadowJar {
 publishing {
     publications {
         mavenJava(MavenPublication) {
+            managedVersioning.publishing.pom(it, 'Crochet', 'LGPL-3.0-or-later')
+            pom {
+                name = 'Crochet - Tools'
+                description = 'Various tools invoked by crochet at runtime.'
+            }
+
             from components.java
         }
     }
 }
+
+tasks.register('publishCentral') {
+    dependsOn('publish')
+}
+
+managedVersioning.publishing.sign(signing, publishing)
+managedVersioning.publishing.mavenStaging(publishing)
+managedVersioning.publishing.mavenPullRequest(publishing)
+managedVersioning.publishing.mavenSnapshot(publishing)
+

@@ -1,8 +1,6 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
-        // TODO: publish stuff
-        mavenLocal()
     }
 
     includeBuild '../'

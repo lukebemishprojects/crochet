@@ -1,10 +1,19 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        maven {
+            url "https://maven.lukebemish.dev/releases/"
+        }
     }
     plugins {
         id "com.gradleup.shadow" version '8.3.0'
+        id 'dev.lukebemish.managedversioning' version '1.2.24'
     }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+    id 'dev.lukebemish.conventions' version '0.1.10'
 }
 
 rootProject.name = 'crochet'

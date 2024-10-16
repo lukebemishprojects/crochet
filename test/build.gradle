@@ -14,8 +14,6 @@ repositories {
             name = "ParchmentMC"
             url = uri("https://maven.parchmentmc.org/")
         }
-        // TODO: publish stuff
-        mavenLocal()
     }
 }
 

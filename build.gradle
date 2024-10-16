@@ -5,37 +5,145 @@ import groovy.transform.TupleConstructor
 plugins {
     id 'java-gradle-plugin'
     id 'maven-publish'
+    id 'dev.lukebemish.managedversioning'
+    alias cLibs.plugins.gradlepublish
 }
 
-version = '0.1.0'
+group='dev.lukebemish'
+
+managedVersioning {
+    versionFile.set project.file('version.properties')
+    versionPRs()
+    versionSnapshots()
+
+    gitHubActions {
+        snapshot {
+            prettyName.set 'Snapshot'
+            workflowDispatch.set(true)
+            onBranches.add 'main'
+            gradleJob {
+                buildCache()
+                cacheReadOnly.set false
+                javaVersion.set '21'
+                name.set 'build'
+                gradlew 'Build', 'build'
+                gradlew 'Publish', 'publish'
+                mavenSnapshot('github')
+            }
+        }
+        release {
+            prettyName.set 'Release'
+            workflowDispatch.set(true)
+            gradleJob {
+                buildCache()
+                javaVersion.set '21'
+                name.set 'build'
+                step {
+                    setupGitUser()
+                }
+                readOnly.set false
+                gradlew 'Tag Release', 'tagRelease'
+                gradlew 'Build', 'build'
+                step {
+                    run.set 'git push && git push --tags'
+                }
+                recordVersion 'Record Version', 'version'
+                dependencySubmission()
+            }
+            gradleJob {
+                buildCache()
+                javaVersion.set '21'
+                name.set 'publishStaging'
+                needs.add('build')
+                tag.set('${{needs.build.outputs.version}}')
+                gradlew 'Publish', 'publish'
+                sign()
+                mavenStaging('github')
+            }
+            gradleJob {
+                buildCache()
+                javaVersion.set '21'
+                name.set 'publishCentral'
+                needs.add('build')
+                tag.set('${{needs.build.outputs.version}}')
+                gradlew 'Publish', 'publishCentral', 'closeAndReleaseSonatypeStagingRepository'
+                sign()
+                mavenCentral()
+            }
+            gradleJob {
+                buildCache()
+                javaVersion.set '21'
+                name.set 'publishPlugin'
+                needs.add('build')
+                tag.set('${{needs.build.outputs.version}}')
+                gradlew 'Publish', 'publishPlugins'
+                sign()
+                pluginPortal()
+            }
+        }
+        build_pr {
+            prettyName.set 'Build PR'
+            pullRequest.set(true)
+            gradleJob {
+                javaVersion.set '21'
+                name.set 'build'
+                gradlew 'Build', 'build'
+                gradlew 'Publish', 'publish'
+                pullRequestArtifact()
+            }
+        }
+        publish_pr {
+            prettyName.set 'Publish PR'
+            publishPullRequestAction(
+                'github',
+                "${project.group.replace('.', '/')}/${project.name},${project.group.replace('.', '/')}/${project.name}/tools",
+                'Build PR'
+            )
+        }
+    }
+
+    apply()
+}
+
+println "Version: ${project.version}"
 
 gradlePlugin {
+    website = "https://github.com/lukebemishprojects/crochet/"
+    vcsUrl = "https://github.com/lukebemishprojects/crochet.git"
+
     plugins {
         crochet {
             id = 'dev.lukebemish.crochet'
+            displayName = 'Crochet'
+            description = 'Tool to set up development environments for Minecraft mods'
+            tags.addAll(["minecraft", "fabricmc"])
             implementationClass = 'dev.lukebemish.crochet.internal.CrochetPlugin'
         }
         crochetRepositories {
             id = 'dev.lukebemish.crochet.repositories'
+            displayName = 'Crochet'
+            description = 'Sets up repositories needed for Crochet, a tool to set up development environments for Minecraft mods'
+            tags.addAll(["minecraft", "fabricmc"])
             implementationClass = 'dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin'
         }
         crochetIdeaModel {
             id = 'dev.lukebemish.crochet.idea'
+            displayName = 'Crochet'
+            description = 'Handles the IDE model for idea for Crochet, a tool to set up development environments for Minecraft mods'
+            tags.addAll(["minecraft", "fabricmc", "idea"])
             implementationClass = 'dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin'
         }
     }
 }
 
 repositories {
-    // TODO: remove
-    mavenLocal()
-
     mavenCentral()
     gradlePluginPortal()
 }
 
 dependencies {
-    compileOnly 'org.jetbrains:annotations:23.1.0'
+    compileOnly cLibs.bundles.compileonly
+    annotationProcessor cLibs.bundles.annotationprocessor
     implementation 'commons-io:commons-io:2.11.0'
     implementation 'org.apache.commons:commons-text:1.10.0'
     implementation 'com.google.code.gson:gson:2.10'
@@ -145,3 +253,15 @@ sourceSets {
         }
     }
 }
+
+if (System.getenv("GPG_KEY")) {
+    project.pluginManager.apply('signing')
+    def signing = project.extensions.getByType(SigningExtension)
+    managedVersioning.publishing.sign(signing, publishing)
+}
+
+
+managedVersioning.publishing.mavenStaging(publishing)
+managedVersioning.publishing.mavenCentral()
+managedVersioning.publishing.mavenPullRequest(publishing)
+managedVersioning.publishing.mavenSnapshot(publishing)
