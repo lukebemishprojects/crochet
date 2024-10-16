@@ -900,7 +900,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 );
             }
             case SERVER -> {
-                run.getMainClass().convention("net.fabricmc.loader.impl.launch.knot.KnotClient");
+                run.getMainClass().convention("net.fabricmc.loader.impl.launch.knot.KnotServer");
             }
             default -> throw new IllegalArgumentException("Unsupported run type: "+runType);
         }
