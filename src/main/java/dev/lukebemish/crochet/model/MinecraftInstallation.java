@@ -42,7 +42,6 @@ public abstract class MinecraftInstallation implements Named {
     final Provider<DependencyScopeConfiguration> accessTransformers;
     @SuppressWarnings("UnstableApiUsage")
     final Provider<ResolvableConfiguration> accessTransformersPath;
-    @SuppressWarnings("UnstableApiUsage")
     final Provider<Configuration> accessTransformersElements;
     @SuppressWarnings("UnstableApiUsage")
     final Provider<DependencyScopeConfiguration> accessTransformersApi;
@@ -51,7 +50,6 @@ public abstract class MinecraftInstallation implements Named {
     final Provider<DependencyScopeConfiguration> injectedInterfaces;
     @SuppressWarnings("UnstableApiUsage")
     final Provider<ResolvableConfiguration> injectedInterfacesPath;
-    @SuppressWarnings("UnstableApiUsage")
     final Provider<Configuration> injectedInterfacesElements;
     @SuppressWarnings("UnstableApiUsage")
     final Provider<DependencyScopeConfiguration> injectedInterfacesApi;
@@ -142,9 +140,6 @@ public abstract class MinecraftInstallation implements Named {
 
         this.distribution = project.getObjects().property(InstallationDistribution.class);
         this.distribution.convention(InstallationDistribution.JOINED);
-
-        // Execute any pending actions
-        crochetExtension.executePendingActions(name, this);
     }
 
     public Property<InstallationDistribution> getDistribution() {

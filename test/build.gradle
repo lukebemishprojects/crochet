@@ -1,6 +1,3 @@
-import dev.lukebemish.crochet.model.FabricInstallation
-import dev.lukebemish.crochet.model.VanillaInstallation
-
 plugins {
     id 'java-library'
     id 'maven-publish'
@@ -25,39 +22,38 @@ group = 'dev.lukebemish.crochet'
 version = '1.0.0'
 
 crochet {
-    installations {
-        register('fabric', FabricInstallation) {
-            minecraft = '1.21.1'
+    fabric('fabric') {
+        minecraft = '1.21.1'
 
-            dependencies {
-                loader 'net.fabricmc:fabric-loader:0.16.0'
-                mappings = chained {
-                    add official()
-                    add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
-                }
-            }
-
-            forFeature(project.sourceSets.main) {
-                modImplementation project(':subproject')
+        dependencies {
+            loader 'net.fabricmc:fabric-loader:0.16.0'
+            mappings = chained {
+                add official()
+                add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
             }
         }
 
-        register('fabricYarn', FabricInstallation) {
-            minecraft = '1.21.1'
-
-            dependencies {
-                loader 'net.fabricmc:fabric-loader:0.16.0'
-                mappings = chained {
-                    add intermediary()
-                    add(artifact 'net.fabricmc:yarn:1.21.1+build.3:v2')
-                }
-            }
-        }
-
-        register('vanilla', VanillaInstallation) {
-            minecraft = '1.21.1'
+        forFeature(project.sourceSets.main) {
+            modImplementation project(':subproject')
         }
     }
+
+    fabric('fabricYarn') {
+        minecraft = '1.21.1'
+
+        dependencies {
+            loader 'net.fabricmc:fabric-loader:0.16.0'
+            mappings chained {
+                add intermediary()
+                add(artifact 'net.fabricmc:yarn:1.21.1+build.3:v2')
+            }
+        }
+    }
+
+    vanilla('vanilla') {
+        minecraft = '1.21.1'
+    }
+
     runs {
         vanillaClient {
             client installations.vanilla

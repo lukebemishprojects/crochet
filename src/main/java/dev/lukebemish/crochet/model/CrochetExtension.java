@@ -61,6 +61,14 @@ public abstract class CrochetExtension {
         return installations;
     }
 
+    public void fabric(String name, Action<FabricInstallation> action) {
+        installations.register(name, FabricInstallation.class, action);
+    }
+
+    public void vanilla(String name, Action<VanillaInstallation> action) {
+        installations.register(name, VanillaInstallation.class, action);
+    }
+
     @Nested
     public abstract NamedDomainObjectContainer<Run> getRuns();
 
@@ -70,26 +78,6 @@ public abstract class CrochetExtension {
         var existing = sourceSets.put(sourceSet, installation);
         if (existing != null) {
             throw new IllegalStateException("Source set " + sourceSet.getName() + " is already associated with installation " + existing);
-        }
-    }
-
-    private final Map<String, List<Action<MinecraftInstallation>>> pendingActions = new HashMap<>();
-
-    void forSourceSetInstallation(SourceSet sourceSet, Action<MinecraftInstallation> action) {
-        var existing = sourceSets.get(sourceSet);
-        if (existing == null) {
-            pendingActions.computeIfAbsent(sourceSet.getName(), k -> new ArrayList<>()).add(action);
-        } else {
-            installations.named(existing, MinecraftInstallation.class).configure(action);
-        }
-    }
-
-    void executePendingActions(String name, MinecraftInstallation installation) {
-        var actions = pendingActions.remove(name);
-        if (actions != null) {
-            for (var action : actions) {
-                action.execute(installation);
-            }
         }
     }
 }
