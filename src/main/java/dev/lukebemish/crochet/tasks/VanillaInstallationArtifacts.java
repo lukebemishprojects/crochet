@@ -1,7 +1,11 @@
 package dev.lukebemish.crochet.tasks;
 
+import dev.lukebemish.crochet.mappings.MappingsStructure;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Distribution;
+import dev.lukebemish.taskgraphrunner.model.MappingsFormat;
+import dev.lukebemish.taskgraphrunner.model.Output;
+import dev.lukebemish.taskgraphrunner.model.TaskModel;
 import dev.lukebemish.taskgraphrunner.model.Value;
 import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
 import org.gradle.api.Project;
@@ -13,6 +17,7 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
+import org.jspecify.annotations.Nullable;
 
 import javax.inject.Inject;
 import java.io.IOException;
@@ -34,18 +39,22 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
     public abstract Property<SingleVersionGenerator.Options.SidedAnnotation> getSidedAnnotation();
 
     @Override
-    public Config makeConfig() throws IOException {
+    public Config makeConfig() throws IOException{
+        return makeConfig(getMappings().getOrNull(), getHasAccessTransformers().get(), getHasInjectedInterfaces().get());
+    }
+
+    protected Config makeConfig(@Nullable MappingsStructure mappings, boolean hasAccessTransformers, boolean hasInjectedInterfaces) throws IOException {
         var options = SingleVersionGenerator.Options.builder()
             .sidedAnnotation(getSidedAnnotation().getOrNull())
             .distribution(Distribution.JOINED); // for now we only do joined; we'll figure other stuff out later (probably by after-the-fact splitting)
-        if (getHasAccessTransformers().get()) {
+        if (hasAccessTransformers) {
             options.accessTransformersParameter("accessTransformers");
         }
-        if (getHasInjectedInterfaces().get()) {
+        if (hasInjectedInterfaces) {
             options.interfaceInjectionDataParameter("injectedInterfaces");
         }
-        if (!getParchment().isEmpty()) {
-            options.parchmentDataParameter("parchmentData");
+        if (mappings != null) {
+            options.mappingsParameter("mappings");
         }
 
         var config = SingleVersionGenerator.convert(getMinecraftVersion().get(), options.build());
@@ -57,7 +66,7 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                         .toList()
                 )
             );
-        } else if (getHasAccessTransformers().get()) {
+        } else if (hasAccessTransformers) {
             config.parameters.put("accessTransformers", new Value.ListValue(List.of()));
         }
         if (!getInjectedInterfaces().isEmpty()) {
@@ -68,13 +77,20 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                         .toList()
                 )
             );
-        } else if (getHasInjectedInterfaces().get()) {
+        } else if (hasInjectedInterfaces) {
             config.parameters.put("injectedInterfaces", new Value.ListValue(List.of()));
         }
-        if (!getParchment().isEmpty()) {
-            config.parameters.put("parchmentData",
-                Value.file(getParchment().getSingleFile().toPath())
-            );
+        if (mappings != null) {
+            var mappingsModel = MappingsStructure.toModel(mappings, new Output("downloadClientMappings", "output"));
+            var mappingsTask = new TaskModel.TransformMappings("crochetMakeMappings", MappingsFormat.TINY2, mappingsModel);
+            config.tasks.add(mappingsTask);
+            config.tasks.forEach(task -> {
+                task.inputs().forEach(handle -> {
+                    if (handle.getInput() instanceof dev.lukebemish.taskgraphrunner.model.Input.ParameterInput parameterInput && parameterInput.parameter().equals("mappings")) {
+                        handle.setInput(new dev.lukebemish.taskgraphrunner.model.Input.TaskInput(new Output(mappingsTask.name(), "output")));
+                    }
+                });
+            });
         }
         return config;
     }
@@ -87,9 +103,9 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
     @PathSensitive(PathSensitivity.NONE)
     public abstract ConfigurableFileCollection getInjectedInterfaces();
 
-    @InputFiles
-    @PathSensitive(PathSensitivity.NONE)
-    public abstract ConfigurableFileCollection getParchment();
+    @Input
+    @Optional
+    public abstract Property<MappingsStructure> getMappings();
 
     @Internal
     protected abstract Property<Boolean> getHasAccessTransformers();

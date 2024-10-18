@@ -1,6 +1,9 @@
 package dev.lukebemish.crochet.tasks;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.mappings.FileMappingsStructure;
+import dev.lukebemish.crochet.mappings.MergedMappingsStructure;
+import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;
@@ -13,12 +16,14 @@ import dev.lukebemish.taskgraphrunner.model.TaskModel;
 import dev.lukebemish.taskgraphrunner.model.Value;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.PathSensitive;
 
+import javax.inject.Inject;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -39,28 +44,60 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
     @PathSensitive(org.gradle.api.tasks.PathSensitivity.NONE)
     public abstract ConfigurableFileCollection getAccessWideners();
 
+    @Inject
+    protected abstract ObjectFactory getObjects();
+
+    @Inject
+    public FabricInstallationArtifacts() {}
+
     @Override
     public Config makeConfig() throws IOException {
         var wrappedArtifacts = getWrapped().get();
-        wrappedArtifacts.getHasAccessTransformers().set(wrappedArtifacts.getHasAccessTransformers().get() || !getAccessWideners().isEmpty());
-        wrappedArtifacts.getHasInjectedInterfaces().set(wrappedArtifacts.getHasInjectedInterfaces().get() || !getInterfaceInjection().isEmpty());
-        var wrapped = wrappedArtifacts.makeConfig();
+
+        boolean hasAccessTransformers = wrappedArtifacts.getHasAccessTransformers().get() || !getAccessWideners().isEmpty();
+        boolean hasInjectedInterfaces = wrappedArtifacts.getHasInjectedInterfaces().get() || !getInterfaceInjection().isEmpty();
+
+        var mappings = wrappedArtifacts.getMappings().getOrNull();
+        var mergedMappings = getObjects().newInstance(MergedMappingsStructure.class);
+        if (mappings == null) {
+            mergedMappings.getInputMappings().add(MojangOfficialMappingsStructure.INSTANCE);
+        } else {
+            mergedMappings.getInputMappings().add(mappings);
+        }
+        var intermediaryMappings = getObjects().newInstance(FileMappingsStructure.class);
+        intermediaryMappings.getMappingsFile().from(getIntermediary());
+        mergedMappings.getInputMappings().add(intermediaryMappings);
+
+        var wrapped = wrappedArtifacts.makeConfig(mappings, hasAccessTransformers, hasInjectedInterfaces);
 
         wrapped.parameters.put("intermediary", Value.file(getIntermediary().get().getAsFile().toPath()));
+
+        String mappingsTaskName = "downloadClientMappings";
+        boolean reversedMappings = true;
+        if (wrappedArtifacts.getMappings().isPresent()) {
+            mappingsTaskName = "crochetMakeMappings";
+            reversedMappings = false;
+        }
+
+        MappingsSource namedToObfMappings = new MappingsSource.File(new Input.TaskInput(new Output(mappingsTaskName, "output")));
+        if (!reversedMappings) {
+            namedToObfMappings = new MappingsSource.Reversed(namedToObfMappings);
+        }
+
         wrapped.tasks.add(new TaskModel.TransformMappings(
-            "mojangToIntermediaryMappings",
+            "namedToIntermediaryMappings",
             MappingsFormat.TINY2,
             new MappingsSource.Chained(List.of(
-                new MappingsSource.File(new Input.TaskInput(new Output("downloadClientMappings", "output"))),
+                namedToObfMappings,
                 new MappingsSource.File(new Input.ParameterInput("intermediary"))
             ))
         ));
 
         wrapped.tasks.add(new TaskModel.TransformMappings(
-            "intermediaryToMojangMappings",
+            "intermediaryToNamedMappings",
             MappingsFormat.TINY2,
             new MappingsSource.Reversed(
-                new MappingsSource.File(new Input.TaskInput(new Output("mojangToIntermediaryMappings", "output")))
+                new MappingsSource.File(new Input.TaskInput(new Output("namedToIntermediaryMappings", "output")))
             )
         ));
 
@@ -70,7 +107,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                 List.of(
                     Argument.direct("transform-access-wideners"),
                     new Argument.FileOutput("--output={}", "output", "cfg"),
-                    new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToMojangMappings", "output")), PathSensitivity.NONE)
+                    new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToNamedMappings", "output")), PathSensitivity.NONE)
                 ),
                 new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
             );
@@ -107,7 +144,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                 List.of(
                     Argument.direct("transform-interface-injection"),
                     new Argument.FileOutput("--output={}", "output", "json"),
-                    new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToMojangMappings", "output")), PathSensitivity.NONE)
+                    new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToNamedMappings", "output")), PathSensitivity.NONE)
                 ),
                 new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
             );
@@ -135,7 +172,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             Argument.direct("--output"),
             new Argument.FileOutput(null, "output", "jar"),
             Argument.direct("--map"),
-            new Argument.FileInput(null, new Input.TaskInput(new Output("mojangToIntermediaryMappings", "output")), PathSensitivity.NONE),
+            new Argument.FileInput(null, new Input.TaskInput(new Output("namedToIntermediaryMappings", "output")), PathSensitivity.NONE),
             Argument.direct("--cfg"),
             new Argument.LibrariesFile(null, List.of(new Input.TaskInput(new Output("listLibraries", "output"))), new InputValue.DirectInput(new Value.StringValue("-e=")))
         ), new Input.DirectInput(Value.tool("autorenamingtool"))));

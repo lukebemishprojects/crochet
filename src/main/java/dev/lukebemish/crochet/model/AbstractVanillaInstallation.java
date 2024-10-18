@@ -58,7 +58,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         vanillaConfigMaker.getMinecraftVersion().set(getMinecraft());
         vanillaConfigMaker.getAccessTransformers().from(this.accessTransformersPath);
         vanillaConfigMaker.getInjectedInterfaces().from(this.injectedInterfacesPath);
-        vanillaConfigMaker.getParchment().from(this.parchmentConfiguration);
+        vanillaConfigMaker.getMappings().set(getDependencies().getMappings());
         this.binaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftBinaryArtifacts", TaskGraphExecution.class, task -> {
             task.setGroup("crochet setup");
             task.getConfigMaker().set(vanillaConfigMaker);
@@ -153,6 +153,16 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         );
 
         extension.idePostSync.configure(t -> t.dependsOn(binaryArtifactsTask));
+    }
+
+    @Override
+    public AbstractVanillaInstallationDependencies getDependencies() {
+        return (AbstractVanillaInstallationDependencies) dependencies;
+    }
+
+    @Override
+    protected InstallationDependencies makeDependencies(Project project) {
+        return project.getObjects().newInstance(AbstractVanillaInstallationDependencies.class, this);
     }
 
     public abstract Property<String> getMinecraft();

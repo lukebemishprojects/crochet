@@ -5,14 +5,19 @@ import net.neoforged.srgutils.IMappingFile;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Nested;
 
-public abstract class MergedMappingsSource implements MappingsSource {
+import javax.inject.Inject;
+
+public abstract class MergedMappingsSource extends MappingsSource {
     @Nested
-    public abstract ListProperty<MappingsSource> getInputSources();
+    public abstract ListProperty<MappingsSource> getInputMappings();
 
     @Override
     public IMappingFile makeMappings() {
-        return getInputSources().get().stream()
+        return getInputMappings().get().stream()
             .map(MappingsSource::makeMappings)
             .reduce(IMappingFile::merge).orElse(IMappingBuilder.create("source", "target").build().getMap("source", "target"));
     }
+
+    @Inject
+    public MergedMappingsSource() {}
 }

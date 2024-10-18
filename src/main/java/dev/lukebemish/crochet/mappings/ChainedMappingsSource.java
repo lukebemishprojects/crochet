@@ -5,13 +5,18 @@ import net.neoforged.srgutils.IMappingFile;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Nested;
 
-public abstract class ChainedMappingsSource implements MappingsSource {
+import javax.inject.Inject;
+
+public abstract class ChainedMappingsSource extends MappingsSource {
     @Nested
-    public abstract ListProperty<MappingsSource> getInputSources();
+    public abstract ListProperty<MappingsSource> getInputMappings();
+
+    @Inject
+    public ChainedMappingsSource() {}
 
     @Override
     public IMappingFile makeMappings() {
-        return getInputSources().get().stream()
+        return getInputMappings().get().stream()
             .map(MappingsSource::makeMappings)
             .reduce(IMappingFile::chain).orElse(IMappingBuilder.create("source", "target").build().getMap("source", "target"));
     }

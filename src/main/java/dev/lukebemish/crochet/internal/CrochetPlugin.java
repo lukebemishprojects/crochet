@@ -35,11 +35,6 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final String CROCHET_REMAP_TYPE_REMAPPED = "remapped";
     public static final String CROCHET_CLASSPATH_GROUPING_CATEGORY = "crochet.classpathgrouping";
 
-    private static final String TASK_GRAPH_RUNNER_VERSION = "0.1.0";
-    private static final String DEV_LAUNCH_VERSION = "1.0.1";
-    private static final String TERMINAL_CONSOLE_APPENDER_VERSION = "1.3.0";
-    public static final String CHRISTEN_VERSION = "0.1.7";
-
     private static final String PROPERTY_TASKGRAPHRUNNER_LOG_LEVEL = "dev.lukebemish.crochet.taskgraphrunner.logging.level";
     private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_ASSET_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-assets-after";
     private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_OUTPUT_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-outputs-after";
@@ -57,6 +52,8 @@ public class CrochetPlugin implements Plugin<Project> {
 
         var objects = project.getObjects();
 
+        project.getExtensions().create("crochet.internal.mappingsConfigurationContainer", MappingsConfigurationCounter.class);
+
         // TaskGraphRunner
         project.getConfigurations().register(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, config -> {
             config.attributes(attributes -> {
@@ -67,7 +64,7 @@ public class CrochetPlugin implements Plugin<Project> {
             });
             config.setCanBeConsumed(false);
         });
-        project.getDependencies().add(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + TASK_GRAPH_RUNNER_VERSION);
+        project.getDependencies().add(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + Versions.TASK_GRAPH_RUNNER);
 
         project.getConfigurations().register(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, config -> {
             config.attributes(attributes -> {
@@ -76,23 +73,23 @@ public class CrochetPlugin implements Plugin<Project> {
             });
             config.setCanBeConsumed(false);
         });
-        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + TASK_GRAPH_RUNNER_VERSION)).capabilities(capabilities -> {
+        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + Versions.TASK_GRAPH_RUNNER)).capabilities(capabilities -> {
             capabilities.requireCapability("dev.lukebemish:taskgraphrunner-external-tools");
         });
         ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish.crochet:tools:" + VERSION)).attributes(attributes -> {
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
         });
-        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish:christen:" + CHRISTEN_VERSION)).attributes(attributes -> {
+        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish:christen:" + Versions.CHRISTEN)).attributes(attributes -> {
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
         });
 
 
         // runs
         project.getConfigurations().register(DEV_LAUNCH_CONFIGURATION_NAME);
-        project.getDependencies().add(DEV_LAUNCH_CONFIGURATION_NAME, "net.neoforged:DevLaunch:" + DEV_LAUNCH_VERSION);
+        project.getDependencies().add(DEV_LAUNCH_CONFIGURATION_NAME, "net.neoforged:DevLaunch:" + Versions.DEV_LAUNCH);
 
         project.getConfigurations().register(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME);
-        project.getDependencies().add(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME, "net.minecrell:terminalconsoleappender:" + TERMINAL_CONSOLE_APPENDER_VERSION);
+        project.getDependencies().add(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME, "net.minecrell:terminalconsoleappender:" + Versions.TERMINAL_CONSOLE_APPENDER);
 
         var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 

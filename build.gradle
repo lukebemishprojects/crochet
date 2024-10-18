@@ -137,8 +137,17 @@ gradlePlugin {
 }
 
 repositories {
+    if (project.useLocalMavenForTesting) {
+        mavenLocal()
+    }
+
     mavenCentral()
     gradlePluginPortal()
+}
+
+var versions = new Properties()
+file("src/main/resources/versions.properties").withInputStream {
+    versions.load(it)
 }
 
 dependencies {
@@ -150,7 +159,7 @@ dependencies {
     implementation 'com.google.guava:guava:33.0.0-jre'
     implementation 'net.neoforged:srgutils:1.0.9'
     implementation 'net.fabricmc:access-widener:2.1.0'
-    implementation('dev.lukebemish:taskgraphrunner:0.1.0') {
+    implementation("dev.lukebemish:taskgraphrunner:${versions.taskgraphrunner}") {
         capabilities {
             requireCapability("dev.lukebemish:taskgraphrunner-model")
         }

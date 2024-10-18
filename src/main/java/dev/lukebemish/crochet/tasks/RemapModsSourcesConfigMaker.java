@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.tasks;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.Versions;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;
@@ -57,6 +58,12 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
     public Config makeConfig() throws IOException {
         var config = new Config();
 
+        if (getTargets().get().isEmpty()) {
+            var emptyJar = new TaskModel.InjectSources("remapSources", List.of());
+            config.tasks.add(emptyJar);
+            return config;
+        }
+
         for (var target : getTargets().get()) {
             var outPath = target.getTarget().get().getAsFile().toPath();
             if (Files.exists(outPath)) {
@@ -92,7 +99,7 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
                 Argument.direct("--enable-christen"),
                 new Argument.FileInput("--christen-mappings={}", new Input.ParameterInput("mappings"), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE)
             ),
-            new Input.DirectInput(Value.artifact("dev.lukebemish:christen:" + CrochetPlugin.CHRISTEN_VERSION + ":all"))
+            new Input.DirectInput(Value.artifact("dev.lukebemish:christen:" + Versions.CHRISTEN + ":all"))
         );
 
         config.tasks.add(remapTask);

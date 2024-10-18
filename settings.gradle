@@ -1,5 +1,9 @@
 pluginManagement {
     repositories {
+        if (settings.useLocalMavenForTesting) {
+            mavenLocal()
+        }
+
         gradlePluginPortal()
         maven {
             url "https://maven.lukebemish.dev/releases/"

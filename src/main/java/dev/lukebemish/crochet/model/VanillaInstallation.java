@@ -11,7 +11,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
         super(name, extension);
     }
 
-    public void dependencies(Action<InstallationDependencies> action) {
+    public void dependencies(Action<AbstractVanillaInstallationDependencies> action) {
         action.execute(getDependencies());
     }
 

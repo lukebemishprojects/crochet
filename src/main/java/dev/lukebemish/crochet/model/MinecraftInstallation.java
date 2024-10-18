@@ -7,7 +7,6 @@ import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import org.gradle.api.Named;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.attributes.Category;
@@ -44,7 +43,7 @@ public abstract class MinecraftInstallation implements Named {
     @SuppressWarnings("UnstableApiUsage")
     final Provider<ResolvableConfiguration> accessTransformersPath;
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<ConsumableConfiguration> accessTransformersElements;
+    final Provider<Configuration> accessTransformersElements;
     @SuppressWarnings("UnstableApiUsage")
     final Provider<DependencyScopeConfiguration> accessTransformersApi;
 
@@ -53,11 +52,9 @@ public abstract class MinecraftInstallation implements Named {
     @SuppressWarnings("UnstableApiUsage")
     final Provider<ResolvableConfiguration> injectedInterfacesPath;
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<ConsumableConfiguration> injectedInterfacesElements;
+    final Provider<Configuration> injectedInterfacesElements;
     @SuppressWarnings("UnstableApiUsage")
     final Provider<DependencyScopeConfiguration> injectedInterfacesApi;
-
-    final Provider<Configuration> parchmentConfiguration;
 
     final TaskProvider<TaskGraphExecution> downloadAssetsTask;
 
@@ -110,10 +107,13 @@ public abstract class MinecraftInstallation implements Named {
             config.extendsFrom(this.accessTransformersApi.get());
             config.extendsFrom(this.accessTransformers.get());
         });
-        this.accessTransformersElements = project.getConfigurations().consumable(name+"AccessTransformersElements", config -> {
+        this.accessTransformersElements = project.getConfigurations().register(name+"AccessTransformersElements", config -> {
             config.attributes(attributes ->
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY))
             );
+            config.setCanBeResolved(false);
+            config.setCanBeDeclared(false);
+            config.setCanBeConsumed(false);
             config.extendsFrom(this.accessTransformersApi.get());
         });
 
@@ -130,13 +130,15 @@ public abstract class MinecraftInstallation implements Named {
             config.extendsFrom(this.injectedInterfacesApi.get());
             config.extendsFrom(this.injectedInterfaces.get());
         });
-        this.injectedInterfacesElements = project.getConfigurations().consumable(name+"InterfaceInjectionsElements", config -> {
+        this.injectedInterfacesElements = project.getConfigurations().register(name+"InterfaceInjectionsElements", config -> {
+            config.attributes(attributes ->
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY))
+            );
+            config.setCanBeResolved(false);
+            config.setCanBeDeclared(false);
+            config.setCanBeConsumed(false);
             config.extendsFrom(this.injectedInterfacesApi.get());
         });
-
-        this.parchmentConfiguration = project.getConfigurations().register(name+"Parchment", config ->
-            config.fromDependencyCollector(getDependencies().getParchment())
-        );
 
         this.distribution = project.getObjects().property(InstallationDistribution.class);
         this.distribution.convention(InstallationDistribution.JOINED);
@@ -174,6 +176,7 @@ public abstract class MinecraftInstallation implements Named {
             forFeatureShared(context);
 
             AtomicBoolean atsAdded = new AtomicBoolean(false);
+            accessTransformersElements.get().setCanBeConsumed(true);
             accessTransformersElements.get().attributes(attributes -> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY));
             });
@@ -189,6 +192,7 @@ public abstract class MinecraftInstallation implements Named {
             });
 
             AtomicBoolean iisAdded = new AtomicBoolean(false);
+            injectedInterfacesElements.get().setCanBeConsumed(true);
             injectedInterfacesElements.get().attributes(attributes -> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY));
             });

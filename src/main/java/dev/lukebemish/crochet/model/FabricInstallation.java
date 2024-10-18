@@ -137,15 +137,15 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var objects = project.getObjects();
 
         var intermediary = objects.newInstance(FileMappingSource.class);
-        intermediary.getMappingsFile().set(workingDirectory.map(dir -> dir.file("intermediary/mappings/mappings.tiny")));
+        intermediary.getMappingsFile().from(workingDirectory.map(dir -> dir.file("intermediary/mappings/mappings.tiny")));
         var intermediaryReversed = objects.newInstance(ReversedMappingsSource.class);
         intermediaryReversed.getInputMappings().set(intermediary);
         var named = objects.newInstance(FileMappingSource.class);
-        named.getMappingsFile().set(mappings);
+        named.getMappingsFile().from(mappings);
         var namedReversed = objects.newInstance(ReversedMappingsSource.class);
         namedReversed.getInputMappings().set(named);
         var chainedSpec = objects.newInstance(ChainedMappingsSource.class);
-        chainedSpec.getInputSources().set(List.of(intermediaryReversed, namedReversed));
+        chainedSpec.getInputMappings().set(List.of(intermediaryReversed, namedReversed));
         var reversedChainedSpec = objects.newInstance(ReversedMappingsSource.class);
         reversedChainedSpec.getInputMappings().set(chainedSpec);
 

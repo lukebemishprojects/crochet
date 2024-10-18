@@ -25,8 +25,6 @@ public abstract class InstallationDependencies implements Dependencies {
 
     public abstract DependencyCollector getInjectedInterfacesApi();
 
-    public abstract DependencyCollector getParchment();
-
     public Dependency publishInjectedInterfaces(Object path, Action<ConfigurablePublishArtifact> action) {
         var dep = getDependencyFactory().create(getProject().files(path));
         getInjectedInterfaces().add(dep);

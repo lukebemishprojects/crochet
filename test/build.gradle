@@ -8,12 +8,14 @@ plugins {
 }
 
 repositories {
-    repositories {
-        mavenCentral()
-        maven {
-            name = "ParchmentMC"
-            url = uri("https://maven.parchmentmc.org/")
-        }
+    if (project.useLocalMavenForTesting) {
+        mavenLocal()
+    }
+
+    mavenCentral()
+    maven {
+        name = "ParchmentMC"
+        url = uri("https://maven.parchmentmc.org/")
     }
 }
 
@@ -29,11 +31,26 @@ crochet {
 
             dependencies {
                 loader 'net.fabricmc:fabric-loader:0.16.0'
-                parchment 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'
+                mappings = chained {
+                    add official()
+                    add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
+                }
             }
 
             forFeature(project.sourceSets.main) {
                 modImplementation project(':subproject')
+            }
+        }
+
+        register('fabricYarn', FabricInstallation) {
+            minecraft = '1.21.1'
+
+            dependencies {
+                loader 'net.fabricmc:fabric-loader:0.16.0'
+                mappings = chained {
+                    add intermediary()
+                    add(artifact 'net.fabricmc:yarn:1.21.1+build.3:v2')
+                }
             }
         }
 
@@ -48,6 +65,9 @@ crochet {
         fabricClient {
             client installations.fabric
             implementation project(':')
+        }
+        fabricYarnClient {
+            client installations.fabricYarn
         }
     }
 }
