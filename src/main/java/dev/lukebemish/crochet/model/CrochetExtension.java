@@ -3,9 +3,9 @@ package dev.lukebemish.crochet.model;
 import org.gradle.api.Action;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -61,16 +61,23 @@ public abstract class CrochetExtension {
         return installations;
     }
 
-    public void fabric(String name, Action<FabricInstallation> action) {
-        installations.register(name, FabricInstallation.class, action);
+    public void installations(Action<ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation>> action) {
+        action.execute(installations);
     }
 
-    public void vanilla(String name, Action<VanillaInstallation> action) {
-        installations.register(name, VanillaInstallation.class, action);
+    public NamedDomainObjectProvider<FabricInstallation> fabric(String name, Action<FabricInstallation> action) {
+        return installations.register(name, FabricInstallation.class, action);
     }
 
-    @Nested
+    public NamedDomainObjectProvider<VanillaInstallation> vanilla(String name, Action<VanillaInstallation> action) {
+        return installations.register(name, VanillaInstallation.class, action);
+    }
+
     public abstract NamedDomainObjectContainer<Run> getRuns();
+
+    public void runs(Action<NamedDomainObjectContainer<Run>> action) {
+        action.execute(getRuns());
+    }
 
     private final Map<SourceSet, String> sourceSets = new HashMap<>();
 

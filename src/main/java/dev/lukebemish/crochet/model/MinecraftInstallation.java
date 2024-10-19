@@ -30,8 +30,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class MinecraftInstallation implements Named {
-    private static final String ACCESS_TRANSFORMER_CATEGORY = "accesstransformer";
-    private static final String INTERFACE_INJECTION_CATEGORY = "interfaceinjection";
+    static final String ACCESS_TRANSFORMER_CATEGORY = "accesstransformer";
+    static final String INTERFACE_INJECTION_CATEGORY = "interfaceinjection";
 
     private final String name;
     private final Set<SourceSet> sourceSets = new LinkedHashSet<>();
@@ -171,6 +171,7 @@ public abstract class MinecraftInstallation implements Named {
             forFeatureShared(context);
 
             AtomicBoolean atsAdded = new AtomicBoolean(false);
+            context.withCapabilities(accessTransformersElements.get());
             accessTransformersElements.get().setCanBeConsumed(true);
             accessTransformersElements.get().attributes(attributes -> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY));
@@ -187,21 +188,26 @@ public abstract class MinecraftInstallation implements Named {
             });
 
             AtomicBoolean iisAdded = new AtomicBoolean(false);
+            context.withCapabilities(injectedInterfacesElements.get());
             injectedInterfacesElements.get().setCanBeConsumed(true);
             injectedInterfacesElements.get().attributes(attributes -> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY));
             });
             injectedInterfacesElements.get().getDependencies().configureEach(dep -> {
-                if (!iisAdded.compareAndSet(false, true)) {
+                if (canPublishInjectedInterfaces() && !iisAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(injectedInterfacesElements.get());
                 }
             });
             injectedInterfacesElements.get().getOutgoing().getArtifacts().configureEach(artifact -> {
-                if (!iisAdded.compareAndSet(false, true)) {
+                if (canPublishInjectedInterfaces() && !iisAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(injectedInterfacesElements.get());
                 }
             });
         });
+    }
+
+    protected boolean canPublishInjectedInterfaces() {
+        return true;
     }
 
     public void forLocalFeature(SourceSet sourceSet) {

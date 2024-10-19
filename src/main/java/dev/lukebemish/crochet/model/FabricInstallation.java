@@ -60,6 +60,8 @@ import java.util.stream.Collectors;
 import static dev.lukebemish.crochet.internal.ConfigurationUtils.copyAttributes;
 
 public abstract class FabricInstallation extends AbstractVanillaInstallation {
+    static final String ACCESS_WIDENER_CATEGORY = "accesswidener";
+
     final Configuration loaderConfiguration;
     final Configuration intermediaryMinecraft;
     final Configuration mappingsClasspath;
@@ -70,6 +72,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     private final TaskProvider<MappingsWriter> intermediaryToNamed;
     private final TaskProvider<MappingsWriter> namedToIntermediary;
     final Configuration accessWideners;
+    final Configuration accessWidenersElements;
     final TaskProvider<ExtractFabricDependencies> extractFabricForDependencies;
 
     @SuppressWarnings("UnstableApiUsage")
@@ -97,6 +100,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
         fabricConfigMaker.getAccessWideners().from(project.fileTree(extractFabricForDependencies.flatMap(ExtractFabricDependencies::getOutputDirectory)).builtBy(extractFabricForDependencies).filter(it -> it.getName().endsWith(".accesswidener")));
         fabricConfigMaker.getInterfaceInjection().from(project.fileTree(extractFabricForDependencies.flatMap(ExtractFabricDependencies::getOutputDirectory)).builtBy(extractFabricForDependencies).filter(it -> it.getName().equals("interface_injections.json")));
+        project.getDependencies().add(this.injectedInterfaces.get().getName(), project.fileTree(extractFabricForDependencies.flatMap(ExtractFabricDependencies::getOutputDirectory)).builtBy(extractFabricForDependencies).filter(it -> it.getName().equals("neo_interface_injections.json")));
 
         this.binaryArtifactsTask.configure(task -> {
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("downloadClientMappings.output", mappings, project.getObjects()));
@@ -124,6 +128,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         this.accessWideners = project.getConfigurations().register(name+"AccessWideners", config -> {
             config.fromDependencyCollector(getDependencies().getAccessWideners());
             config.setCanBeConsumed(false);
+        }).get();
+        this.accessWidenersElements = project.getConfigurations().register(name+"AccessWidenersElements", config -> {
+            config.setCanBeResolved(false);
+            config.setCanBeDeclared(false);
+            config.setCanBeConsumed(false);
+            config.extendsFrom(this.accessWideners);
         }).get();
         fabricConfigMaker.getAccessWideners().from(accessWideners);
 
@@ -450,6 +460,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         nonModApiElements.setCanBeResolved(false);
 
         FeatureUtils.forSourceSetFeature(project, sourceSet.getName(), context -> {
+            context.withCapabilities(accessWidenersElements);
+            accessWidenersElements.setCanBeConsumed(true);
+            accessWidenersElements.attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_WIDENER_CATEGORY));
+            });
+
             context.withCapabilities(modRuntimeElements);
             context.withCapabilities(modApiElements);
             context.withCapabilities(nonModRuntimeElements);
@@ -710,6 +726,41 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         apiElements.extendsFrom(modApi);
         modApiElements.extendsFrom(modApi);
 
+        var interfaceInjectionCompile = modCompileClasspath.getIncoming().artifactView(config -> {
+            config.attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, MinecraftInstallation.INTERFACE_INJECTION_CATEGORY));
+            });
+            config.withVariantReselection();
+            config.setLenient(true);
+        });
+        var interfaceInjectionRuntime = modRuntimeClasspath.getIncoming().artifactView(config -> {
+            config.attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, MinecraftInstallation.INTERFACE_INJECTION_CATEGORY));
+            });
+            config.withVariantReselection();
+            config.setLenient(true);
+        });
+        var accessWidenersCompile = modCompileClasspath.getIncoming().artifactView(config -> {
+            config.attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_WIDENER_CATEGORY));
+            });
+            config.withVariantReselection();
+            config.setLenient(true);
+        });
+        var accessWidenersRuntime = modRuntimeClasspath.getIncoming().artifactView(config -> {
+            config.attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_WIDENER_CATEGORY));
+            });
+            config.withVariantReselection();
+            config.setLenient(true);
+        });
+        this.extractFabricForDependencies.configure(task -> {
+            task.getFloatingCompileNeoInterfaceInjections().from(interfaceInjectionCompile.getFiles());
+            task.getFloatingRuntimeNeoInterfaceInjections().from(interfaceInjectionRuntime.getFiles());
+            task.getFloatingCompileAccessWideners().from(accessWidenersCompile.getFiles());
+            task.getFloatingRuntimeAccessWideners().from(accessWidenersRuntime.getFiles());
+        });
+
         var remappedCompileClasspath = project.getConfigurations().maybeCreate(sourceSet.getTaskName("crochetRemapped", "compileClasspath"));
         project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).extendsFrom(remappedCompileClasspath);
 
@@ -807,6 +858,11 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 binariesToSources.map(pairs -> pairs.stream().map(p -> p.second().getTarget().get()).toList())
             );
         }
+    }
+
+    @Override
+    protected boolean canPublishInjectedInterfaces() {
+        return false;
     }
 
     @Override
