@@ -1,5 +1,6 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
@@ -119,9 +120,11 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             });
         });
 
+        var useStubDeps = project.getProviders().gradleProperty(CrochetProperties.USE_STUB_GENERATED_MINECRAFT_DEPENDENCIES).map(Boolean::parseBoolean).orElse(false);
+
         this.project.getDependencies().addProvider(
             minecraftDependencies.getName(),
-            getMinecraft().map(it -> "net.neoforged:minecraft-dependencies:"+it)
+            getMinecraft().map(it -> (useStubDeps.get() ? "dev.lukebemish.crochet:minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+it)
         );
 
         this.binaryArtifactsTask.configure(task -> {

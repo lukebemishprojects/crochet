@@ -1,5 +1,6 @@
 package dev.lukebemish.crochet.internal;
 
+import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.model.CrochetExtension;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -32,20 +33,15 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final String CROCHET_REMAP_TYPE_REMAP = "to-remap";
     // Dependencies on other projects contents', non-remapped components
     public static final String CROCHET_REMAP_TYPE_NON_REMAP = "not-to-remap";
-    public static final String CROCHET_REMAP_TYPE_REMAPPED = "remapped";
-    public static final String CROCHET_CLASSPATH_GROUPING_CATEGORY = "crochet.classpathgrouping";
-
-    private static final String PROPERTY_TASKGRAPHRUNNER_LOG_LEVEL = "dev.lukebemish.crochet.taskgraphrunner.logging.level";
-    private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_ASSET_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-assets-after";
-    private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_OUTPUT_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-outputs-after";
-    private static final String PROPERTY_TASKGRAPHRUNNER_REMOVE_LOCK_DURATION = "dev.lukebemish.crochet.taskgraphrunner.cache.remove-locks-after";
 
     @Override
     public void apply(@NotNull Project project) {
-        if (!project.getGradle().getPlugins().hasPlugin(CrochetRepositoriesPlugin.class)) {
-            project.getPlugins().apply(CrochetRepositoriesPlugin.class);
-        } else {
-            project.getLogger().debug("Skipping application of crochet repositories as it was applied at the settings level; you may still apply the plugin manually");
+        if (project.getProviders().gradleProperty(CrochetProperties.ADD_LIKELY_REPOSITORIES).map(Boolean::parseBoolean).orElse(true).get()) {
+            if (!project.getGradle().getPlugins().hasPlugin(CrochetRepositoriesPlugin.class)) {
+                project.getPlugins().apply(CrochetRepositoriesPlugin.class);
+            } else {
+                project.getLogger().debug("Skipping application of crochet repositories as it was applied at the settings level; you may still apply the plugin manually");
+            }
         }
 
         project.getPluginManager().apply("java-library");
@@ -95,19 +91,13 @@ public class CrochetPlugin implements Plugin<Project> {
 
         project.getGradle().getSharedServices().registerIfAbsent("taskGraphRunnerDaemon", TaskGraphRunnerService.class, spec -> {
             spec.getParameters().getHideStacktrace().convention(project.getGradle().getStartParameter().getShowStacktrace() == ShowStacktrace.INTERNAL_EXCEPTIONS);
-            spec.getParameters().getLogLevel().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_LOG_LEVEL).orElse("INFO"));
-            spec.getParameters().getRemoveUnusedAssetsAfterDays().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_REMOVE_ASSET_DURATION).map(Integer::parseInt).orElse(30));
-            spec.getParameters().getRemoveUnusedOutputsAfterDays().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_REMOVE_OUTPUT_DURATION).map(Integer::parseInt).orElse(30));
-            spec.getParameters().getRemoveUnusedLocksAfterDays().convention(project.getProviders().gradleProperty(PROPERTY_TASKGRAPHRUNNER_REMOVE_LOCK_DURATION).map(Integer::parseInt).orElse(1));
+            spec.getParameters().getLogLevel().convention(project.getProviders().gradleProperty(CrochetProperties.TASKGRAPHRUNNER_LOG_LEVEL).orElse("INFO"));
+            spec.getParameters().getRemoveUnusedAssetsAfterDays().convention(project.getProviders().gradleProperty(CrochetProperties.TASKGRAPHRUNNER_REMOVE_ASSET_DURATION).map(Integer::parseInt).orElse(30));
+            spec.getParameters().getRemoveUnusedOutputsAfterDays().convention(project.getProviders().gradleProperty(CrochetProperties.TASKGRAPHRUNNER_REMOVE_OUTPUT_DURATION).map(Integer::parseInt).orElse(30));
+            spec.getParameters().getRemoveUnusedLocksAfterDays().convention(project.getProviders().gradleProperty(CrochetProperties.TASKGRAPHRUNNER_REMOVE_LOCK_DURATION).map(Integer::parseInt).orElse(1));
         });
 
         applyDisambiguationRules(project);
-        applyComponentRules(project);
-    }
-
-    private static void applyComponentRules(Project project) {
-        project.getDependencies().getComponents().withModule("net.fabricmc:fabric-loader", FabricInstallerRule.class);
-        project.getDependencies().getComponents().withModule("org.quiltmc:quilt-loader", FabricInstallerRule.class);
     }
 
     private static void applyDisambiguationRules(Project project) {
