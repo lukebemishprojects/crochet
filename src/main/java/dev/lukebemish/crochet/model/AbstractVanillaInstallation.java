@@ -8,6 +8,8 @@ import dev.lukebemish.crochet.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
+import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFile;
@@ -16,6 +18,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+import org.jetbrains.annotations.ApiStatus;
 
 import javax.inject.Inject;
 
@@ -36,11 +39,32 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     final Provider<RegularFile> binary;
     final Provider<RegularFile> binaryLineMapped;
 
+    final Property<String> minecraftVersion;
+
     @Inject
     public AbstractVanillaInstallation(String name, CrochetExtension extension) {
         super(name, extension);
 
         this.project = extension.project;
+
+        // Create early so getMinecraft provider works right
+        this.minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
+        this.minecraftVersion = project.getObjects().property(String.class);
+        this.minecraftVersion.set(minecraftDependencies.getIncoming().getResolutionResult().getRootComponent().map(component -> {
+            var dependencies = component.getDependencies();
+            if (dependencies.size() != 1) {
+                throw new IllegalStateException("Expected exactly one dependency, got "+dependencies.size());
+            }
+            var dependencyResult = dependencies.iterator().next();
+            if (!(dependencyResult instanceof ResolvedDependencyResult resolvedDependencyResult)) {
+                throw new IllegalStateException("Could not resolve minecraft-dependencies, got "+dependencyResult);
+            }
+            var identifier = resolvedDependencyResult.getResolvedVariant().getOwner();
+            if (!(identifier instanceof ModuleComponentIdentifier moduleIdentifier)) {
+                throw new IllegalStateException("Could not recover version from non-module component "+identifier);
+            }
+            return moduleIdentifier.getVersion();
+        }));
 
         var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
         this.workingDirectory = workingDirectory;
@@ -88,7 +112,6 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         });
 
         this.minecraftResources = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftResources");
-        this.minecraftDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftDependencies");
         this.minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config -> {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
@@ -121,11 +144,9 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         });
 
         var useStubDeps = project.getProviders().gradleProperty(CrochetProperties.USE_STUB_GENERATED_MINECRAFT_DEPENDENCIES).map(Boolean::parseBoolean).orElse(false);
+        getUseStubBackedMinecraftDependencies().convention(useStubDeps);
 
-        this.project.getDependencies().addProvider(
-            minecraftDependencies.getName(),
-            getMinecraft().map(it -> (useStubDeps.get() ? "dev.lukebemish.crochet:minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+it)
-        );
+        minecraftDependencies.fromDependencyCollector(getDependencies().getMinecraftDependencies());
 
         this.binaryArtifactsTask.configure(task -> {
             task.artifactsConfiguration(decompileCompileClasspath);
@@ -168,7 +189,25 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         return project.getObjects().newInstance(AbstractVanillaInstallationDependencies.class, this);
     }
 
-    public abstract Property<String> getMinecraft();
+    @ApiStatus.Experimental
+    public abstract Property<Boolean> getUseStubBackedMinecraftDependencies();
+
+    public void setMinecraft(String string) {
+        setMinecraft(project.provider(() -> string));
+    }
+
+    @SuppressWarnings("UnstableApiUsage")
+    public void setMinecraft(Provider<String> string) {
+        getDependencies().getMinecraftDependencies().add(
+            project.provider(() -> project.getDependencies().create(
+                (getUseStubBackedMinecraftDependencies().get() ? "dev.lukebemish.crochet:minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+string.get()
+            ))
+        );
+    }
+
+    public Provider<String> getMinecraft() {
+        return this.minecraftVersion;
+    }
 
     @Override
     public void forFeature(SourceSet sourceSet) {

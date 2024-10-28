@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.mappings.MappingsStructure;
+import org.gradle.api.artifacts.dsl.DependencyCollector;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 
@@ -11,6 +12,9 @@ public abstract class AbstractVanillaInstallationDependencies extends Installati
     public AbstractVanillaInstallationDependencies(MinecraftInstallation installation) {
         super(installation);
     }
+
+    @SuppressWarnings("UnstableApiUsage")
+    public abstract DependencyCollector getMinecraftDependencies();
 
     public abstract Property<MappingsStructure> getMappings();
 
