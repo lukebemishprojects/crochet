@@ -709,6 +709,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var modLocalRuntime = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "localRuntime"));
         modLocalRuntime.fromDependencyCollector(dependencies.getModLocalRuntime());
         modRuntimeClasspath.extendsFrom(modLocalRuntime);
+        var modLocalImplementation = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "localImplementation"));
+        modLocalImplementation.fromDependencyCollector(dependencies.getModLocalImplementation());
+        modCompileClasspath.extendsFrom(modLocalImplementation);
+        modRuntimeClasspath.extendsFrom(modLocalImplementation);
         var modImplementation = project.getConfigurations().maybeCreate(sourceSet.getTaskName("mod", "implementation"));
         modImplementation.fromDependencyCollector(dependencies.getModImplementation());
         modCompileClasspath.extendsFrom(modImplementation);

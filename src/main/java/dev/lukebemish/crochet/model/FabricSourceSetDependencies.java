@@ -9,6 +9,7 @@ public abstract class FabricSourceSetDependencies implements Dependencies {
     public abstract DependencyCollector getModCompileOnlyApi();
     public abstract DependencyCollector getModRuntimeOnly();
     public abstract DependencyCollector getModLocalRuntime();
+    public abstract DependencyCollector getModLocalImplementation();
     public abstract DependencyCollector getModImplementation();
     public abstract DependencyCollector getModApi();
 }

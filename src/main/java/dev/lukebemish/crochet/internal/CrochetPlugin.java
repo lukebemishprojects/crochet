@@ -11,13 +11,12 @@ import org.gradle.api.attributes.Bundling;
 import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.logging.configuration.ShowStacktrace;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
 
 public class CrochetPlugin implements Plugin<Project> {
-    // TODO: re-implement this stuff
-    public static final String LOCAL_RUNTIME_CONFIGURATION_NAME = "localRuntime";
     public static final String TASK_GRAPH_RUNNER_CONFIGURATION_NAME = "crochetTaskGraphRunnerClasspath";
     public static final String TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME = "crochetTaskGraphRunnerDependencies";
     public static final String DEV_LAUNCH_CONFIGURATION_NAME = "crochetDevLaunchClasspath";
@@ -87,6 +86,9 @@ public class CrochetPlugin implements Plugin<Project> {
         project.getConfigurations().register(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME);
         project.getDependencies().add(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME, "net.minecrell:terminalconsoleappender:" + Versions.TERMINAL_CONSOLE_APPENDER);
 
+        // configurations
+        setupConventionalConfigurations(project);
+
         var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 
         project.getGradle().getSharedServices().registerIfAbsent("taskGraphRunnerDaemon", TaskGraphRunnerService.class, spec -> {
@@ -98,6 +100,21 @@ public class CrochetPlugin implements Plugin<Project> {
         });
 
         applyDisambiguationRules(project);
+    }
+
+    private static void setupConventionalConfigurations(Project project) {
+        var sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        sourceSets.configureEach(sourceSet -> {
+            var compileClasspath = project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName());
+            var runtimeClasspath = project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName());
+
+            var localRuntime = project.getConfigurations().maybeCreate(sourceSet.getTaskName(null, "localRuntime"));
+            runtimeClasspath.extendsFrom(localRuntime);
+
+            var localImplementation = project.getConfigurations().maybeCreate(sourceSet.getTaskName(null, "localImplementation"));
+            compileClasspath.extendsFrom(localImplementation);
+            runtimeClasspath.extendsFrom(localImplementation);
+        });
     }
 
     private static void applyDisambiguationRules(Project project) {
