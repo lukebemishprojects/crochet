@@ -57,6 +57,11 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
             options.mappingsParameter("mappings");
         }
 
+        options.clientMappings(new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-mappings")));
+        options.versionJson(new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-version-json")));
+        options.clientJar(new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-client-jar")));
+        options.serverJar(new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-server-jar")));
+
         var config = SingleVersionGenerator.convert(getMinecraftVersion().get(), options.build());
         if (!getAccessTransformers().isEmpty()) {
             config.parameters.put("accessTransformers",
@@ -80,8 +85,10 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
         } else if (hasInjectedInterfaces) {
             config.parameters.put("injectedInterfaces", new Value.ListValue(List.of()));
         }
+
         if (mappings != null) {
-            var mappingsModel = MappingsStructure.toModel(mappings, new Output("downloadClientMappings", "output"));
+            var clientMappings = new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-mappings"));
+            var mappingsModel = MappingsStructure.toModel(mappings, clientMappings);
             var mappingsTask = new TaskModel.TransformMappings("crochetMakeMappings", MappingsFormat.TINY2, mappingsModel);
             config.tasks.add(mappingsTask);
             config.tasks.forEach(task -> {

@@ -4,6 +4,13 @@ import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
+import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
+import dev.lukebemish.crochet.mappings.ChainedMappingsStructure;
+import dev.lukebemish.crochet.mappings.FileMappingsStructure;
+import dev.lukebemish.crochet.mappings.MappingsStructure;
+import dev.lukebemish.crochet.mappings.MergedMappingsStructure;
+import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
+import dev.lukebemish.crochet.mappings.ReversedMappingsStructure;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
@@ -11,6 +18,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
+import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFile;
@@ -22,6 +30,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.jetbrains.annotations.ApiStatus;
 
 import javax.inject.Inject;
+import java.util.Map;
 
 public abstract class AbstractVanillaInstallation extends MinecraftInstallation {
     final Project project;
@@ -66,6 +75,44 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             }
             return moduleIdentifier.getVersion();
         }));
+
+        var minecraftPistonMeta = project.getConfigurations().dependencyScope("crochet"+StringUtils.capitalize(name)+"PistonMetaDownloads");
+        var clientJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientJarPistonMetaDownloads", c -> {
+            c.extendsFrom(minecraftPistonMeta.get());
+            c.exclude(Map.of(
+                "group", CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP,
+                "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
+            ));
+            c.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
+            });
+        });
+        var serverJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ServerJarPistonMetaDownloads", c -> {
+            c.extendsFrom(minecraftPistonMeta.get());
+            c.exclude(Map.of(
+                "group", CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP,
+                "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
+            ));
+            c.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
+            });
+        });
+        var mappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"MappingsPistonMetaDownloads", c -> {
+            c.extendsFrom(minecraftPistonMeta.get());
+            c.attributes(attributes -> {
+                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
+            });
+        });
+        var versionJsonPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"VersionJsonPistonMetaDownloads", c -> {
+            c.extendsFrom(minecraftPistonMeta.get());
+            c.attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "versionjson"));
+            });
+        });
+        project.getDependencies().addProvider(minecraftPistonMeta.getName(), minecraftVersion.map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
 
         var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
         this.workingDirectory = workingDirectory;
@@ -152,6 +199,11 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.binaryArtifactsTask.configure(task -> {
             task.artifactsConfiguration(decompileCompileClasspath);
             task.artifactsConfiguration(decompileRuntimeClasspath);
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-version-json", versionJsonPistonMeta.get());
+            // Both for now as the config is always JOINED
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-jar", clientJarPistonMeta.get());
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-jar", serverJarPistonMeta.get());
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-mappings", mappingsPistonMeta.get(), vanillaConfigMaker.getMappings().map(AbstractVanillaInstallation::requiresVanillaMappings));
             task.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
         });
 
@@ -178,6 +230,16 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         );
 
         extension.idePostSync.configure(t -> t.dependsOn(binaryArtifactsTask));
+    }
+
+    private static boolean requiresVanillaMappings(MappingsStructure structure) {
+        return switch (structure) {
+            case ChainedMappingsStructure chainedMappingsStructure -> chainedMappingsStructure.getInputMappings().get().stream().anyMatch(AbstractVanillaInstallation::requiresVanillaMappings);
+            case FileMappingsStructure ignored -> false;
+            case MergedMappingsStructure mergedMappingsStructure -> mergedMappingsStructure.getInputMappings().get().stream().anyMatch(AbstractVanillaInstallation::requiresVanillaMappings);
+            case MojangOfficialMappingsStructure ignored -> true;
+            case ReversedMappingsStructure reversedMappingsStructure -> requiresVanillaMappings(reversedMappingsStructure.getInputMappings().get());
+        };
     }
 
     @Override

@@ -29,11 +29,11 @@ import java.util.Set;
 public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
     public static final String MINECRAFT_DEPENDENCIES = "minecraft-dependencies";
     public static final String MINECRAFT_DEPENDENCIES_NATIVES = "minecraft-dependencies-natives";
-    public static final String MINECRAFT_ARTIFACT = "minecraft-artifact";
+    public static final String MINECRAFT_DATA_ARTIFACT = "minecraft-data-artifact";
+    public static final String MINECRAFT_META_ARTIFACT = "minecraft-meta-artifact";
     public static final String MINECRAFT = "minecraft";
-    public static final String MINECRAFT_MAPPINGS = "minecraft-mappings";
 
-    private static final Set<String> NAMES = Set.of(MINECRAFT_DEPENDENCIES, MINECRAFT_DEPENDENCIES_NATIVES, MINECRAFT, MINECRAFT_MAPPINGS);
+    private static final Set<String> NAMES = Set.of(MINECRAFT_DEPENDENCIES, MINECRAFT_DEPENDENCIES_NATIVES, MINECRAFT);
 
     @Inject
     public PistonMetaMetadataRule() {}
@@ -65,9 +65,6 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                         .findFirst()
                         .orElseThrow(() -> new IllegalStateException("Version not found in piston-meta version manifest; may not exist: " + versionString));
                     details.setStatus(versionEntry.type());
-                    details.allVariants(v -> {
-                        v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
-                    });
                     if (!versionEntry.url().startsWith(VersionManifest.PISTON_META_URL)) {
                         throw new IllegalStateException("Version URL not from piston-meta " + versionEntry.url() + " for " + versionString);
                     }
@@ -195,52 +192,6 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     });
                                 });
                             }
-                        } else if (MINECRAFT_MAPPINGS.equals(details.getId().getName())) {
-                            var clientMappings = version.downloads().get("client_mappings");
-                            var serverMappings = version.downloads().get("server_mappings");
-                            if (clientMappings == null && serverMappings == null) {
-                                throw new IllegalStateException("No mappings found for " + versionString);
-                            }
-                            if (clientMappings != null) {
-                                details.addVariant("clientMappings", v -> {
-                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
-                                    v.attributes(attributes -> {
-                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
-                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
-                                    });
-                                    if (!clientMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
-                                        throw new IllegalStateException("Mappings URL not from piston-data " + clientMappings.url() + " for " + versionString);
-                                    }
-                                    var relativePath = clientMappings.url().substring(VersionManifest.PISTON_DATA_URL.length());
-                                    v.withDependencies(deps -> {
-                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
-                                            dep.version(depVersion -> {
-                                                depVersion.strictly(relativePath);
-                                            });
-                                        });
-                                    });
-                                });
-                            }
-                            if (serverMappings != null) {
-                                details.addVariant("serverMappings", v -> {
-                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
-                                    v.attributes(attributes -> {
-                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
-                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
-                                    });
-                                    if (!serverMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
-                                        throw new IllegalStateException("Mappings URL not from piston-data " + serverMappings.url() + " for " + versionString);
-                                    }
-                                    var relativePath = serverMappings.url().substring(VersionManifest.PISTON_DATA_URL.length());
-                                    v.withDependencies(deps -> {
-                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
-                                            dep.version(depVersion -> {
-                                                depVersion.strictly(relativePath);
-                                            });
-                                        });
-                                    });
-                                });
-                            }
                         } else if (MINECRAFT.equals(details.getId().getName())) {
                             var clientArtifact = version.downloads().get("client");
                             var serverArtifact = version.downloads().get("server");
@@ -249,7 +200,6 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                             }
                             if (clientArtifact != null) {
                                 details.addVariant("clientArtifact", v -> {
-                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
                                     v.attributes(attributes -> {
                                         attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
                                         attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements.class, LibraryElements.JAR));
@@ -262,12 +212,13 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     }
                                     var relativePath = clientArtifact.url().substring(VersionManifest.PISTON_DATA_URL.length());
                                     v.withDependencies(deps -> {
-                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
+                                        var extension = relativePath.substring(relativePath.lastIndexOf('.') + 1);
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+MINECRAFT_DATA_ARTIFACT+"@"+extension, dep -> {
                                             dep.version(depVersion -> {
                                                 depVersion.strictly(relativePath);
                                             });
                                         });
-                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_DEPENDENCIES, dep -> {
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP + ":" + MINECRAFT_DEPENDENCIES, dep -> {
                                             dep.version(depVersion -> {
                                                 depVersion.strictly(versionString);
                                             });
@@ -277,7 +228,6 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                             }
                             if (serverArtifact != null) {
                                 details.addVariant("serverArtifact", v -> {
-                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
                                     v.attributes(attributes -> {
                                         attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
                                         attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements.class, LibraryElements.JAR));
@@ -290,12 +240,13 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     }
                                     var relativePath = serverArtifact.url().substring(VersionManifest.PISTON_DATA_URL.length());
                                     v.withDependencies(deps -> {
-                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
+                                        var extension = relativePath.substring(relativePath.lastIndexOf('.') + 1);
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+MINECRAFT_DATA_ARTIFACT+"@"+extension, dep -> {
                                             dep.version(depVersion -> {
                                                 depVersion.strictly(relativePath);
                                             });
                                         });
-                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_DEPENDENCIES, dep -> {
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+MINECRAFT_DEPENDENCIES, dep -> {
                                             dep.version(depVersion -> {
                                                 depVersion.strictly(versionString);
                                             });
@@ -303,6 +254,61 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     });
                                 });
                             }
+                            var clientMappings = version.downloads().get("client_mappings");
+                            var serverMappings = version.downloads().get("server_mappings");
+                            if (clientMappings != null) {
+                                details.addVariant("clientMappings", v -> {
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                                    });
+                                    if (!clientMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
+                                        throw new IllegalStateException("Mappings URL not from piston-data " + clientMappings.url() + " for " + versionString);
+                                    }
+                                    var relativePath = clientMappings.url().substring(VersionManifest.PISTON_DATA_URL.length());
+                                    v.withDependencies(deps -> {
+                                        var extension = relativePath.substring(relativePath.lastIndexOf('.') + 1);
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+MINECRAFT_DATA_ARTIFACT+"@"+extension, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(relativePath);
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+                            if (serverMappings != null) {
+                                details.addVariant("serverMappings", v -> {
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                                    });
+                                    if (!serverMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
+                                        throw new IllegalStateException("Mappings URL not from piston-data " + serverMappings.url() + " for " + versionString);
+                                    }
+                                    var relativePath = serverMappings.url().substring(VersionManifest.PISTON_DATA_URL.length());
+                                    v.withDependencies(deps -> {
+                                        var extension = relativePath.substring(relativePath.lastIndexOf('.') + 1);
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+MINECRAFT_DATA_ARTIFACT+"@"+extension, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(relativePath);
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+                            details.addVariant("versionJson", v -> {
+                                v.attributes(attributes -> {
+                                    attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "versionjson"));
+                                });
+                                v.withDependencies(deps -> {
+                                    var extension = relativeVersionUrl.substring(relativeVersionUrl.lastIndexOf('.') + 1);
+                                    deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_META_ARTIFACT+"@"+extension, dep -> {
+                                        dep.version(depVersion -> {
+                                            depVersion.strictly(relativeVersionUrl);
+                                        });
+                                    });
+                                });
+                            });
                         }
                     });
                 } catch (IOException e) {

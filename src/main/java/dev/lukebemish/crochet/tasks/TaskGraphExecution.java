@@ -44,7 +44,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -197,6 +199,33 @@ public abstract class TaskGraphExecution extends DefaultTask {
 
         getArtifactFiles().addAll(artifacts.map(getProject().getObjects().newInstance(FileExtractor.class, Unit.provider(getProject()))));
         getArtifactIdentifiers().addAll(artifacts.map(new IdExtractor()));
+    }
+
+    public void singleFileConfiguration(String identifier, Configuration configuration, Provider<Boolean> provider) {
+        Provider<Set<ResolvedArtifactResult>> artifacts = provider.orElse(true).zip(getProject().provider(() -> configuration.getIncoming().getArtifacts().getResolvedArtifacts().map(s -> {
+            if (s.size() != 1) {
+                throw new IllegalStateException("Expected exactly one artifact for " + identifier + " but got " + s.size());
+            }
+            return s;
+        })), (b, pr) -> {
+            if (b) {
+                return Optional.of(pr);
+            } else {
+                return Optional.<Provider<Set<ResolvedArtifactResult>>>empty();
+            }
+        }).zip(getProject().provider(() -> Unit.provider(getProject())), (o, pr) ->
+            o.orElse(pr.map(ignored -> new HashSet<>()))
+        ).flatMap(p -> p);
+
+        var artifactProperty = getProject().getObjects().setProperty(ResolvedArtifactResult.class);
+        artifactProperty.set(artifacts);
+
+        getArtifactFiles().addAll(artifactProperty.map(getProject().getObjects().newInstance(FileExtractor.class, Unit.provider(getProject()))));
+        getArtifactIdentifiers().addAll(artifactProperty.<List<String>>map(a -> new ArrayList<>(a.stream().map(ignored -> identifier).toList())));
+    }
+
+    public void singleFileConfiguration(String identifier, Configuration configuration) {
+        singleFileConfiguration(identifier, configuration, getProject().provider(() -> true));
     }
 
     public abstract static class FileExtractor implements Transformer<List<RegularFile>, Collection<ResolvedArtifactResult>> {

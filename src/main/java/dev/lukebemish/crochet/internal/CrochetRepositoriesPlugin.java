@@ -4,6 +4,7 @@ import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaVersionLister;
 import dev.lukebemish.crochet.internal.pistonmeta.ServerDependenciesMetadataRule;
+import dev.lukebemish.crochet.internal.pistonmeta.VersionAsArtifactRule;
 import dev.lukebemish.crochet.internal.pistonmeta.VersionManifest;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
@@ -44,15 +45,17 @@ public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
     @Inject
     protected abstract ProviderFactory getProviders();
 
-    private static void components(ComponentMetadataHandler components) {
+    private void components(ComponentMetadataHandler components) {
         components.withModule("net.fabricmc:fabric-loader", FabricInstallerRule.class);
         components.withModule("org.quiltmc:quilt-loader", FabricInstallerRule.class);
 
         components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES, PistonMetaMetadataRule.class);
         components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES, PistonMetaMetadataRule.class);
-        components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_MAPPINGS, PistonMetaMetadataRule.class);
         components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT, PistonMetaMetadataRule.class);
         components.withModule(MOJANG_STUBS_GROUP+":"+ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES, ServerDependenciesMetadataRule.class);
+
+        components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_META_ARTIFACT, VersionAsArtifactRule.class);
+        components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_DATA_ARTIFACT, VersionAsArtifactRule.class);
     }
 
     private void repositories(RepositoryHandler repositoryHandler) {
@@ -78,21 +81,31 @@ public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
                 content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES);
                 content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES);
                 content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT);
-                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_MAPPINGS);
             });
         });
 
         repositoryHandler.ivy(repo -> {
-            repo.setName("Piston Data Minecraft Dependencies");
+            repo.setName("Piston Meta Minecraft Artifacts");
+            repo.setUrl(getProviders().gradleProperty(CrochetProperties.PISTON_META_URL).getOrElse(VersionManifest.PISTON_META_URL));
+            repo.patternLayout(layout ->
+                layout.artifact("[revision]")
+            );
+            repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+            repo.content(content -> {
+                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_META_ARTIFACT);
+            });
+        });
+
+        repositoryHandler.ivy(repo -> {
+            repo.setName("Piston Data Minecraft Artifacts");
             repo.setUrl(getProviders().gradleProperty(CrochetProperties.PISTON_DATA_URL).getOrElse(VersionManifest.PISTON_DATA_URL));
             repo.patternLayout(layout ->
                 layout.artifact("[revision]")
             );
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-            repo.setComponentVersionsLister(PistonMetaVersionLister.class);
             repo.content(content -> {
                 content.includeModule(MOJANG_STUBS_GROUP, ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES);
-                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_ARTIFACT);
+                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_DATA_ARTIFACT);
             });
         });
 

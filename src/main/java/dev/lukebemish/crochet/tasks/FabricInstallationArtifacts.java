@@ -72,14 +72,20 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
 
         wrapped.parameters.put("intermediary", Value.file(getIntermediary().get().getAsFile().toPath()));
 
-        String mappingsTaskName = "downloadClientMappings";
+        dev.lukebemish.taskgraphrunner.model.Input mappingsInput = new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-mappings"));
+        boolean vanillaMappings = true;
         boolean reversedMappings = true;
         if (wrappedArtifacts.getMappings().isPresent()) {
-            mappingsTaskName = "crochetMakeMappings";
+            mappingsInput = new Input.TaskInput(new Output("crochetMakeMappings", "output"));
             reversedMappings = false;
+            vanillaMappings = false;
         }
 
-        MappingsSource namedToObfMappings = new MappingsSource.File(new Input.TaskInput(new Output(mappingsTaskName, "output")));
+        MappingsSource.File namedToObjMappingsFile = new MappingsSource.File(mappingsInput);
+        MappingsSource namedToObfMappings = namedToObjMappingsFile;
+        if (vanillaMappings) {
+            namedToObjMappingsFile.extension = new InputValue.DirectInput(new Value.StringValue("txt"));
+        }
         if (!reversedMappings) {
             namedToObfMappings = new MappingsSource.Reversed(namedToObfMappings);
         }

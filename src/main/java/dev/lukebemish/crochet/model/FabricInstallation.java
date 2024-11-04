@@ -4,9 +4,7 @@ import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.Log4jSetup;
-import dev.lukebemish.crochet.mappings.ChainedMappingsSource;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
-import dev.lukebemish.crochet.mappings.ReversedMappingsSource;
 import dev.lukebemish.crochet.tasks.ArtifactTarget;
 import dev.lukebemish.crochet.tasks.ExtractFabricDependencies;
 import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
@@ -89,8 +87,6 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.getOutputFile().convention(project.getLayout().getBuildDirectory().file("crochet/installations/"+this.getName()+"/log4j2.xml"));
         });
 
-        var mappings = workingDirectory.map(dir -> dir.file("mappings.txt"));
-
         this.vanillaConfigMaker.getSidedAnnotation().set(SingleVersionGenerator.Options.SidedAnnotation.FABRIC);
         this.fabricConfigMaker = project.getObjects().newInstance(FabricInstallationArtifacts.class);
         fabricConfigMaker.getWrapped().set(vanillaConfigMaker);
@@ -102,8 +98,12 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         fabricConfigMaker.getInterfaceInjection().from(project.fileTree(extractFabricForDependencies.flatMap(ExtractFabricDependencies::getOutputDirectory)).builtBy(extractFabricForDependencies).filter(it -> it.getName().equals("interface_injections.json")));
         project.getDependencies().add(this.injectedInterfaces.get().getName(), project.fileTree(extractFabricForDependencies.flatMap(ExtractFabricDependencies::getOutputDirectory)).builtBy(extractFabricForDependencies).filter(it -> it.getName().equals("neo_interface_injections.json")));
 
+        var intermediaryToNamedFile = workingDirectory.map(dir -> dir.file("runner-intermediary-to-named.tiny"));
+        var namedToIntermediaryFile = workingDirectory.map(dir -> dir.file("runner-named-to-intermediary.tiny"));
+
         this.binaryArtifactsTask.configure(task -> {
-            task.getTargets().add(TaskGraphExecution.GraphOutput.of("downloadClientMappings.output", mappings, project.getObjects()));
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("intermediaryToNamedMappings.output", intermediaryToNamedFile, project.getObjects()));
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("namedToIntermediaryMappings.output", namedToIntermediaryFile, project.getObjects()));
             task.getConfigMaker().set(fabricConfigMaker);
         });
 
@@ -146,22 +146,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         // We have intermediary -> official from intermediary, and official -> srg + mojmaps from neoform
         var objects = project.getObjects();
 
-        var intermediary = objects.newInstance(FileMappingSource.class);
-        intermediary.getMappingsFile().from(workingDirectory.map(dir -> dir.file("intermediary/mappings/mappings.tiny")));
-        var intermediaryReversed = objects.newInstance(ReversedMappingsSource.class);
-        intermediaryReversed.getInputMappings().set(intermediary);
-        var named = objects.newInstance(FileMappingSource.class);
-        named.getMappingsFile().from(mappings);
-        var namedReversed = objects.newInstance(ReversedMappingsSource.class);
-        namedReversed.getInputMappings().set(named);
-        var chainedSpec = objects.newInstance(ChainedMappingsSource.class);
-        chainedSpec.getInputMappings().set(List.of(intermediaryReversed, namedReversed));
-        var reversedChainedSpec = objects.newInstance(ReversedMappingsSource.class);
-        reversedChainedSpec.getInputMappings().set(chainedSpec);
-
         this.intermediaryToNamed = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"IntermediaryToNamed", MappingsWriter.class, task -> {
-            task.getInputMappings().set(chainedSpec);
-            task.dependsOn(intermediaryMappings);
+            var spec = objects.newInstance(FileMappingSource.class);
+            spec.getMappingsFile().from(intermediaryToNamedFile);
+            task.getInputMappings().set(spec);
             task.dependsOn(this.binaryArtifactsTask);
             task.getTargetFormat().set(IMappingFile.Format.TINY);
             task.getOutputMappings().set(workingDirectory.map(dir -> dir.file("intermediary-to-named.tiny")));
@@ -182,8 +170,9 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
 
         this.namedToIntermediary = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"NamedToIntermediary", MappingsWriter.class, task -> {
-            task.getInputMappings().set(reversedChainedSpec);
-            task.dependsOn(intermediaryMappings);
+            var spec = objects.newInstance(FileMappingSource.class);
+            spec.getMappingsFile().from(namedToIntermediaryFile);
+            task.getInputMappings().set(spec);
             task.dependsOn(this.binaryArtifactsTask);
             task.getTargetFormat().set(IMappingFile.Format.TINY);
             task.getOutputMappings().set(workingDirectory.map(dir -> dir.file("named-to-intermediary.tiny")));

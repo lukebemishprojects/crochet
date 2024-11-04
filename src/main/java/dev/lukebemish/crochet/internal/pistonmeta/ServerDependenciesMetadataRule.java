@@ -34,6 +34,7 @@ public abstract class ServerDependenciesMetadataRule implements ComponentMetadat
             details.allVariants(v -> {
                 v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
             });
+            details.setChanging(false);
             getRepositoryResourceAccessor().withResource(versionString, serverStream -> {
                 List<String> serverDeps = new ArrayList<>();
                 try (var zip = new ZipInputStream(serverStream)) {
