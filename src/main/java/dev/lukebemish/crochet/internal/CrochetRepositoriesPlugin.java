@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.internal;
 
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaVersionLister;
+import dev.lukebemish.crochet.internal.pistonmeta.ServerDependenciesMetadataRule;
 import dev.lukebemish.crochet.internal.pistonmeta.VersionManifest;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
@@ -36,8 +37,9 @@ public class CrochetRepositoriesPlugin implements Plugin<Object> {
         components.withModule("net.fabricmc:fabric-loader", FabricInstallerRule.class);
         components.withModule("org.quiltmc:quilt-loader", FabricInstallerRule.class);
 
-        components.withModule("dev.lukebemish.crochet:"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES, PistonMetaMetadataRule.class);
-        components.withModule("dev.lukebemish.crochet:"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES, PistonMetaMetadataRule.class);
+        components.withModule("dev.lukebemish.crochet.mojang-stubs:"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES, PistonMetaMetadataRule.class);
+        components.withModule("dev.lukebemish.crochet.mojang-stubs:"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES, PistonMetaMetadataRule.class);
+        components.withModule("dev.lukebemish.crochet.mojang-stubs:"+ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES, ServerDependenciesMetadataRule.class);
     }
 
     private static void repositories(RepositoryHandler repositoryHandler) {
@@ -59,8 +61,21 @@ public class CrochetRepositoriesPlugin implements Plugin<Object> {
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             repo.setComponentVersionsLister(PistonMetaVersionLister.class);
             repo.content(content -> {
-                content.includeModule("dev.lukebemish.crochet", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES);
-                content.includeModule("dev.lukebemish.crochet", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES);
+                content.includeModule("dev.lukebemish.crochet.mojang-stubs", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES);
+                content.includeModule("dev.lukebemish.crochet.mojang-stubs", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES);
+            });
+        });
+
+        repositoryHandler.ivy(repo -> {
+            repo.setName("Piston Data Minecraft Dependencies");
+            repo.setUrl(VersionManifest.PISTON_DATA_URL);
+            repo.patternLayout(layout ->
+                layout.artifact("[revision]")
+            );
+            repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+            repo.setComponentVersionsLister(PistonMetaVersionLister.class);
+            repo.content(content -> {
+                content.includeModule("dev.lukebemish.crochet.mojang-stubs", ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES);
             });
         });
 

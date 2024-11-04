@@ -200,7 +200,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     public void setMinecraft(Provider<String> string) {
         getDependencies().getMinecraftDependencies().add(
             project.provider(() -> project.getDependencies().create(
-                (getUseStubBackedMinecraftDependencies().get() ? "dev.lukebemish.crochet:minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+string.get()
+                (getUseStubBackedMinecraftDependencies().get() ? "dev.lukebemish.crochet.mojang-stubs:minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+string.get()
             ))
         );
     }

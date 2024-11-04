@@ -5,7 +5,6 @@ import dev.lukebemish.crochet.internal.CrochetPlugin;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
-import org.gradle.api.artifacts.DirectDependenciesMetadata;
 import org.gradle.api.artifacts.MutableVariantFilesMetadata;
 import org.gradle.api.artifacts.repositories.RepositoryResourceAccessor;
 import org.gradle.api.attributes.Usage;
@@ -16,18 +15,12 @@ import javax.inject.Inject;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.URI;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 @CacheableRule
 public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
@@ -47,10 +40,13 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
     public void execute(ComponentMetadataContext context) {
         var details = context.getDetails();
         // We have natives as a separate module because the metadata rule API does not currently support capabilities fully
-        if ("dev.lukebemish.crochet".equals(details.getId().getGroup()) && (MINECRAFT_DEPENDENCIES.equals(details.getId().getName()) || MINECRAFT_DEPENDENCIES_NATIVES.equals(details.getId().getName()))) {
+        if ("dev.lukebemish.crochet.mojang-stubs".equals(details.getId().getGroup()) && (MINECRAFT_DEPENDENCIES.equals(details.getId().getName()) || MINECRAFT_DEPENDENCIES_NATIVES.equals(details.getId().getName()))) {
             var versionString = details.getId().getVersion();
             boolean isNatives = MINECRAFT_DEPENDENCIES_NATIVES.equals(details.getId().getName());
             details.setStatusScheme(List.of("old_alpha", "old_beta", "snapshot", "release"));
+            details.allVariants(v -> {
+                v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
+            });
             getRepositoryResourceAccessor().withResource(VersionManifest.VERSION_MANIFEST, versionManifestStream -> {
                 try (var reader = new JsonReader(new InputStreamReader(versionManifestStream))) {
                     VersionManifest manifest = VersionManifest.GSON.fromJson(reader, VersionManifest.class);
@@ -111,25 +107,8 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
 
                             if (!isNatives) {
                                 var serverDownload = version.downloads().get("server");
-                                if (serverDownload != null) {
-                                    var serverUrl = serverDownload.url();
-                                    if (serverUrl != null) {
-                                        URL url = URI.create(serverUrl).toURL();
-                                        try (var serverStream = url.openStream()) {
-                                            try (var zip = new ZipInputStream(serverStream)) {
-                                                ZipEntry entry;
-                                                while ((entry = zip.getNextEntry()) != null) {
-                                                    if (entry.getName().equals("META-INF/libraries.list")) {
-                                                        new String(zip.readAllBytes(), StandardCharsets.UTF_8).lines().forEach(line -> {
-                                                            serverDeps.add(line.split("\t")[1]);
-                                                        });
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                var relativeUrl = serverDownload.url().substring(VersionManifest.PISTON_DATA_URL.length());
+                                serverDeps.add("dev.lukebemish.crochet.mojang-stubs:"+ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES+":"+relativeUrl);
                             }
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
@@ -144,7 +123,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                         fullDeps.add(dep);
                                     }
                                 });
-                                depsOf(fullDeps, deps);
+                                MetadataUtils.depsOf(fullDeps, deps, false);
                             });
                             v.attributes(attributes -> {
                                 attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
@@ -154,8 +133,8 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                         });
                         details.addVariant("clientRuntimeDependencies", v -> {
                             v.withDependencies(deps -> {
-                                depsOf(clientDeps, deps);
-                                deps.add("dev.lukebemish.crochet:"+MINECRAFT_DEPENDENCIES_NATIVES, dep -> {
+                                MetadataUtils.depsOf(clientDeps, deps, false);
+                                deps.add("dev.lukebemish.crochet.mojang-stubs:"+MINECRAFT_DEPENDENCIES_NATIVES, dep -> {
                                     dep.version(version -> {
                                         version.strictly(versionString);
                                     });
@@ -170,7 +149,8 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                         });
                         details.addVariant("serverCompileDependencies", v -> {
                             v.withDependencies(deps -> {
-                                depsOf(serverDeps, deps);
+                                // Server deps are just the server-jar-manifest generated dependency
+                                MetadataUtils.depsOf(serverDeps, deps, true);
                             });
                             v.attributes(attributes -> {
                                 attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
@@ -180,7 +160,8 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                         });
                         details.addVariant("serverRuntimeDependencies", v -> {
                             v.withDependencies(deps -> {
-                                depsOf(serverDeps, deps);
+                                // Server deps are just the server-jar-manifest generated dependency
+                                MetadataUtils.depsOf(serverDeps, deps, true);
                             });
                             v.attributes(attributes -> {
                                 attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
@@ -192,7 +173,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                         clientNativeDeps.forEach((os, deps) -> {
                             details.addVariant(os + "NativeDependencies", v -> {
                                 v.withDependencies(dep -> {
-                                    depsOf(deps, dep);
+                                    MetadataUtils.depsOf(deps, dep, false);
                                 });
                                 v.attributes(attributes -> {
                                     attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.NATIVE_LINK));
@@ -211,19 +192,4 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
         }
     }
 
-    private void depsOf(List<String> fullDeps, DirectDependenciesMetadata deps) {
-        var unique = new LinkedHashSet<>(fullDeps);
-        for (var notation : unique) {
-            deps.add(notation, dep -> {
-                // TODO: make this non-transitive with proper gradle API
-                // (this requires actually contributing said API to gradle)
-                var existingVersion = dep.getVersionConstraint().getRequiredVersion();
-                dep.version(version -> {
-                    if (!existingVersion.isEmpty()) {
-                        version.strictly(existingVersion);
-                    }
-                });
-            });
-        }
-    }
 }
