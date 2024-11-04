@@ -1,5 +1,6 @@
 package dev.lukebemish.crochet.internal;
 
+import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaVersionLister;
 import dev.lukebemish.crochet.internal.pistonmeta.ServerDependenciesMetadataRule;
@@ -13,10 +14,14 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.invocation.Gradle;
+import org.gradle.api.provider.ProviderFactory;
 
+import javax.inject.Inject;
 import java.net.URI;
 
-public class CrochetRepositoriesPlugin implements Plugin<Object> {
+public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
+    public static final String MOJANG_STUBS_GROUP = "dev.lukebemish.crochet.mojang-stubs";
+
     @SuppressWarnings("UnstableApiUsage")
     @Override
     public void apply(Object target) {
@@ -33,16 +38,24 @@ public class CrochetRepositoriesPlugin implements Plugin<Object> {
         }
     }
 
+    @Inject
+    public CrochetRepositoriesPlugin() {}
+
+    @Inject
+    protected abstract ProviderFactory getProviders();
+
     private static void components(ComponentMetadataHandler components) {
         components.withModule("net.fabricmc:fabric-loader", FabricInstallerRule.class);
         components.withModule("org.quiltmc:quilt-loader", FabricInstallerRule.class);
 
-        components.withModule("dev.lukebemish.crochet.mojang-stubs:"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES, PistonMetaMetadataRule.class);
-        components.withModule("dev.lukebemish.crochet.mojang-stubs:"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES, PistonMetaMetadataRule.class);
-        components.withModule("dev.lukebemish.crochet.mojang-stubs:"+ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES, ServerDependenciesMetadataRule.class);
+        components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES, PistonMetaMetadataRule.class);
+        components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES, PistonMetaMetadataRule.class);
+        components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_MAPPINGS, PistonMetaMetadataRule.class);
+        components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT, PistonMetaMetadataRule.class);
+        components.withModule(MOJANG_STUBS_GROUP+":"+ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES, ServerDependenciesMetadataRule.class);
     }
 
-    private static void repositories(RepositoryHandler repositoryHandler) {
+    private void repositories(RepositoryHandler repositoryHandler) {
         var minecraftLibraries = repositoryHandler.maven(repo -> {
             repo.setName("Minecraft Libraries");
             repo.setUrl(URI.create("https://libraries.minecraft.net/"));
@@ -54,28 +67,32 @@ public class CrochetRepositoriesPlugin implements Plugin<Object> {
 
         repositoryHandler.ivy(repo -> {
             repo.setName("Piston Meta Minecraft Dependencies");
-            repo.setUrl(VersionManifest.PISTON_META_URL);
-            repo.patternLayout(layout ->
-                layout.artifact("mc/game/version_manifest_v2.json")
+            repo.setUrl(getProviders().gradleProperty(CrochetProperties.PISTON_META_URL).getOrElse(VersionManifest.PISTON_META_URL));
+            var dependencyStubUrl = getProviders().gradleProperty(CrochetProperties.DEPENDENCY_STUB_URL).getOrElse(
+                "https://repo1.maven.org/maven2/dev/lukebemish/crochet/metadata-stub/1.0.0/ivy-1.0.0.xml"
             );
+            repo.artifactPattern(dependencyStubUrl);
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             repo.setComponentVersionsLister(PistonMetaVersionLister.class);
             repo.content(content -> {
-                content.includeModule("dev.lukebemish.crochet.mojang-stubs", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES);
-                content.includeModule("dev.lukebemish.crochet.mojang-stubs", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES);
+                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES);
+                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES_NATIVES);
+                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT);
+                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_MAPPINGS);
             });
         });
 
         repositoryHandler.ivy(repo -> {
             repo.setName("Piston Data Minecraft Dependencies");
-            repo.setUrl(VersionManifest.PISTON_DATA_URL);
+            repo.setUrl(getProviders().gradleProperty(CrochetProperties.PISTON_DATA_URL).getOrElse(VersionManifest.PISTON_DATA_URL));
             repo.patternLayout(layout ->
                 layout.artifact("[revision]")
             );
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             repo.setComponentVersionsLister(PistonMetaVersionLister.class);
             repo.content(content -> {
-                content.includeModule("dev.lukebemish.crochet.mojang-stubs", ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES);
+                content.includeModule(MOJANG_STUBS_GROUP, ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES);
+                content.includeModule(MOJANG_STUBS_GROUP, PistonMetaMetadataRule.MINECRAFT_ARTIFACT);
             });
         });
 

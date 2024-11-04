@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
 import dev.lukebemish.crochet.tasks.VanillaInstallationArtifacts;
@@ -200,7 +201,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     public void setMinecraft(Provider<String> string) {
         getDependencies().getMinecraftDependencies().add(
             project.provider(() -> project.getDependencies().create(
-                (getUseStubBackedMinecraftDependencies().get() ? "dev.lukebemish.crochet.mojang-stubs:minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+string.get()
+                (getUseStubBackedMinecraftDependencies().get() ? CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP + ":minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+string.get()
             ))
         );
     }

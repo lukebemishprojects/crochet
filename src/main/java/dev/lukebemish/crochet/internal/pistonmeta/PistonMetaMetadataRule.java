@@ -2,11 +2,14 @@ package dev.lukebemish.crochet.internal.pistonmeta;
 
 import com.google.gson.stream.JsonReader;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
 import org.gradle.api.artifacts.MutableVariantFilesMetadata;
 import org.gradle.api.artifacts.repositories.RepositoryResourceAccessor;
+import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.model.ObjectFactory;
@@ -20,12 +23,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Set;
 
 @CacheableRule
 public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
     public static final String MINECRAFT_DEPENDENCIES = "minecraft-dependencies";
     public static final String MINECRAFT_DEPENDENCIES_NATIVES = "minecraft-dependencies-natives";
+    public static final String MINECRAFT_ARTIFACT = "minecraft-artifact";
+    public static final String MINECRAFT = "minecraft";
+    public static final String MINECRAFT_MAPPINGS = "minecraft-mappings";
+
+    private static final Set<String> NAMES = Set.of(MINECRAFT_DEPENDENCIES, MINECRAFT_DEPENDENCIES_NATIVES, MINECRAFT, MINECRAFT_MAPPINGS);
 
     @Inject
     public PistonMetaMetadataRule() {}
@@ -40,13 +48,15 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
     public void execute(ComponentMetadataContext context) {
         var details = context.getDetails();
         // We have natives as a separate module because the metadata rule API does not currently support capabilities fully
-        if ("dev.lukebemish.crochet.mojang-stubs".equals(details.getId().getGroup()) && (MINECRAFT_DEPENDENCIES.equals(details.getId().getName()) || MINECRAFT_DEPENDENCIES_NATIVES.equals(details.getId().getName()))) {
+        if (CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP.equals(details.getId().getGroup()) && NAMES.contains(details.getId().getName())) {
             var versionString = details.getId().getVersion();
             boolean isNatives = MINECRAFT_DEPENDENCIES_NATIVES.equals(details.getId().getName());
+            boolean isDependencies = MINECRAFT_DEPENDENCIES.equals(details.getId().getName()) || isNatives;
             details.setStatusScheme(List.of("old_alpha", "old_beta", "snapshot", "release"));
             details.allVariants(v -> {
                 v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
             });
+            details.setChanging(false);
             getRepositoryResourceAccessor().withResource(VersionManifest.VERSION_MANIFEST, versionManifestStream -> {
                 try (var reader = new JsonReader(new InputStreamReader(versionManifestStream))) {
                     VersionManifest manifest = VersionManifest.GSON.fromJson(reader, VersionManifest.class);
@@ -62,14 +72,18 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                         throw new IllegalStateException("Version URL not from piston-meta " + versionEntry.url() + " for " + versionString);
                     }
                     var relativeVersionUrl = versionEntry.url().substring(VersionManifest.PISTON_META_URL.length());
-                    List<String> clientDeps = new ArrayList<>();
-                    List<String> serverDeps = new ArrayList<>();
-                    Map<String, List<String>> clientNativeDeps = new HashMap<>();
-                    AtomicInteger javaVersion = new AtomicInteger();
                     getRepositoryResourceAccessor().withResource(relativeVersionUrl, versionStream -> {
+                        Version version;
                         try (var versionReader = new JsonReader(new InputStreamReader(versionStream))) {
-                            Version version = VersionManifest.GSON.fromJson(versionReader, Version.class);
-                            javaVersion.set(version.javaVersion().majorVersion());
+                            version = VersionManifest.GSON.fromJson(versionReader, Version.class);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        var javaVersion = version.javaVersion().majorVersion();
+                        if (isDependencies) {
+                            List<String> clientDeps = new ArrayList<>();
+                            List<String> serverDeps = new ArrayList<>();
+                            Map<String, List<String>> clientNativeDeps = new HashMap<>();
                             for (var library : version.libraries()) {
                                 List<String> allow = library.rules() == null ? List.of() : library.rules().stream()
                                     .filter(r -> r.action() == Version.Rule.Action.ALLOW)
@@ -108,83 +122,189 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                             if (!isNatives) {
                                 var serverDownload = version.downloads().get("server");
                                 var relativeUrl = serverDownload.url().substring(VersionManifest.PISTON_DATA_URL.length());
-                                serverDeps.add("dev.lukebemish.crochet.mojang-stubs:"+ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES+":"+relativeUrl);
+                                serverDeps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES + ":" + relativeUrl);
                             }
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
+
+                            if (!isNatives) {
+                                details.addVariant("clientCompileDependencies", v -> {
+                                    v.withDependencies(deps -> {
+                                        List<String> fullDeps = new ArrayList<>(clientDeps);
+                                        clientNativeDeps.getOrDefault("osx", List.of()).forEach(dep -> {
+                                            if (dep.startsWith("ca.weblite:java-objc-bridge")) {
+                                                fullDeps.add(dep);
+                                            }
+                                        });
+                                        MetadataUtils.depsOf(fullDeps, deps, false);
+                                    });
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
+                                        attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                                    });
+                                });
+                                details.addVariant("clientRuntimeDependencies", v -> {
+                                    v.withDependencies(deps -> {
+                                        MetadataUtils.depsOf(clientDeps, deps, false);
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_DEPENDENCIES_NATIVES, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(versionString);
+                                            });
+                                            dep.endorseStrictVersions();
+                                        });
+                                    });
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                                        attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                                    });
+                                });
+                                details.addVariant("serverCompileDependencies", v -> {
+                                    v.withDependencies(deps -> {
+                                        // Server deps are just the server-jar-manifest generated dependency
+                                        MetadataUtils.depsOf(serverDeps, deps, true);
+                                    });
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
+                                        attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                                    });
+                                });
+                                details.addVariant("serverRuntimeDependencies", v -> {
+                                    v.withDependencies(deps -> {
+                                        // Server deps are just the server-jar-manifest generated dependency
+                                        MetadataUtils.depsOf(serverDeps, deps, true);
+                                    });
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                                        attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                                    });
+                                });
+                            } else {
+                                clientNativeDeps.forEach((os, deps) -> {
+                                    details.addVariant(os + "NativeDependencies", v -> {
+                                        v.withDependencies(dep -> {
+                                            MetadataUtils.depsOf(deps, dep, false);
+                                        });
+                                        v.attributes(attributes -> {
+                                            attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.NATIVE_LINK));
+                                            attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
+                                            attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                                            attributes.attribute(CrochetPlugin.OPERATING_SYSTEM_ATTRIBUTE, os);
+                                        });
+                                    });
+                                });
+                            }
+                        } else if (MINECRAFT_MAPPINGS.equals(details.getId().getName())) {
+                            var clientMappings = version.downloads().get("client_mappings");
+                            var serverMappings = version.downloads().get("server_mappings");
+                            if (clientMappings == null && serverMappings == null) {
+                                throw new IllegalStateException("No mappings found for " + versionString);
+                            }
+                            if (clientMappings != null) {
+                                details.addVariant("clientMappings", v -> {
+                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                                    });
+                                    if (!clientMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
+                                        throw new IllegalStateException("Mappings URL not from piston-data " + clientMappings.url() + " for " + versionString);
+                                    }
+                                    var relativePath = clientMappings.url().substring(VersionManifest.PISTON_DATA_URL.length());
+                                    v.withDependencies(deps -> {
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(relativePath);
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+                            if (serverMappings != null) {
+                                details.addVariant("serverMappings", v -> {
+                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                                    });
+                                    if (!serverMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
+                                        throw new IllegalStateException("Mappings URL not from piston-data " + serverMappings.url() + " for " + versionString);
+                                    }
+                                    var relativePath = serverMappings.url().substring(VersionManifest.PISTON_DATA_URL.length());
+                                    v.withDependencies(deps -> {
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(relativePath);
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+                        } else if (MINECRAFT.equals(details.getId().getName())) {
+                            var clientArtifact = version.downloads().get("client");
+                            var serverArtifact = version.downloads().get("server");
+                            if (clientArtifact == null && serverArtifact == null) {
+                                throw new IllegalStateException("No artifact found for " + versionString);
+                            }
+                            if (clientArtifact != null) {
+                                details.addVariant("clientArtifact", v -> {
+                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                                        attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements.class, LibraryElements.JAR));
+                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, Category.LIBRARY));
+                                        attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                                    });
+                                    if (!clientArtifact.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
+                                        throw new IllegalStateException("Artifact URL not from piston-data " + clientArtifact.url() + " for " + versionString);
+                                    }
+                                    var relativePath = clientArtifact.url().substring(VersionManifest.PISTON_DATA_URL.length());
+                                    v.withDependencies(deps -> {
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(relativePath);
+                                            });
+                                        });
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_DEPENDENCIES, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(versionString);
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+                            if (serverArtifact != null) {
+                                details.addVariant("serverArtifact", v -> {
+                                    v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
+                                    v.attributes(attributes -> {
+                                        attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                                        attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements.class, LibraryElements.JAR));
+                                        attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, Category.LIBRARY));
+                                        attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
+                                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                                    });
+                                    if (!serverArtifact.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
+                                        throw new IllegalStateException("Artifact URL not from piston-data " + serverArtifact.url() + " for " + versionString);
+                                    }
+                                    var relativePath = serverArtifact.url().substring(VersionManifest.PISTON_DATA_URL.length());
+                                    v.withDependencies(deps -> {
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_ARTIFACT, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(relativePath);
+                                            });
+                                        });
+                                        deps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + MINECRAFT_DEPENDENCIES, dep -> {
+                                            dep.version(depVersion -> {
+                                                depVersion.strictly(versionString);
+                                            });
+                                        });
+                                    });
+                                });
+                            }
                         }
                     });
-                    if (!isNatives) {
-                        details.addVariant("clientCompileDependencies", v -> {
-                            v.withDependencies(deps -> {
-                                List<String> fullDeps = new ArrayList<>(clientDeps);
-                                clientNativeDeps.getOrDefault("osx", List.of()).forEach(dep -> {
-                                    if (dep.startsWith("ca.weblite:java-objc-bridge")) {
-                                        fullDeps.add(dep);
-                                    }
-                                });
-                                MetadataUtils.depsOf(fullDeps, deps, false);
-                            });
-                            v.attributes(attributes -> {
-                                attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
-                                attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion.intValue());
-                                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
-                            });
-                        });
-                        details.addVariant("clientRuntimeDependencies", v -> {
-                            v.withDependencies(deps -> {
-                                MetadataUtils.depsOf(clientDeps, deps, false);
-                                deps.add("dev.lukebemish.crochet.mojang-stubs:"+MINECRAFT_DEPENDENCIES_NATIVES, dep -> {
-                                    dep.version(version -> {
-                                        version.strictly(versionString);
-                                    });
-                                    dep.endorseStrictVersions();
-                                });
-                            });
-                            v.attributes(attributes -> {
-                                attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
-                                attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion.intValue());
-                                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
-                            });
-                        });
-                        details.addVariant("serverCompileDependencies", v -> {
-                            v.withDependencies(deps -> {
-                                // Server deps are just the server-jar-manifest generated dependency
-                                MetadataUtils.depsOf(serverDeps, deps, true);
-                            });
-                            v.attributes(attributes -> {
-                                attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
-                                attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion.intValue());
-                                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
-                            });
-                        });
-                        details.addVariant("serverRuntimeDependencies", v -> {
-                            v.withDependencies(deps -> {
-                                // Server deps are just the server-jar-manifest generated dependency
-                                MetadataUtils.depsOf(serverDeps, deps, true);
-                            });
-                            v.attributes(attributes -> {
-                                attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
-                                attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion.intValue());
-                                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
-                            });
-                        });
-                    } else {
-                        clientNativeDeps.forEach((os, deps) -> {
-                            details.addVariant(os + "NativeDependencies", v -> {
-                                v.withDependencies(dep -> {
-                                    MetadataUtils.depsOf(deps, dep, false);
-                                });
-                                v.attributes(attributes -> {
-                                    attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.NATIVE_LINK));
-                                    attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion.intValue());
-                                    attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
-                                    attributes.attribute(CrochetPlugin.OPERATING_SYSTEM_ATTRIBUTE, os);
-                                });
-                            });
-                        });
-                    }
-                    details.setChanging(false);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

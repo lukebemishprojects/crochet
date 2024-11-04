@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.internal.pistonmeta;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
 import org.gradle.api.artifacts.MutableVariantFilesMetadata;
@@ -28,7 +29,7 @@ public abstract class ServerDependenciesMetadataRule implements ComponentMetadat
     public void execute(ComponentMetadataContext context) {
         var details = context.getDetails();
         // We have natives as a separate module because the metadata rule API does not currently support capabilities fully
-        if ("dev.lukebemish.crochet.mojang-stubs".equals(details.getId().getGroup()) && MINECRAFT_SERVER_DEPENDENCIES.equals(details.getId().getName())) {
+        if (CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP.equals(details.getId().getGroup()) && MINECRAFT_SERVER_DEPENDENCIES.equals(details.getId().getName())) {
             var versionString = details.getId().getVersion();
             details.allVariants(v -> {
                 v.withFiles(MutableVariantFilesMetadata::removeAllFiles);
