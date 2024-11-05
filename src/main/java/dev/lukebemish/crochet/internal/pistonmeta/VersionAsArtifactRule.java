@@ -1,11 +1,13 @@
 package dev.lukebemish.crochet.internal.pistonmeta;
 
+import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 
 import javax.inject.Inject;
 
+@CacheableRule
 public abstract class VersionAsArtifactRule implements ComponentMetadataRule {
     @Inject
     public VersionAsArtifactRule() {}

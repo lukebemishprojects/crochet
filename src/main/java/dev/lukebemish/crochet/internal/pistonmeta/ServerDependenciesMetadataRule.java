@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.internal.pistonmeta;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
+import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
 import org.gradle.api.artifacts.MutableVariantFilesMetadata;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+@CacheableRule
 public abstract class ServerDependenciesMetadataRule implements ComponentMetadataRule {
     public static final String MINECRAFT_SERVER_DEPENDENCIES = "minecraft-server-dependencies";
 
