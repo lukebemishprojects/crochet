@@ -258,7 +258,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var modClasspath = project.getConfigurations().register("crochet"+StringUtils.capitalize(run.getName())+"RunModClasspath", config -> {
             config.attributes(attributes -> {
-                copyAttributes(runClasspath.getAttributes(), attributes);
+                copyAttributes(runClasspath.getAttributes(), attributes, project.getProviders());
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             });
@@ -272,7 +272,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var excludedClasspath = project.getConfigurations().register("crochet"+StringUtils.capitalize(run.getName())+"RunExcludedClasspath", config -> {
             config.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
-                copyAttributes(runClasspath.getAttributes(), attributes);
+                copyAttributes(runClasspath.getAttributes(), attributes, project.getProviders());
             });
             config.setCanBeConsumed(false);
         }).get();
@@ -280,7 +280,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var versioningClasspath = project.getConfigurations().register("crochet"+StringUtils.capitalize(run.getName())+"RunVersioningClasspath", config -> {
             config.attributes(attributes -> {
-                copyAttributes(runClasspath.getAttributes(), attributes);
+                copyAttributes(runClasspath.getAttributes(), attributes, project.getProviders());
             });
             config.setCanBeConsumed(false);
         }).get();
@@ -299,7 +299,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var remappingClasspath = project.getConfigurations().register("crochet"+StringUtils.capitalize(run.getName())+"RunRemappingClasspath", config -> {
             config.attributes(attributes -> {
-                copyAttributes(runClasspath.getAttributes(), attributes);
+                copyAttributes(runClasspath.getAttributes(), attributes, project.getProviders());
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             });
@@ -384,7 +384,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var modCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetMod", "compileClasspath"), config -> {
             config.attributes(attributes -> {
-                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes, project.getProviders());
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             });
@@ -393,7 +393,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         }).get();
         var modRuntimeClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetMod", "runtimeClasspath"), config -> {
             config.attributes(attributes -> {
-                copyAttributes(project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).getAttributes(), attributes);
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName()).getAttributes(), attributes, project.getProviders());
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
             });
@@ -404,14 +404,14 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var versioningCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetVersioning", "compileClasspath"), config -> {
             config.attributes(attributes -> {
                 // Does not have the remap type attribute at this point
-                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes, project.getProviders());
             });
             config.setCanBeConsumed(false);
         }).get();
 
         var excludedCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetExcluded", "compileClasspath"), config -> {
             config.attributes(attributes -> {
-                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes, project.getProviders());
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
             });
             config.setCanBeConsumed(false);
@@ -463,7 +463,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             modRuntimeElements.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-                copyAttributes(runtimeElements.getAttributes(), attributes);
+                copyAttributes(runtimeElements.getAttributes(), attributes, project.getProviders());
             });
             modRuntimeElements.setCanBeConsumed(true);
             modRuntimeElements.setCanBeResolved(false);
@@ -471,7 +471,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             nonModRuntimeElements.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-                copyAttributes(runtimeElements.getAttributes(), attributes);
+                copyAttributes(runtimeElements.getAttributes(), attributes, project.getProviders());
             });
             nonModRuntimeElements.setCanBeConsumed(true);
             nonModRuntimeElements.setCanBeResolved(false);
@@ -479,7 +479,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             modApiElements.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-                copyAttributes(apiElements.getAttributes(), attributes);
+                copyAttributes(apiElements.getAttributes(), attributes, project.getProviders());
             });
             modApiElements.setCanBeConsumed(true);
             modApiElements.setCanBeResolved(false);
@@ -487,7 +487,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             nonModApiElements.attributes(attributes -> {
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-                copyAttributes(apiElements.getAttributes(), attributes);
+                copyAttributes(apiElements.getAttributes(), attributes, project.getProviders());
             });
             nonModApiElements.setCanBeConsumed(true);
             nonModApiElements.setCanBeResolved(false);
@@ -632,7 +632,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
                             // An empty configuration, so that the RemapModsSourcesConfigMaker will skip the actual sources jar
                             remappedSourcesElements.attributes(attributes -> {
-                                copyAttributes(sourcesElements.getAttributes(), attributes);
+                                copyAttributes(sourcesElements.getAttributes(), attributes, project.getProviders());
                                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                             });
                             remappedSourcesElements.setCanBeResolved(false);
@@ -668,14 +668,14 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             }
             apiElements.getOutgoing().getVariants().forEach(variant -> {
                 var newVariant = nonModApiElements.getOutgoing().getVariants().create(variant.getName());
-                copyAttributes(variant.getAttributes(), newVariant.getAttributes());
+                copyAttributes(variant.getAttributes(), newVariant.getAttributes(), project.getProviders());
                 newVariant.getArtifacts().addAllLater(project.provider(variant::getArtifacts));
                 newVariant.getAttributes().attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
             });
             apiElements.getOutgoing().getVariants().clear();
             runtimeElements.getOutgoing().getVariants().forEach(variant -> {
                 var newVariant = nonModRuntimeElements.getOutgoing().getVariants().create(variant.getName());
-                copyAttributes(variant.getAttributes(), newVariant.getAttributes());
+                copyAttributes(variant.getAttributes(), newVariant.getAttributes(), project.getProviders());
                 newVariant.getArtifacts().addAllLater(project.provider(variant::getArtifacts));
                 newVariant.getAttributes().attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_NON_REMAP);
             });
@@ -759,7 +759,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         var compileRemappingClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetRemapping", "compileClasspath"), config -> {
             config.attributes(attributes -> {
-                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes);
+                copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes, project.getProviders());
                 attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);

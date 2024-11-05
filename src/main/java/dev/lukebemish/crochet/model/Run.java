@@ -105,7 +105,7 @@ public abstract class Run implements Named, Dependencies {
                 dummySourceSet.configure(sourceSet -> {
                     var runtimeClasspath = getProject().getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName());
                     runtimeClasspath.extendsFrom(classpath);
-                    ConfigurationUtils.copyAttributes(classpath.getAttributes(), runtimeClasspath.getAttributes());
+                    ConfigurationUtils.copyAttributes(classpath.getAttributes(), runtimeClasspath.getAttributes(), p.getProviders());
                     runtimeClasspath.shouldResolveConsistentlyWith(classpath);
 
                     sourceSet.setRuntimeClasspath(getProject().files(runtimeClasspath));

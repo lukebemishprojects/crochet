@@ -226,8 +226,8 @@ public abstract class MinecraftInstallation implements Named {
         var resources = context.getRuntimeElements().getOutgoing().getVariants().findByName("resources");
         if (classes != null && resources != null) {
             context.getRuntimeElements().getOutgoing().getVariants().register("classesAndResources", variant -> {
-                ConfigurationUtils.copyAttributes(classes.getAttributes(), variant.getAttributes());
-                ConfigurationUtils.copyAttributes(resources.getAttributes(), variant.getAttributes());
+                ConfigurationUtils.copyAttributes(classes.getAttributes(), variant.getAttributes(), crochetExtension.project.getProviders());
+                ConfigurationUtils.copyAttributes(resources.getAttributes(), variant.getAttributes(), crochetExtension.project.getProviders());
                 variant.getAttributes().attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, crochetExtension.project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES_AND_RESOURCES));
                 for (var artifact : classes.getArtifacts()) {
                     variant.getArtifacts().add(artifact);
