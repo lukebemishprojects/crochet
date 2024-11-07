@@ -8,6 +8,7 @@ import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;
 import dev.lukebemish.taskgraphrunner.model.InputValue;
+import dev.lukebemish.taskgraphrunner.model.ListOrdering;
 import dev.lukebemish.taskgraphrunner.model.MappingsFormat;
 import dev.lukebemish.taskgraphrunner.model.MappingsSource;
 import dev.lukebemish.taskgraphrunner.model.Output;
@@ -124,7 +125,8 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                 new Value.ListValue(
                     getAccessWideners().getFiles().stream()
                         .<Value>map(f -> Value.file(f.toPath()))
-                        .toList()
+                        .toList(),
+                    ListOrdering.CONTENTS
                 )
             );
             transformAccessWideners.args.add(new Argument.Zip("--input={}", List.of(new Input.ParameterInput("accessWideners")), PathSensitivity.NONE));
@@ -161,7 +163,8 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                 new Value.ListValue(
                     getInterfaceInjection().getFiles().stream()
                         .<Value>map(f -> Value.file(f.toPath()))
-                        .toList()
+                        .toList(),
+                    ListOrdering.CONTENTS
                 )
             );
 

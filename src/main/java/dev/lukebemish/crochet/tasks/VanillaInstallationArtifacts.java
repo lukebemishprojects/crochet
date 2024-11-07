@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.tasks;
 import dev.lukebemish.crochet.mappings.MappingsStructure;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Distribution;
+import dev.lukebemish.taskgraphrunner.model.ListOrdering;
 import dev.lukebemish.taskgraphrunner.model.MappingsFormat;
 import dev.lukebemish.taskgraphrunner.model.Output;
 import dev.lukebemish.taskgraphrunner.model.TaskModel;
@@ -68,7 +69,8 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                 new Value.ListValue(
                     getAccessTransformers().getFiles().stream()
                         .<Value>map(f -> Value.file(f.toPath()))
-                        .toList()
+                        .toList(),
+                    ListOrdering.CONTENTS
                 )
             );
         } else if (hasAccessTransformers) {
@@ -79,7 +81,8 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                 new Value.ListValue(
                     getInjectedInterfaces().getFiles().stream()
                         .<Value>map(f -> Value.file(f.toPath()))
-                        .toList()
+                        .toList(),
+                    ListOrdering.CONTENTS
                 )
             );
         } else if (hasInjectedInterfaces) {

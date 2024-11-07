@@ -4,6 +4,7 @@ import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;
+import dev.lukebemish.taskgraphrunner.model.ListOrdering;
 import dev.lukebemish.taskgraphrunner.model.TaskModel;
 import dev.lukebemish.taskgraphrunner.model.Value;
 import org.apache.commons.io.FileUtils;
@@ -34,8 +35,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigMaker {
@@ -81,12 +85,11 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         }
 
         List<String> outputNames = new ArrayList<>();
-        Map<String, ArtifactTarget> outputMap = new HashMap<>();
+        SortedMap<String, ArtifactTarget> outputMap = new TreeMap<>();
         for (var target : getTargets().get()) {
             outputNames.add(target.getSanitizedName().get());
             outputMap.put(target.getSanitizedName().get(), target);
         }
-
         outputNames.sort(Comparator.naturalOrder());
 
         var remapTask = new TaskModel.DaemonExecutedTool("remapMods", List.of(
@@ -120,7 +123,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         config.tasks.add(remapTask);
 
         config.parameters.put("mappings", Value.file(getMappings().get().getAsFile().toPath()));
-        config.parameters.put("remappingClasspath", new Value.ListValue(getRemappingClasspath().getFiles().stream().<Value>map(f -> Value.file(f.toPath())).toList()));
+        config.parameters.put("remappingClasspath", new Value.ListValue(getRemappingClasspath().getFiles().stream().<Value>map(f -> Value.file(f.toPath())).toList(), ListOrdering.CONTENTS));
 
         for (var entry : outputMap.entrySet()) {
             config.parameters.put(entry.getKey(), Value.file(entry.getValue().getSource().get().getAsFile().toPath()));

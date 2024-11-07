@@ -15,9 +15,14 @@ public abstract class VersionAsArtifactRule implements ComponentMetadataRule {
     @Override
     public void execute(ComponentMetadataContext context) {
         var version = context.getDetails().getId().getVersion();
+        var module = context.getDetails().getId().getName();
+        var group = context.getDetails().getId().getGroup();
         var extension = version.substring(version.lastIndexOf('.') + 1);
         context.getDetails().setChanging(false);
         context.getDetails().allVariants(variant -> {
+            variant.withCapabilities(capabilities -> {
+                capabilities.addCapability(group+"."+module, version, version);
+            });
             variant.attributes(attributeContainer -> {
                 attributeContainer.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, extension);
             });
