@@ -9,11 +9,11 @@ import org.gradle.api.artifacts.dsl.DependencyCollector;
 import javax.inject.Inject;
 
 @SuppressWarnings("UnstableApiUsage")
-public abstract class InstallationDependencies implements Dependencies {
+public abstract class AbstractInstallationDependencies implements Dependencies {
     private final MinecraftInstallation installation;
 
     @Inject
-    public InstallationDependencies(MinecraftInstallation installation) {
+    public AbstractInstallationDependencies(MinecraftInstallation installation) {
         this.installation = installation;
     }
 
@@ -45,5 +45,10 @@ public abstract class InstallationDependencies implements Dependencies {
 
     public Dependency publishAccessTransformers(Object path) {
         return publishAccessTransformers(path, artifact -> {});
+    }
+
+    public AbstractInstallationDependencies configure(Action<? super AbstractInstallationDependencies> action) {
+        action.execute(this);
+        return this;
     }
 }

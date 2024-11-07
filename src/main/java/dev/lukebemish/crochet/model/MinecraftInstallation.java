@@ -3,7 +3,9 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
+import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.tasks.TaskGraphExecution;
+import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Named;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -11,6 +13,7 @@ import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.LibraryElements;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -57,6 +60,22 @@ public abstract class MinecraftInstallation implements Named {
     final TaskProvider<TaskGraphExecution> downloadAssetsTask;
 
     final Provider<RegularFile> assetsProperties;
+
+    final Provider<Directory> workingDirectory;
+
+    final Provider<RegularFile> sources;
+    final Provider<RegularFile> resources;
+    final Provider<RegularFile> binary;
+    final Provider<RegularFile> binaryLineMapped;
+
+    final TaskProvider<TaskGraphExecution> binaryArtifactsTask;
+    final TaskProvider<TaskGraphExecution> sourcesArtifactsTask;
+    final TaskProvider<TaskGraphExecution> lineMappedBinaryArtifactsTask;
+
+    final Configuration minecraft;
+    final Configuration minecraftResources;
+    final Configuration minecraftLineMapped;
+    final Configuration minecraftDependencies;
 
     @SuppressWarnings("UnstableApiUsage")
     @Inject
@@ -140,6 +159,86 @@ public abstract class MinecraftInstallation implements Named {
 
         this.distribution = project.getObjects().property(InstallationDistribution.class);
         this.distribution.convention(InstallationDistribution.JOINED);
+
+        var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
+        this.workingDirectory = workingDirectory;
+
+        this.resources = workingDirectory.map(it -> it.file(name+"-extra-resources.jar"));
+        this.binary = workingDirectory.map(it -> it.file(name+"-compiled.jar"));
+        this.sources = workingDirectory.map(it -> it.file(name+"-sources.jar"));
+        this.binaryLineMapped = workingDirectory.map(it -> it.file(name+"-compiled-line-mapped.jar"));
+
+        if (IdeaModelHandlerPlugin.isIdeaSyncRelated(project)) {
+            var model = IdeaModelHandlerPlugin.retrieve(project);
+            model.mapBinaryToSourceWithLineMaps(binary, sources, binaryLineMapped);
+        }
+
+        this.binaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftBinaryArtifacts", TaskGraphExecution.class, task -> {
+            task.setGroup("crochet setup");
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("resources", resources, project.getObjects()));
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("binarySourceIndependent", binary, project.getObjects()));
+            task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
+        });
+
+        this.sourcesArtifactsTask = project.getTasks().register(name + "CrochetMinecraftSourcesArtifacts", TaskGraphExecution.class, task -> {
+            task.copyConfigFrom(binaryArtifactsTask.get());
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("sources", sources, project.getObjects()));
+        });
+
+        this.lineMappedBinaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftLineMappedBinaryArtifacts", TaskGraphExecution.class, task -> {
+            task.copyConfigFrom(binaryArtifactsTask.get());
+            task.getTargets().add(TaskGraphExecution.GraphOutput.of("binary", binaryLineMapped, project.getObjects()));
+        });
+
+        extension.generateSources.configure(t -> {
+            t.dependsOn(this.sourcesArtifactsTask);
+            t.dependsOn(this.lineMappedBinaryArtifactsTask);
+        });
+
+        this.downloadAssetsTask.configure(task -> {
+            task.copyConfigFrom(binaryArtifactsTask.get());
+        });
+
+        this.minecraftDependencies = project.getConfigurations().create("crochet"+ StringUtils.capitalize(name)+"MinecraftDependencies");
+
+        this.minecraftResources = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftResources");
+        this.minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config -> {
+            config.setCanBeConsumed(false);
+            config.extendsFrom(minecraftDependencies);
+            config.extendsFrom(minecraftResources);
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+        });
+
+        this.minecraftLineMapped = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftLineMapped", config -> {
+            config.setCanBeConsumed(false);
+            config.extendsFrom(minecraftDependencies);
+            config.extendsFrom(minecraftResources);
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+        });
+
+        var binaryFiles = project.files(binary);
+        binaryFiles.builtBy(binaryArtifactsTask);
+        project.getDependencies().add(
+            minecraft.getName(),
+            binaryFiles
+        );
+
+        var lineMappedBinaryFiles = project.files(binaryLineMapped);
+        lineMappedBinaryFiles.builtBy(lineMappedBinaryArtifactsTask);
+        project.getDependencies().add(
+            minecraftLineMapped.getName(),
+            lineMappedBinaryFiles
+        );
+
+        var resourcesFiles = project.files(resources);
+        resourcesFiles.builtBy(binaryArtifactsTask);
+
+        project.getDependencies().add(
+            minecraftResources.getName(),
+            resourcesFiles
+        );
+
+        extension.idePostSync.configure(t -> t.dependsOn(binaryArtifactsTask));
     }
 
     public Property<InstallationDistribution> getDistribution() {
@@ -239,14 +338,14 @@ public abstract class MinecraftInstallation implements Named {
         }
     }
 
-    protected final InstallationDependencies dependencies;
+    protected final AbstractInstallationDependencies dependencies;
 
-    protected InstallationDependencies makeDependencies(Project project) {
-        return project.getObjects().newInstance(InstallationDependencies.class, this);
+    protected AbstractInstallationDependencies makeDependencies(Project project) {
+        return project.getObjects().newInstance(AbstractInstallationDependencies.class, this);
     }
 
     @Nested
-    public InstallationDependencies getDependencies() {
+    public AbstractInstallationDependencies getDependencies() {
         return this.dependencies;
     }
 

@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import org.gradle.api.Action;
+import org.gradle.api.Project;
 
 import javax.inject.Inject;
 
@@ -9,6 +10,16 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
     @Inject
     public VanillaInstallation(String name, CrochetExtension extension) {
         super(name, extension);
+    }
+
+    @Override
+    protected AbstractInstallationDependencies makeDependencies(Project project) {
+        return project.getObjects().newInstance(VanillaInstallationDependencies.class, this);
+    }
+
+    @Override
+    public VanillaInstallationDependencies getDependencies() {
+        return (VanillaInstallationDependencies) super.getDependencies();
     }
 
     public void dependencies(Action<AbstractVanillaInstallationDependencies> action) {

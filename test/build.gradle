@@ -54,6 +54,12 @@ crochet {
         minecraft = '1.21.1'
     }
 
+    neoForm('neoForm') {
+        dependencies {
+            neoForm 'net.neoforged:neoform:1.21.3-20241023.131943'
+        }
+    }
+
     runs {
         vanillaClient {
             client installations.vanilla
@@ -64,6 +70,9 @@ crochet {
         }
         fabricYarnClient {
             client installations.fabricYarn
+        }
+        neoFormClient {
+            client installations.neoForm
         }
     }
 }

@@ -41,6 +41,10 @@ public abstract class CrochetExtension {
             FabricInstallation.class,
             name -> objects.newInstance(FabricInstallation.class, name, this)
         );
+        this.installations.registerFactory(
+            NeoFormInstallation.class,
+            name -> objects.newInstance(NeoFormInstallation.class, name, this)
+        );
         // This collection should be non-lazy as it configures other lazy things (namely, tasks)
         this.installations.whenObjectAdded(o -> {});
 
@@ -67,6 +71,10 @@ public abstract class CrochetExtension {
 
     public NamedDomainObjectProvider<FabricInstallation> fabric(String name, Action<FabricInstallation> action) {
         return installations.register(name, FabricInstallation.class, action);
+    }
+
+    public NamedDomainObjectProvider<NeoFormInstallation> neoForm(String name, Action<NeoFormInstallation> action) {
+        return installations.register(name, NeoFormInstallation.class, action);
     }
 
     public NamedDomainObjectProvider<VanillaInstallation> vanilla(String name, Action<VanillaInstallation> action) {
