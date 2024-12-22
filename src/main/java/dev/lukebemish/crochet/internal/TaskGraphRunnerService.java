@@ -19,7 +19,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRunnerService.Params>, AutoCloseable {
-    public static final String STACKTRACE_PROPERTY = "dev.lukebemish.taskgraphrunner.hidestacktrace";
     public static final String LOG_LEVEL_PROPERTY = "org.slf4j.simpleLogger.defaultLogLevel";
 
     @Override
@@ -91,26 +90,30 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
     public DaemonExecutor start(JavaLauncher javaLauncher, String jarPath) {
         synchronized (this) {
             if (daemon == null) {
-                daemon = new DaemonExecutor(processBuilder -> {
+                daemon = new DaemonExecutor(processConfiguration -> {
+                    processConfiguration.javaExecutable(javaLauncher.getExecutablePath().toString());
+
                     List<String> args = new ArrayList<>();
-                    args.add(javaLauncher.getExecutablePath().toString());
                     Map<String, String> properties = new HashMap<>(PropertiesUtils.networkProperties(getProviders()).get());
                     properties.put("stdout.encoding", "UTF-8");
                     properties.put("stderr.encoding", "UTF-8");
                     if (getParameters().getLogLevel().isPresent()) {
                         properties.put(LOG_LEVEL_PROPERTY, getParameters().getLogLevel().get());
                     }
-                    if (getParameters().getHideStacktrace().isPresent()) {
-                        properties.put(STACKTRACE_PROPERTY, getParameters().getHideStacktrace().get().toString());
-                    }
                     properties.putAll(getProviders().gradlePropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
                     properties.putAll(getProviders().systemPropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
                     for (Map.Entry<String, String> entry : properties.entrySet()) {
                         args.add("-D"+entry.getKey()+"="+entry.getValue());
                     }
-                    args.add("-jar");
+                    args.add("-cp");
                     args.add(jarPath);
-                    processBuilder.command(args);
+                    for (var arg : args) {
+                        processConfiguration.addJvmOption(arg);
+                    }
+
+                    if (getParameters().getHideStacktrace().isPresent()) {
+                        processConfiguration.hideStacktrace(true);
+                    }
                 });
             }
             return daemon;
