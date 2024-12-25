@@ -14,7 +14,6 @@ import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.initialization.Settings;
-import org.gradle.api.invocation.Gradle;
 import org.gradle.api.provider.ProviderFactory;
 
 import javax.inject.Inject;
@@ -33,8 +32,10 @@ public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
         } else if (target instanceof Settings settings) {
             repositories(settings.getDependencyResolutionManagement().getRepositories());
             components(settings.getDependencyResolutionManagement().getComponents());
-            settings.getGradle().getPlugins().apply(CrochetRepositoriesPlugin.class);
-        } else if (!(target instanceof Gradle)) {
+            settings.getGradle().getLifecycle().beforeProject(project -> {
+                project.getPluginManager().apply(CrochetRepositoriesMarker.class);
+            });
+        } else {
             throw new GradleException("This plugin does not support being applied to " + target);
         }
     }

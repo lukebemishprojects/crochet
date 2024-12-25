@@ -36,8 +36,8 @@ public class CrochetPlugin implements Plugin<Project> {
     @Override
     public void apply(@NotNull Project project) {
         if (project.getProviders().gradleProperty(CrochetProperties.ADD_LIKELY_REPOSITORIES).map(Boolean::parseBoolean).orElse(true).get()) {
-            if (!project.getGradle().getPlugins().hasPlugin(CrochetRepositoriesPlugin.class)) {
-                project.getPlugins().apply(CrochetRepositoriesPlugin.class);
+            if (!project.getPlugins().hasPlugin(CrochetRepositoriesMarker.class)) {
+                project.getPluginManager().apply(CrochetRepositoriesPlugin.class);
             } else {
                 project.getLogger().debug("Skipping application of crochet repositories as it was applied at the settings level; you may still apply the plugin manually");
             }
