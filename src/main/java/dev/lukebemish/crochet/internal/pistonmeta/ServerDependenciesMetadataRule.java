@@ -57,7 +57,7 @@ public abstract class ServerDependenciesMetadataRule implements ComponentMetadat
                         MetadataUtils.depsOf(serverDeps, deps, false);
                     });
                     v.attributes(attributes -> {
-                        attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                        attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
                     });
                 });
             });

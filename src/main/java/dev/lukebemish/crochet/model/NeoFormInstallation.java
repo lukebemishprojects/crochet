@@ -47,7 +47,7 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
@@ -58,21 +58,21 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
         var clientMappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientMappingsPistonMetaDownloads", c -> {
             c.extendsFrom(minecraftPistonMeta.get());
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
             });
         });
         var serverMappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ServerMappingsPistonMetaDownloads", c -> {
             c.extendsFrom(minecraftPistonMeta.get());
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
             });
         });
@@ -98,7 +98,7 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
@@ -106,20 +106,20 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
 
         this.neoFormConfigDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformConfig", config -> {
             config.setCanBeConsumed(false);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
         this.neoFormConfig = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Neoform", config -> {
             config.extendsFrom(this.neoFormConfigDependencies);
             config.setCanBeConsumed(false);
             config.setTransitive(false);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
 
         this.neoFormConfigDependencies.fromDependencyCollector(getDependencies().getNeoForm());
@@ -183,7 +183,7 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
         switch (runType) {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -200,7 +200,7 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
                 );
             }
             case SERVER -> {
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -212,7 +212,7 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
             }
             case DATA -> {
                 // TODO: what's the right stuff to go here?
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);

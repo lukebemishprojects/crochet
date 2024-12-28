@@ -34,7 +34,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -155,7 +154,8 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
                 .map(artifact -> {
                     var target = outer.getProject().getObjects().newInstance(ArtifactTarget.class);
                     target.getSource().set(artifact.getFile());
-                    target.getTarget().set(targetFile);
+                    var singleTargetFile = destinationDirectory.file(artifact.getFile().getName());
+                    target.getTarget().set(singleTargetFile);
                     for (var capability : artifact.getVariant().getCapabilities()) {
                         target.getCapabilities().add(capability.getGroup() + ":" + capability.getName());
                     }
@@ -166,10 +166,13 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
             for (var target : targets) {
                 var name = target.getTarget().get().getAsFile().getName();
                 var sanitized = name.replaceAll("[^a-zA-Z0-9_]", "_");
-                var count = uniqueNamesMap.computeIfAbsent(sanitized, k -> 0);
+                /*var count = uniqueNamesMap.computeIfAbsent(sanitized, k -> 0);
                 uniqueNamesMap.put(sanitized, count + 1);
                 target.getTarget().set(destinationDirectory.file(name.substring(0, name.lastIndexOf('.')) + "-" + count + name.substring(name.lastIndexOf('.'))));
-                target.getSanitizedName().set(sanitized + "_" + count);
+                target.getSanitizedName().set(sanitized + "_" + count);*/
+                // These all share the same name -- so for no, no unique name map (as long as this is true)
+                target.getSanitizedName().set(sanitized);
+                target.getTarget().set(targetFile);
 
                 target.getTarget().finalizeValueOnRead();
                 target.getSource().finalizeValueOnRead();

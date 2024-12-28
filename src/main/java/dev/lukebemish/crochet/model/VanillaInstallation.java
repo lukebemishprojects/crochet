@@ -35,7 +35,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
         switch (runType) {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -52,7 +52,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
                 );
             }
             case SERVER -> {
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -64,7 +64,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
             }
             case DATA -> {
                 // TODO: what's the right stuff to go here?
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);

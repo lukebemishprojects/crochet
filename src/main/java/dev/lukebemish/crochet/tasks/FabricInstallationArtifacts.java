@@ -60,11 +60,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
 
         var mappings = wrappedArtifacts.getMappings().getOrNull();
         var mergedMappings = getObjects().newInstance(MergedMappingsStructure.class);
-        if (mappings == null) {
-            mergedMappings.getInputMappings().add(MojangOfficialMappingsStructure.INSTANCE);
-        } else {
-            mergedMappings.getInputMappings().add(mappings);
-        }
+        mergedMappings.getInputMappings().add(Objects.requireNonNullElse(mappings, MojangOfficialMappingsStructure.INSTANCE));
         var intermediaryMappings = getObjects().newInstance(FileMappingsStructure.class);
         intermediaryMappings.getMappingsFile().from(getIntermediary());
         mergedMappings.getInputMappings().add(intermediaryMappings);
@@ -118,6 +114,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                 ),
                 new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
             );
+            transformAccessWideners.classpathScopedJvm = true;
 
             wrapped.tasks.add(transformAccessWideners);
 
@@ -156,6 +153,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                 ),
                 new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
             );
+            transformInterfaceInjection.classpathScopedJvm = true;
 
             wrapped.tasks.add(transformInterfaceInjection);
 
@@ -175,16 +173,18 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             existing.interfaceInjection = new Input.ListInput(List.of(new Input.TaskInput(new Output(transformInterfaceInjection.name(), "output"))));
         }
 
-        wrapped.tasks.add(new TaskModel.DaemonExecutedTool("intermediaryRename", List.of(
+        var intermediaryRename = new TaskModel.DaemonExecutedTool("intermediaryRename", List.of(
             Argument.direct("--input"),
-            new Argument.FileInput(null, new Input.TaskInput(wrapped.aliases.get("binary")), PathSensitivity.NONE),
+            new Argument.FileInput(null, new Input.TaskInput(wrapped.aliases.get("binarySourceIndependent")), PathSensitivity.NONE),
             Argument.direct("--output"),
             new Argument.FileOutput(null, "output", "jar"),
             Argument.direct("--map"),
             new Argument.FileInput(null, new Input.TaskInput(new Output("namedToIntermediaryMappings", "output")), PathSensitivity.NONE),
             Argument.direct("--cfg"),
             new Argument.LibrariesFile(null, List.of(new Input.TaskInput(new Output("listLibraries", "output"))), new InputValue.DirectInput(new Value.StringValue("-e=")))
-        ), new Input.DirectInput(Value.tool("autorenamingtool"))));
+        ), new Input.DirectInput(Value.tool("autorenamingtool")));
+        intermediaryRename.classpathScopedJvm = true;
+        wrapped.tasks.add(intermediaryRename);
         wrapped.aliases.put("intermediary", new Output("intermediaryRename", "output"));
 
         return wrapped;

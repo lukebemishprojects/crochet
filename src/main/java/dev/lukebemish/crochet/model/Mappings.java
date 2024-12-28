@@ -4,6 +4,7 @@ import dev.lukebemish.crochet.internal.MappingsConfigurationCounter;
 import dev.lukebemish.crochet.mappings.ChainedMappingsStructure;
 import dev.lukebemish.crochet.mappings.FileMappingsStructure;
 import dev.lukebemish.crochet.mappings.MappingsStructure;
+import dev.lukebemish.crochet.mappings.MergedMappingsStructure;
 import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
 import dev.lukebemish.crochet.mappings.ReversedMappingsStructure;
 import org.gradle.api.Action;
@@ -38,7 +39,7 @@ public interface Mappings extends Dependencies {
     }
 
     default MappingsStructure merged(Action<ListProperty<MappingsStructure>> action) {
-        var merged = getObjectFactory().newInstance(ChainedMappingsStructure.class);
+        var merged = getObjectFactory().newInstance(MergedMappingsStructure.class);
         action.execute(merged.getInputMappings());
         return merged;
     }
@@ -55,6 +56,17 @@ public interface Mappings extends Dependencies {
 
     default MappingsStructure artifact(Object object) {
         return artifact(unpack(object));
+    }
+
+    default MappingsStructure parchment(MappingsStructure structure) {
+        return merged(merged -> {
+            // This way we get a _complete_ set of mappings named -> parchment + named, so we won't lose stuff down the line...
+            merged.add(structure);
+            merged.add(chained(chained -> {
+                chained.add(reversed(reversed -> reversed.set(official())));
+                chained.add(official());
+            }));
+        });
     }
 
     private Provider<Dependency> unpack(Object object) {

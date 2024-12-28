@@ -1,6 +1,5 @@
 package dev.lukebemish.crochet.model;
 
-import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
@@ -12,7 +11,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.attributes.Category;
-import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Property;
@@ -158,6 +156,7 @@ public abstract class MinecraftInstallation implements Named {
         });
 
         this.distribution = project.getObjects().property(InstallationDistribution.class);
+        this.distribution.finalizeValueOnRead();
         this.distribution.convention(InstallationDistribution.JOINED);
 
         var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
@@ -206,14 +205,14 @@ public abstract class MinecraftInstallation implements Named {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
             config.extendsFrom(minecraftResources);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
 
         this.minecraftLineMapped = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftLineMapped", config -> {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
             config.extendsFrom(minecraftResources);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
 
         var binaryFiles = project.files(binary);
@@ -247,6 +246,10 @@ public abstract class MinecraftInstallation implements Named {
 
     public void client() {
         this.distribution.set(InstallationDistribution.CLIENT);
+    }
+
+    public void common() {
+        this.distribution.set(InstallationDistribution.COMMON);
     }
 
     public void joined() {
@@ -321,21 +324,6 @@ public abstract class MinecraftInstallation implements Named {
     private void forFeatureShared(FeatureUtils.Context context) {
         context.withCapabilities(accessTransformersElements.get());
         context.withCapabilities(injectedInterfacesElements.get());
-        var classes = context.getRuntimeElements().getOutgoing().getVariants().findByName("classes");
-        var resources = context.getRuntimeElements().getOutgoing().getVariants().findByName("resources");
-        if (classes != null && resources != null) {
-            context.getRuntimeElements().getOutgoing().getVariants().register("classesAndResources", variant -> {
-                ConfigurationUtils.copyAttributes(classes.getAttributes(), variant.getAttributes(), crochetExtension.project.getProviders());
-                ConfigurationUtils.copyAttributes(resources.getAttributes(), variant.getAttributes(), crochetExtension.project.getProviders());
-                variant.getAttributes().attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, crochetExtension.project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES_AND_RESOURCES));
-                for (var artifact : classes.getArtifacts()) {
-                    variant.getArtifacts().add(artifact);
-                }
-                for (var artifact : resources.getArtifacts()) {
-                    variant.getArtifacts().add(artifact);
-                }
-            });
-        }
     }
 
     protected final AbstractInstallationDependencies dependencies;

@@ -66,6 +66,12 @@ class RemapMods implements Runnable {
     @CommandLine.Option(names = "--classpath", description = "Remapping classpath.", converter = ClasspathConverter.class)
     List<Path> remappingClasspath = new ArrayList<>();
 
+    @CommandLine.Option(names = "--from-ns", description = "Namespace to remap from.", required = true)
+    String fromNs;
+
+    @CommandLine.Option(names = "--to-ns", description = "Namespace to remap to.", required = true)
+    String toNs;
+
     static final class ClasspathConverter implements CommandLine.ITypeConverter<List<Path>> {
         @Override
         public List<Path> convert(String value) {
@@ -104,9 +110,9 @@ class RemapMods implements Runnable {
 
     record AWData(AccessWidenerReader.Header header, byte[] content) {}
 
-    static byte[] remapAccessWidener(byte[] input, IMappingFile mappings) {
+    byte[] remapAccessWidener(byte[] input, IMappingFile mappings) {
         var header = AccessWidenerReader.readHeader(input);
-        if (!header.getNamespace().equals("intermediary")) {
+        if (!header.getNamespace().equals(fromNs)) {
             return input;
         }
 
@@ -116,8 +122,8 @@ class RemapMods implements Runnable {
         AccessWidenerRemapper awRemapper = new AccessWidenerRemapper(
             writer,
             Utils.remapperForFile(mappings),
-            "intermediary",
-            "named"
+            fromNs,
+            toNs
         );
         AccessWidenerReader reader = new AccessWidenerReader(awRemapper);
         reader.read(input);
@@ -242,7 +248,7 @@ class RemapMods implements Runnable {
 
                         Attributes mainAttrs = manifest.getMainAttributes();
 
-                        mainAttrs.putValue("Fabric-Mapping-Namespace", "named");
+                        mainAttrs.putValue("Fabric-Mapping-Namespace", toNs);
 
                         // Fix all the stuff tiny-remapper would normally do
                         mainAttrs.remove(Attributes.Name.SIGNATURE_VERSION);

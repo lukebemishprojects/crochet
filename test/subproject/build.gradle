@@ -22,14 +22,14 @@ group = 'dev.lukebemish.crochet.crochet-test'
 version = '1.0.0'
 
 crochet {
-    fabric('fabric') {
+    fabricInstallation('fabric') {
         minecraft = '1.21.1'
 
         dependencies {
             loader 'net.fabricmc:fabric-loader:0.16.0'
             mappings = chained {
                 add official()
-                add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
+                add(parchment(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'))
             }
             publishInjectedInterfaces file('interfaces.json')
         }

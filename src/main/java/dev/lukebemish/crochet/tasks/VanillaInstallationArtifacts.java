@@ -1,6 +1,8 @@
 package dev.lukebemish.crochet.tasks;
 
 import dev.lukebemish.crochet.mappings.MappingsStructure;
+import dev.lukebemish.crochet.model.InstallationDistribution;
+import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Distribution;
 import dev.lukebemish.taskgraphrunner.model.ListOrdering;
@@ -8,6 +10,7 @@ import dev.lukebemish.taskgraphrunner.model.MappingsFormat;
 import dev.lukebemish.taskgraphrunner.model.Output;
 import dev.lukebemish.taskgraphrunner.model.TaskModel;
 import dev.lukebemish.taskgraphrunner.model.Value;
+import dev.lukebemish.taskgraphrunner.model.conversion.AdditionalJst;
 import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
 import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -39,6 +42,9 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
     @Optional
     public abstract Property<SingleVersionGenerator.Options.SidedAnnotation> getSidedAnnotation();
 
+    @Input
+    public abstract Property<InstallationDistribution> getDistribution();
+
     @Override
     public Config makeConfig() throws IOException{
         return makeConfig(getMappings().getOrNull(), getHasAccessTransformers().get(), getHasInjectedInterfaces().get());
@@ -56,6 +62,17 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
         }
         if (mappings != null) {
             options.mappingsParameter("mappings");
+        }
+        var distribution = getDistribution().get();
+        if (distribution != InstallationDistribution.JOINED) {
+            options.additionalJst(new AdditionalJst(
+                List.of(new dev.lukebemish.taskgraphrunner.model.Input.ListInput(List.of(new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.tool("unmergetool-jst"))))),
+                List.of(
+                    Argument.direct("--enable-unmergetool"),
+                    Argument.direct("--distribution="+distribution.name()),
+                    new Argument.FileInput("--target-classes={}", new dev.lukebemish.taskgraphrunner.model.Input.TaskInput(new Output("crochet_stripWrongSideBinary", "targetClasses")), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE)
+                )
+            ));
         }
 
         options.clientMappings(new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-mappings")));
@@ -102,6 +119,33 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
                 });
             });
         }
+
+        if (distribution != InstallationDistribution.JOINED) {
+            var stripTask = new TaskModel.DaemonExecutedTool(
+                "crochet_stripWrongSideBinary",
+                List.of(
+                    Argument.direct("--input"),
+                    new Argument.FileInput(null, new dev.lukebemish.taskgraphrunner.model.Input.TaskInput(config.aliases.get("binarySourceIndependent")), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE),
+                    Argument.direct("--output"),
+                    new Argument.FileOutput(null, "output", "jar"),
+                    Argument.direct("--target-classes"),
+                    new Argument.FileOutput(null, "targetClasses", "txt"),
+                    Argument.direct("--distribution"),
+                    Argument.direct(distribution.name())
+                ),
+                new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.tool("unmergetool"))
+            );
+            stripTask.classpathScopedJvm = true;
+            config.tasks.add(stripTask);
+            config.aliases.put("binarySourceIndependent", new Output(stripTask.name(), "output"));
+
+            if (distribution == InstallationDistribution.CLIENT) {
+                config.aliases.put("resources", new Output("stripClient", "resources"));
+            } else if (distribution == InstallationDistribution.SERVER) {
+                config.aliases.put("resources", new Output("stripServer", "resources"));
+            }
+        }
+
         return config;
     }
 

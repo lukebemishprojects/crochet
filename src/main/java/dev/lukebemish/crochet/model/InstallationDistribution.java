@@ -1,13 +1,12 @@
 package dev.lukebemish.crochet.model;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.io.Serializable;
 
 public enum InstallationDistribution implements Serializable {
     CLIENT("client"),
     SERVER("server"),
-    JOINED("client");
+    JOINED("client"),
+    COMMON("server");
 
     private final String attributeValue;
 
@@ -15,7 +14,7 @@ public enum InstallationDistribution implements Serializable {
         this.attributeValue = attributeValue;
     }
 
-    public String attributeValue() {
+    public String neoAttributeValue() {
         return attributeValue;
     }
 }

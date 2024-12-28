@@ -1,10 +1,12 @@
 package dev.lukebemish.crochet.tasks;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.model.InstallationDistribution;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;
 import dev.lukebemish.taskgraphrunner.model.ListOrdering;
+import dev.lukebemish.taskgraphrunner.model.Output;
 import dev.lukebemish.taskgraphrunner.model.TaskModel;
 import dev.lukebemish.taskgraphrunner.model.Value;
 import org.apache.commons.io.FileUtils;
@@ -35,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -68,9 +69,17 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
     @PathSensitive(PathSensitivity.NAME_ONLY)
     public abstract ConfigurableFileCollection getIncludedInterfaceInjections();
 
+    @org.gradle.api.tasks.Input
+    public abstract Property<InstallationDistribution> getDistribution();
+
+    @org.gradle.api.tasks.Input
+    public abstract Property<Boolean> getIsReObf();
+
     @Inject
     public RemapModsConfigMaker() {
         getStripNestedJars().convention(true);
+        getDistribution().convention(InstallationDistribution.JOINED);
+        getIsReObf().convention(false);
     }
 
     @Override
@@ -103,6 +112,16 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
             remapTask.args.add(new Argument.FileOutput(null, name, "jar"));
         }
 
+        if (getIsReObf().get()) {
+            remapTask.args.add(Argument.direct("--from-ns=named"));
+            remapTask.args.add(Argument.direct("--to-ns=intermediary"));
+        } else {
+            remapTask.args.add(Argument.direct("--from-ns=intermediary"));
+            remapTask.args.add(Argument.direct("--to-ns=named"));
+        }
+        // Is this the best approach? For now -- yes.
+        remapTask.parallelism = "remapMods";
+
         if (!getStripNestedJars().get()) {
             remapTask.args.add(Argument.direct("--strip-nested-jars=false"));
         }
@@ -127,6 +146,31 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
 
         for (var entry : outputMap.entrySet()) {
             config.parameters.put(entry.getKey(), Value.file(entry.getValue().getSource().get().getAsFile().toPath()));
+            config.aliases.put(entry.getKey(), new Output("remapMods", entry.getKey()));
+        }
+
+        var distribution = getDistribution().get();
+
+        if (distribution != InstallationDistribution.JOINED) {
+            for (var entry : outputMap.entrySet()) {
+                var toolTask = new TaskModel.DaemonExecutedTool(
+                    "split_" + entry.getKey(),
+                    List.of(
+                        Argument.direct("--input"),
+                        new Argument.FileInput(null, new Input.TaskInput(config.aliases.get(entry.getKey())), dev.lukebemish.taskgraphrunner.model.PathSensitivity.NONE),
+                        Argument.direct("--output"),
+                        new Argument.FileOutput(null, "output", "jar"),
+                        Argument.direct("--target-classes"),
+                        new Argument.FileOutput(null, "targetClasses", "txt"),
+                        Argument.direct("--distribution"),
+                        Argument.direct(distribution.name())
+                    ),
+                    new Input.DirectInput(Value.tool("unmergetool"))
+                );
+                toolTask.classpathScopedJvm = true;
+                config.tasks.add(toolTask);
+                config.aliases.put(entry.getKey(), new Output(toolTask.name(), "output"));
+            }
         }
 
         return config;
@@ -238,7 +282,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
             var list = new ArrayList<TaskGraphExecution.GraphOutput>();
             for (var target : artifactTargets) {
                 var output = getObjects().newInstance(TaskGraphExecution.GraphOutput.class);
-                output.getOutputName().set(target.getSanitizedName().map(it -> "remapMods." + it));
+                output.getOutputName().set(target.getSanitizedName());
                 output.getOutputFile().set(target.getTarget());
                 list.add(output);
             }

@@ -6,8 +6,11 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.attributes.Attribute;
+import org.gradle.api.attributes.AttributeCompatibilityRule;
 import org.gradle.api.attributes.AttributeDisambiguationRule;
 import org.gradle.api.attributes.Bundling;
+import org.gradle.api.attributes.CompatibilityCheckDetails;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.logging.configuration.ShowStacktrace;
@@ -24,13 +27,14 @@ public class CrochetPlugin implements Plugin<Project> {
 
     public static final String VERSION = CrochetPlugin.class.getPackage().getImplementationVersion();
 
-    public static final Attribute<String> DISTRIBUTION_ATTRIBUTE = Attribute.of("net.neoforged.distribution", String.class);
-    public static final Attribute<String> OPERATING_SYSTEM_ATTRIBUTE = Attribute.of("net.neoforged.operatingsystem", String.class);
+    public static final Attribute<String> NEO_DISTRIBUTION_ATTRIBUTE = Attribute.of("net.neoforged.distribution", String.class);
+    public static final Attribute<String> NEO_OPERATING_SYSTEM_ATTRIBUTE = Attribute.of("net.neoforged.operatingsystem", String.class);
+    public static final Attribute<String> CROCHET_DISTRIBUTION_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.distribution", String.class);
     // This attribute SHOULD NOT be published -- it is for use only in internal pre-remapping-collecting setups
     public static final Attribute<String> CROCHET_REMAP_TYPE_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.remap", String.class);
     // Dependencies on things that'll need to be remapped when it's all said and done
     public static final String CROCHET_REMAP_TYPE_REMAP = "to-remap";
-    // Dependencies on other projects contents', non-remapped components
+    // Dependencies on other projects non-remapped components
     public static final String CROCHET_REMAP_TYPE_NON_REMAP = "not-to-remap";
 
     @Override
@@ -89,6 +93,23 @@ public class CrochetPlugin implements Plugin<Project> {
         // configurations
         setupConventionalConfigurations(project);
 
+        // Add more conventional stuff -- classesAndResources variants
+        project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> {
+            FeatureUtils.forSourceSetFeature(project, sourceSet.getName(), context -> {
+                var classes = context.getRuntimeElements().getOutgoing().getVariants().findByName("classes");
+                var resources = context.getRuntimeElements().getOutgoing().getVariants().findByName("resources");
+                if (classes != null && resources != null) {
+                    context.getRuntimeElements().getOutgoing().getVariants().register("classesAndResources", variant -> {
+                        ConfigurationUtils.copyAttributes(classes.getAttributes(), variant.getAttributes(), project.getProviders());
+                        ConfigurationUtils.copyAttributes(resources.getAttributes(), variant.getAttributes(), project.getProviders());
+                        variant.getAttributes().attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements.class, LibraryElements.CLASSES_AND_RESOURCES));
+                        variant.getArtifacts().addAllLater(project.provider(classes::getArtifacts));
+                        variant.getArtifacts().addAllLater(project.provider(resources::getArtifacts));
+                    });
+                }
+            });
+        });
+
         var extension = project.getExtensions().create("crochet", CrochetExtension.class, project);
 
         project.getGradle().getSharedServices().registerIfAbsent("taskGraphRunnerDaemon", TaskGraphRunnerService.class, spec -> {
@@ -119,7 +140,7 @@ public class CrochetPlugin implements Plugin<Project> {
 
     private static void applyDisambiguationRules(Project project) {
         project.getDependencies().attributesSchema(attributesSchema -> {
-            attributesSchema.attribute(DISTRIBUTION_ATTRIBUTE).getDisambiguationRules().add(DistributionDisambiguationRule.class);
+            attributesSchema.attribute(NEO_DISTRIBUTION_ATTRIBUTE).getDisambiguationRules().add(NeoDistributionDisambiguationRule.class);
             attributesSchema.attribute(CROCHET_REMAP_TYPE_ATTRIBUTE);
 
 
@@ -134,14 +155,32 @@ public class CrochetPlugin implements Plugin<Project> {
             } else {
                 throw new IllegalStateException("Unsupported operating system for opensesame native lookup provider: " + osName);
             }
-            attributesSchema.attribute(OPERATING_SYSTEM_ATTRIBUTE).getDisambiguationRules().add(
-                OperatingSystemDisambiguationRule.class,
+            attributesSchema.attribute(NEO_OPERATING_SYSTEM_ATTRIBUTE).getDisambiguationRules().add(
+                NeoOperatingSystemDisambiguationRule.class,
                 config -> config.params(os)
             );
         });
     }
 
-    public abstract static class DistributionDisambiguationRule implements AttributeDisambiguationRule<String> {
+    public abstract static class CrochetDistributionDisambiguationRule implements AttributeDisambiguationRule<String> {
+        @Override
+        public void execute(MultipleCandidatesDetails<String> details) {
+            details.closestMatch("joined");
+        }
+    }
+
+    public abstract static class CrochetDistributionCompatiblityRule implements AttributeCompatibilityRule<String> {
+        @Override
+        public void execute(CompatibilityCheckDetails<String> details) {
+            if ("joined".equals(details.getConsumerValue())) {
+                details.compatible();
+            } else if ("common".equals(details.getProducerValue())) {
+                details.compatible();
+            }
+        }
+    }
+
+    public abstract static class NeoDistributionDisambiguationRule implements AttributeDisambiguationRule<String> {
         @Override
         public void execute(MultipleCandidatesDetails<String> details) {
             // Client libraries are a superset of server, so default to that.
@@ -149,11 +188,11 @@ public class CrochetPlugin implements Plugin<Project> {
         }
     }
 
-    public abstract static class OperatingSystemDisambiguationRule implements AttributeDisambiguationRule<String> {
+    public abstract static class NeoOperatingSystemDisambiguationRule implements AttributeDisambiguationRule<String> {
         private final String currentOs;
 
         @Inject
-        public OperatingSystemDisambiguationRule(String currentOs) {
+        public NeoOperatingSystemDisambiguationRule(String currentOs) {
             this.currentOs = currentOs;
         }
 

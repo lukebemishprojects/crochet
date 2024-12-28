@@ -6,13 +6,15 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationPublications;
 import org.gradle.api.component.AdhocComponentWithVariants;
 import org.gradle.api.component.ConfigurationVariantDetails;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.jspecify.annotations.Nullable;
 
 import javax.inject.Inject;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FeatureUtils {
     private FeatureUtils() {}
@@ -61,6 +63,33 @@ public final class FeatureUtils {
 
         public Configuration getApiElements() {
             return apiElements;
+        }
+
+        public void modifyOutgoing(Action<ConfigurationPublications> action) {
+            action.execute(apiElements.getOutgoing());
+            action.execute(runtimeElements.getOutgoing());
+            var sourcesName = sourceSet.getSourcesElementsConfigurationName();
+            var javadocName = sourceSet.getJavadocElementsConfigurationName();
+            getProject().getConfigurations().configureEach(configuration -> {
+                if (configuration.getName().equals(sourcesName) || configuration.getName().equals(javadocName)) {
+                    action.execute(configuration.getOutgoing());
+                }
+            });
+        }
+    }
+
+    public static void forSourceSetFeatures(Project project, List<String> sourceSetNames, Action<List<Context>> action) {
+        AtomicInteger counter = new AtomicInteger(sourceSetNames.size());
+        Context[] contexts = new Context[sourceSetNames.size()];
+        for (int i = 0; i < sourceSetNames.size(); i++) {
+            String sourceSetName = sourceSetNames.get(i);
+            int finalI = i;
+            forSourceSetFeature(project, sourceSetName, context -> {
+                contexts[finalI] = context;
+                if (counter.decrementAndGet() == 0) {
+                    action.execute(List.of(contexts));
+                }
+            });
         }
     }
 

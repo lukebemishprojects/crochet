@@ -21,24 +21,106 @@ java.withSourcesJar()
 group = 'dev.lukebemish.crochet'
 version = '1.0.0'
 
+jar {
+    manifest {
+        attributes(
+            'Fabric-Loom-Split-Environment': 'true'
+        )
+    }
+}
+
 crochet {
-    fabric('fabric') {
+    features {
+        create('common') {
+            capability(group, project.name, project.version as String)
+            disablePublication()
+        }
+        create('client') {
+            disablePublication()
+        }.configure {
+            inherit('common') {
+                markAdditionalString = 'Fabric-Loom-Client-Only-Entries'
+            }
+        }
+        create('server') {
+            it.disablePublication()
+        }.configure {
+            inherit('common') {
+                markAdditionalString = 'Fabric-Loom-Server-Only-Entries'
+            }
+        }
+        modify('main') {
+            feature 'joined'
+            inherit 'client'
+            inherit 'server'
+        }
+    }
+
+    fabricInstallation('fabric') {
         minecraft = '1.21.1'
 
         dependencies {
             loader 'net.fabricmc:fabric-loader:0.16.0'
             mappings = chained {
                 add official()
-                add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
+                add(parchment(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'))
             }
         }
 
-        forFeature(project.sourceSets.main) {
+        forFeature(project.sourceSets.main)
+    }
+
+    fabricInstallation('fabricClient') {
+        minecraft = '1.21.1'
+
+        client()
+
+        dependencies {
+            loader 'net.fabricmc:fabric-loader:0.16.0'
+            mappings = chained {
+                add official()
+                add(parchment(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'))
+            }
+        }
+
+        forFeature(project.sourceSets.client)
+    }
+
+    fabricInstallation('fabricServer') {
+        minecraft = '1.21.1'
+
+        server()
+
+        dependencies {
+            loader 'net.fabricmc:fabric-loader:0.16.0'
+            mappings = chained {
+                add official()
+                add(parchment(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'))
+            }
+        }
+
+        forFeature(project.sourceSets.server)
+    }
+
+    fabricInstallation('fabricCommon') {
+        minecraft = '1.21.1'
+
+        common()
+
+        dependencies {
+            loader 'net.fabricmc:fabric-loader:0.16.0'
+            mappings = chained {
+                add official()
+                add(parchment(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'))
+            }
+        }
+
+        forFeature(project.sourceSets.common) {
             modImplementation project(':subproject')
         }
     }
 
-    fabric('fabricYarn') {
+    fabricInstallation('fabricYarn') {
         minecraft = '1.21.1'
 
         dependencies {
@@ -50,11 +132,11 @@ crochet {
         }
     }
 
-    vanilla('vanilla') {
+    vanillaInstallation('vanilla') {
         minecraft = '1.21.1'
     }
 
-    neoForm('neoForm') {
+    neoFormInstallation('neoForm') {
         dependencies {
             neoForm 'net.neoforged:neoform:1.21.3-20241023.131943'
         }
@@ -65,7 +147,11 @@ crochet {
             client installations.vanilla
         }
         fabricClient {
-            client installations.fabric
+            client installations.fabricClient
+            implementation project(':')
+        }
+        fabricServer {
+            server installations.fabricServer
             implementation project(':')
         }
         fabricYarnClient {

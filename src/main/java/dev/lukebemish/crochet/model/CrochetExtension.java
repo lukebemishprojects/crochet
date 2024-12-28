@@ -20,6 +20,8 @@ public abstract class CrochetExtension {
     final TaskProvider<Task> generateSources;
     final Project project;
     private final ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> installations;
+    private final CrochetFeaturesContext features;
+    private final CrochetTasksContext tasks;
 
     @Inject
     public CrochetExtension(Project project) {
@@ -30,6 +32,8 @@ public abstract class CrochetExtension {
             t.dependsOn(generateSources);
         });
         var objects = project.getObjects();
+        this.features = objects.newInstance(CrochetFeaturesContext.class);
+        this.tasks = objects.newInstance(CrochetTasksContext.class);
         this.installations = objects.polymorphicDomainObjectContainer(
             MinecraftInstallation.class
         );
@@ -65,19 +69,35 @@ public abstract class CrochetExtension {
         return installations;
     }
 
+    public CrochetFeaturesContext getFeatures() {
+        return features;
+    }
+
+    public void features(Action<CrochetFeaturesContext> action) {
+        action.execute(getFeatures());
+    }
+
+    public CrochetTasksContext getTasks() {
+        return tasks;
+    }
+
+    public void tasks(Action<CrochetTasksContext> action) {
+        action.execute(getTasks());
+    }
+
     public void installations(Action<ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation>> action) {
         action.execute(installations);
     }
 
-    public NamedDomainObjectProvider<FabricInstallation> fabric(String name, Action<FabricInstallation> action) {
+    public NamedDomainObjectProvider<FabricInstallation> fabricInstallation(String name, Action<FabricInstallation> action) {
         return installations.register(name, FabricInstallation.class, action);
     }
 
-    public NamedDomainObjectProvider<NeoFormInstallation> neoForm(String name, Action<NeoFormInstallation> action) {
+    public NamedDomainObjectProvider<NeoFormInstallation> neoFormInstallation(String name, Action<NeoFormInstallation> action) {
         return installations.register(name, NeoFormInstallation.class, action);
     }
 
-    public NamedDomainObjectProvider<VanillaInstallation> vanilla(String name, Action<VanillaInstallation> action) {
+    public NamedDomainObjectProvider<VanillaInstallation> vanillaInstallation(String name, Action<VanillaInstallation> action) {
         return installations.register(name, VanillaInstallation.class, action);
     }
 
@@ -88,6 +108,14 @@ public abstract class CrochetExtension {
     }
 
     private final Map<SourceSet, String> sourceSets = new HashMap<>();
+
+    MinecraftInstallation findInstallation(SourceSet sourceSet) {
+        var installation = sourceSets.get(sourceSet);
+        if (installation == null) {
+            return null;
+        }
+        return getInstallations().getByName(installation);
+    }
 
     void forSourceSet(String installation, SourceSet sourceSet) {
         var existing = sourceSets.put(sourceSet, installation);

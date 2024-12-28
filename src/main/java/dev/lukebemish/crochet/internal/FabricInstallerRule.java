@@ -59,7 +59,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("client", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
             });
         });
 
@@ -68,7 +68,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("server", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
             });
         });
 
@@ -78,7 +78,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("development", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
             });
         });
 
@@ -88,7 +88,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("development", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
             });
         });
     }

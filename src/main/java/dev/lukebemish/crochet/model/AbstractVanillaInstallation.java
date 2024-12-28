@@ -4,6 +4,7 @@ import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
+import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.mappings.ChainedMappingsStructure;
 import dev.lukebemish.crochet.mappings.FileMappingsStructure;
@@ -13,7 +14,9 @@ import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
 import dev.lukebemish.crochet.mappings.ReversedMappingsStructure;
 import dev.lukebemish.crochet.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
+import org.gradle.api.Action;
 import org.gradle.api.Project;
+import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.plugins.JavaPlugin;
@@ -23,6 +26,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.jetbrains.annotations.ApiStatus;
 
 import javax.inject.Inject;
+import java.util.Locale;
 import java.util.Map;
 
 public abstract class AbstractVanillaInstallation extends MinecraftInstallation {
@@ -49,7 +53,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
@@ -60,14 +64,14 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
         var mappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"MappingsPistonMetaDownloads", c -> {
             c.extendsFrom(minecraftPistonMeta.get());
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
             });
         });
@@ -84,13 +88,14 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         vanillaConfigMaker.getAccessTransformers().from(this.accessTransformersPath);
         vanillaConfigMaker.getInjectedInterfaces().from(this.injectedInterfacesPath);
         vanillaConfigMaker.getMappings().set(getDependencies().getMappings());
+        vanillaConfigMaker.getDistribution().set(getDistribution());
         this.binaryArtifactsTask.configure(t -> t.getConfigMaker().set(vanillaConfigMaker));
 
         var decompileCompileClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformCompileClasspath", config -> {
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
@@ -98,7 +103,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
@@ -158,16 +163,38 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     @Override
     public void forFeature(SourceSet sourceSet) {
         super.forFeature(sourceSet);
+        sharedFeature(sourceSet);
+        FeatureUtils.forSourceSetFeature(project, sourceSet.getName(), context -> {
+            Action<AttributeContainer> attributesAction = attributes -> {
+                var dist = getDistribution().get();
+                if (dist != InstallationDistribution.JOINED) {
+                    attributes.attribute(CrochetPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
+                }
+            };
+            context.getRuntimeElements().attributes(attributesAction);
+            context.getApiElements().attributes(attributesAction);
+        });
+    }
+
+    private void sharedFeature(SourceSet sourceSet) {
+        Action<AttributeContainer> attributesAction = attributes -> {
+            var dist = getDistribution().get();
+            if (dist != InstallationDistribution.JOINED) {
+                attributes.attribute(CrochetPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
+            }
+        };
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
             config.extendsFrom(minecraft);
+            config.attributes(attributesAction);
+        });
+        project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME), config -> {
+            config.attributes(attributesAction);
         });
     }
 
     @Override
     public void forLocalFeature(SourceSet sourceSet) {
         super.forLocalFeature(sourceSet);
-        project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
-            config.extendsFrom(minecraft);
-        });
+        sharedFeature(sourceSet);
     }
 }

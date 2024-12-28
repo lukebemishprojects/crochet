@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
+import dev.lukebemish.crochet.internal.InheritanceMarker;
 import dev.lukebemish.crochet.internal.Log4jSetup;
 import dev.lukebemish.crochet.mappings.FileMappingSource;
 import dev.lukebemish.crochet.tasks.ArtifactTarget;
@@ -30,6 +31,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Jar;
@@ -210,7 +212,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
             config.extendsFrom(minecraftResources);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::attributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
 
         var intermediaryJarFiles = project.files();
@@ -239,7 +241,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         forFeatureShared(sourceSet, action, true);
     }
 
-    private Configuration forRunRemapping(Run run) {
+    private Configuration forRunRemapping(Run run, RunType runType) {
         /*
         General architecture
         - run.classpath -- the normal run classpath. We make it select "not-to-remap" dependencies
@@ -318,6 +320,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
             configMaker.setup(task, modClasspath, excludedClasspath, workingDirectory.get().dir("runClasspath").dir(run.getName()), remappedMods);
             task.dependsOn(intermediaryToNamed);
+            configMaker.getDistribution().set(getDistribution());
             configMaker.getRemappingClasspath().from(remappingClasspath);
             configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
             task.getConfigMaker().set(configMaker);
@@ -349,6 +352,16 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         return remappingClasspath;
     }
+
+    private static final List<String> MOD_CONFIGURATION_NAMES = List.of(
+        "compileOnly",
+        "compileOnlyApi",
+        "runtimeOnly",
+        "implementation",
+        "api",
+        "localRuntime",
+        "localImplementation"
+    );
 
     @SuppressWarnings("UnstableApiUsage")
     private void forFeatureShared(SourceSet sourceSet, Action<FabricSourceSetDependencies> action, boolean local) {
@@ -534,6 +547,8 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                             output.set(oldArchiveFile);
                         }, mappings -> {
                         }, remappingClasspath);
+                        // Change direction and whatnot
+                        configMaker.getIsReObf().set(true);
 
                         configMaker.getStripNestedJars().set(false);
                         configMaker.getIncludedInterfaceInjections().from(injectedInterfacesElements.get().getOutgoing().getArtifacts().getFiles());
@@ -719,6 +734,31 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         apiElements.extendsFrom(modApi);
         modApiElements.extendsFrom(modApi);
 
+        // Link up inheritance via CrochetFeatureContexts for the injected configurations
+        var marker = InheritanceMarker.getOrCreate(project.getObjects(), sourceSet);
+        marker.getShouldTakeConfigurationsFrom().configureEach(name -> {
+            var otherSourceSet = project.getExtensions().getByType(SourceSetContainer.class).findByName(name);
+            var otherInstallation = extension.findInstallation(otherSourceSet);
+            if (otherInstallation instanceof FabricInstallation) {
+                for (var confName : MOD_CONFIGURATION_NAMES) {
+                    var thisConf = project.getConfigurations().getByName(sourceSet.getTaskName("mod", confName));
+                    var otherConf = project.getConfigurations().getByName(otherSourceSet.getTaskName("mod", confName));
+                    thisConf.extendsFrom(otherConf);
+                }
+            }
+        });
+        marker.getShouldGiveConfigurationsTo().configureEach(name -> {
+            var otherSourceSet = project.getExtensions().getByType(SourceSetContainer.class).findByName(name);
+            var otherInstallation = extension.findInstallation(otherSourceSet);
+            if (otherInstallation instanceof FabricInstallation) {
+                for (var confName : MOD_CONFIGURATION_NAMES) {
+                    var thisConf = project.getConfigurations().getByName(sourceSet.getTaskName("mod", confName));
+                    var otherConf = project.getConfigurations().getByName(otherSourceSet.getTaskName("mod", confName));
+                    otherConf.extendsFrom(thisConf);
+                }
+            }
+        });
+
         var interfaceInjectionCompile = modCompileClasspath.getIncoming().artifactView(config -> {
             config.attributes(attributes -> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, MinecraftInstallation.INTERFACE_INJECTION_CATEGORY));
@@ -788,6 +828,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
             configMaker.setup(task, modCompileClasspath, excludedCompileClasspath, workingDirectory.get().dir("compileClasspath").dir(sourceSet.getName()), remappedCompileMods);
             task.dependsOn(intermediaryToNamed);
+            configMaker.getDistribution().set(getDistribution());
             configMaker.getRemappingClasspath().from(compileRemappingClasspath);
             configMaker.getMappings().set(intermediaryToNamed.flatMap(MappingsWriter::getOutputMappings));
             task.getConfigMaker().set(configMaker);
@@ -879,7 +920,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             task.getMinecraftVersion().set(getMinecraft());
             task.dependsOn(writeLog4jConfig);
         });
-        var remapClasspathConfiguration = forRunRemapping(run);
+        var remapClasspathConfiguration = forRunRemapping(run, runType);
 
         // TODO: figure out setting java version attribute on run classpath?
 
@@ -915,12 +956,14 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         run.getJvmArgs().add(fileGroups.map(groups ->
             "-Dfabric.classPathGroups=" + groups.stream().map(set -> set.stream().map(File::getAbsolutePath).collect(Collectors.joining(File.pathSeparator))).collect(Collectors.joining(File.pathSeparator+File.pathSeparator))
         ));
-
-        run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.DISTRIBUTION_ATTRIBUTE, switch (runType) {
-            case CLIENT -> "client";
-            case SERVER -> "server";
-            default -> throw new IllegalArgumentException("Unsupported run type: "+runType);
-        }));
+        run.classpath.attributes(attributes -> {
+            attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, switch (runType) {
+                case CLIENT -> "client";
+                case SERVER -> "server";
+                default -> throw new IllegalArgumentException("Unsupported run type: "+runType);
+            });
+            attributes.attribute(CrochetPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, runType.attributeName());
+        });
 
         Configuration runMinecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(run.getName())+"RunMinecraft", config -> {
             config.setCanBeConsumed(false);
