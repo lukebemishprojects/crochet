@@ -236,6 +236,13 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         forFeatureShared(sourceSet, action, true);
     }
 
+    @Override
+    protected List<String> getInstallationConfigurationNames() {
+        var out = new ArrayList<>(super.getInstallationConfigurationNames());
+        out.add("AccessWideners");
+        return out;
+    }
+
     private Configuration forRunRemapping(Run run, RunType runType) {
         /*
         General architecture

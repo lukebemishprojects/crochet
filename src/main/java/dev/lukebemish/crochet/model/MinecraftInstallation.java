@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
+import dev.lukebemish.crochet.internal.InheritanceMarker;
 import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Named;
@@ -17,6 +18,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
@@ -26,6 +28,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -321,9 +324,47 @@ public abstract class MinecraftInstallation implements Named {
         });
     }
 
+    private static final List<String> INSTALLATION_CONFIGURATION_NAMES = List.of(
+        "AccessTransformers",
+        "AccessTransformersApi",
+        "InterfaceInjections",
+        "InterfaceInjectionsApi"
+    );
+
+    protected List<String> getInstallationConfigurationNames() {
+        return INSTALLATION_CONFIGURATION_NAMES;
+    }
+
     private void forFeatureShared(FeatureUtils.Context context) {
         context.withCapabilities(accessTransformersElements.get());
         context.withCapabilities(injectedInterfacesElements.get());
+
+        var project = crochetExtension.project;
+        var sourceSet = context.getSourceSet();
+        // Link up inheritance via CrochetFeatureContexts for the injected configurations
+        var marker = InheritanceMarker.getOrCreate(project.getObjects(), sourceSet);
+        marker.getShouldTakeConfigurationsFrom().configureEach(name -> {
+            var otherSourceSet = project.getExtensions().getByType(SourceSetContainer.class).findByName(name);
+            var otherInstallation = crochetExtension.findInstallation(otherSourceSet);
+            if (otherInstallation != this && otherInstallation != null) {
+                for (var confName : getInstallationConfigurationNames()) {
+                    var thisConf = project.getConfigurations().getByName(this.name + confName);
+                    var otherConf = project.getConfigurations().getByName(otherInstallation.name + confName);
+                    thisConf.extendsFrom(otherConf);
+                }
+            }
+        });
+        marker.getShouldGiveConfigurationsTo().configureEach(name -> {
+            var otherSourceSet = project.getExtensions().getByType(SourceSetContainer.class).findByName(name);
+            var otherInstallation = crochetExtension.findInstallation(otherSourceSet);
+            if (otherInstallation != this && otherInstallation != null) {
+                for (var confName : getInstallationConfigurationNames()) {
+                    var thisConf = project.getConfigurations().getByName(this.name + confName);
+                    var otherConf = project.getConfigurations().getByName(otherInstallation.name + confName);
+                    otherConf.extendsFrom(thisConf);
+                }
+            }
+        });
     }
 
     protected final AbstractInstallationDependencies dependencies;
