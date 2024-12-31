@@ -7,6 +7,7 @@ import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationPublications;
+import org.gradle.api.artifacts.ConfigurationVariant;
 import org.gradle.api.component.AdhocComponentWithVariants;
 import org.gradle.api.component.ConfigurationVariantDetails;
 import org.gradle.api.tasks.SourceSet;
@@ -98,24 +99,55 @@ public final class FeatureUtils {
         MutableBoolean foundRuntimeElements = new MutableBoolean(false);
         MutableBoolean foundApiElements = new MutableBoolean(false);
         MutableBoolean executed = new MutableBoolean(false);
+        MutableBoolean foundApiClasses = new MutableBoolean(false);
+        MutableBoolean foundRuntimeClasses = new MutableBoolean(false);
+        MutableBoolean foundRuntimeResources = new MutableBoolean(false);
         Mutable<Configuration> foundFirst = new MutableObject<>();
+        Runnable checkedAction = () -> {
+            if (foundRuntimeElements.booleanValue() && foundRuntimeClasses.booleanValue() && foundRuntimeResources.booleanValue() &&
+                foundApiElements.booleanValue() && foundApiClasses.booleanValue() &&
+                !executed.booleanValue()) {
+                executed.setTrue();
+                action.execute(project.getObjects().newInstance(Context.class, sourceSet, foundFirst.getValue()));
+            }
+        };
         Action<Configuration> configAction = configuration -> {
             if (configuration.getName().equals(sourceSet.getRuntimeElementsConfigurationName())) {
                 foundRuntimeElements.setTrue();
                 if (foundFirst.getValue() == null) {
                     foundFirst.setValue(configuration);
                 }
+                Action<ConfigurationVariant> variantsAction = variant -> {
+                    var name = variant.getName();
+                    if (name.equals("classes")) {
+                        foundRuntimeClasses.setTrue();
+                        checkedAction.run();
+                    } else if (name.equals("resources")) {
+                        foundRuntimeResources.setTrue();
+                        checkedAction.run();
+                    }
+                };
+                configuration.getOutgoing().getVariants().all(variantsAction);
+                configuration.getOutgoing().getVariants().whenObjectAdded(variantsAction);
+                checkedAction.run();
             } else if (configuration.getName().equals(sourceSet.getApiElementsConfigurationName())) {
                 foundApiElements.setTrue();
                 if (foundFirst.getValue() == null) {
                     foundFirst.setValue(configuration);
                 }
-            }
-            if (foundRuntimeElements.booleanValue() && foundApiElements.booleanValue() && !executed.booleanValue()) {
-                executed.setTrue();
-                action.execute(project.getObjects().newInstance(Context.class, sourceSet, foundFirst.getValue()));
+                Action<ConfigurationVariant> variantsAction = variant -> {
+                    var name = variant.getName();
+                    if (name.equals("classes")) {
+                        foundApiClasses.setTrue();
+                        checkedAction.run();
+                    }
+                };
+                configuration.getOutgoing().getVariants().all(variantsAction);
+                configuration.getOutgoing().getVariants().whenObjectAdded(variantsAction);
+                checkedAction.run();
             }
         };
+        // Ideally would be lazy -- we'll change it when we can
         project.getConfigurations().all(configAction);
         project.getConfigurations().whenObjectAdded(configAction);
     }

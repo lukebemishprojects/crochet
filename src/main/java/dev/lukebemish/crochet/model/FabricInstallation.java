@@ -5,16 +5,15 @@ import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.InheritanceMarker;
 import dev.lukebemish.crochet.internal.Log4jSetup;
-import dev.lukebemish.crochet.mappings.FileMappingSource;
-import dev.lukebemish.crochet.tasks.ArtifactTarget;
-import dev.lukebemish.crochet.tasks.ExtractFabricDependencies;
-import dev.lukebemish.crochet.tasks.FabricInstallationArtifacts;
-import dev.lukebemish.crochet.tasks.MakeRemapClasspathFile;
-import dev.lukebemish.crochet.tasks.MappingsWriter;
-import dev.lukebemish.crochet.tasks.RemapModsConfigMaker;
-import dev.lukebemish.crochet.tasks.RemapModsSourcesConfigMaker;
-import dev.lukebemish.crochet.tasks.TaskGraphExecution;
-import dev.lukebemish.crochet.tasks.WriteFile;
+import dev.lukebemish.crochet.internal.tasks.ArtifactTarget;
+import dev.lukebemish.crochet.internal.tasks.ExtractFabricDependencies;
+import dev.lukebemish.crochet.internal.tasks.FabricInstallationArtifacts;
+import dev.lukebemish.crochet.internal.tasks.MakeRemapClasspathFile;
+import dev.lukebemish.crochet.internal.tasks.MappingsWriter;
+import dev.lukebemish.crochet.internal.tasks.RemapModsConfigMaker;
+import dev.lukebemish.crochet.internal.tasks.RemapModsSourcesConfigMaker;
+import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
+import dev.lukebemish.crochet.internal.tasks.WriteFile;
 import dev.lukebemish.taskgraphrunner.model.conversion.SingleVersionGenerator;
 import net.neoforged.srgutils.IMappingFile;
 import org.apache.commons.lang3.StringUtils;
@@ -149,9 +148,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         var objects = project.getObjects();
 
         this.intermediaryToNamed = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"IntermediaryToNamed", MappingsWriter.class, task -> {
-            var spec = objects.newInstance(FileMappingSource.class);
-            spec.getMappingsFile().from(intermediaryToNamedFile);
-            task.getInputMappings().set(spec);
+            task.getInputMappings().from(intermediaryToNamedFile);
             task.dependsOn(this.binaryArtifactsTask);
             task.getTargetFormat().set(IMappingFile.Format.TINY);
             task.getOutputMappings().set(workingDirectory.map(dir -> dir.file("intermediary-to-named.tiny")));
@@ -172,9 +169,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         });
 
         this.namedToIntermediary = project.getTasks().register("crochet"+StringUtils.capitalize(name)+"NamedToIntermediary", MappingsWriter.class, task -> {
-            var spec = objects.newInstance(FileMappingSource.class);
-            spec.getMappingsFile().from(namedToIntermediaryFile);
-            task.getInputMappings().set(spec);
+            task.getInputMappings().from(namedToIntermediaryFile);
             task.dependsOn(this.binaryArtifactsTask);
             task.getTargetFormat().set(IMappingFile.Format.TINY);
             task.getOutputMappings().set(workingDirectory.map(dir -> dir.file("named-to-intermediary.tiny")));

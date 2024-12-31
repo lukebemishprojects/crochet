@@ -29,7 +29,7 @@ crochet {
             loader 'net.fabricmc:fabric-loader:0.16.0'
             mappings = chained {
                 add official()
-                add(parchment(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip'))
+                add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
             }
             publishInjectedInterfaces file('interfaces.json')
         }

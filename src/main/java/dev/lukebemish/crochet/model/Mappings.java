@@ -58,17 +58,6 @@ public interface Mappings extends Dependencies {
         return artifact(unpack(object));
     }
 
-    default MappingsStructure parchment(MappingsStructure structure) {
-        return merged(merged -> {
-            // This way we get a _complete_ set of mappings named -> parchment + named, so we won't lose stuff down the line...
-            merged.add(structure);
-            merged.add(chained(chained -> {
-                chained.add(reversed(reversed -> reversed.set(official())));
-                chained.add(official());
-            }));
-        });
-    }
-
     private Provider<Dependency> unpack(Object object) {
         if (object instanceof Dependency dependency) {
             return getProject().provider(() -> dependency);

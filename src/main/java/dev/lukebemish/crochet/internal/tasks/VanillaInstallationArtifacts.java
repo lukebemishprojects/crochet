@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.tasks;
+package dev.lukebemish.crochet.internal.tasks;
 
 import dev.lukebemish.crochet.mappings.MappingsStructure;
 import dev.lukebemish.crochet.model.InstallationDistribution;
@@ -110,6 +110,7 @@ public abstract class VanillaInstallationArtifacts implements TaskGraphExecution
             var clientMappings = new dev.lukebemish.taskgraphrunner.model.Input.DirectInput(Value.artifact("dev.lukebemish.crochet.internal:minecraft-mappings"));
             var mappingsModel = MappingsStructure.toModel(mappings, clientMappings);
             var mappingsTask = new TaskModel.TransformMappings("crochetMakeMappings", MappingsFormat.TINY2, mappingsModel);
+            mappingsTask.sourceJar = new dev.lukebemish.taskgraphrunner.model.Input.TaskInput(config.aliases.get("binaryObf"));
             config.tasks.add(mappingsTask);
             config.tasks.forEach(task -> {
                 task.inputs().forEach(handle -> {

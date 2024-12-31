@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.tasks;
+package dev.lukebemish.crochet.internal.tasks;
 
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Distribution;

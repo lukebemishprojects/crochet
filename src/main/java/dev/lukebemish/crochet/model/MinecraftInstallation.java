@@ -3,7 +3,7 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
-import dev.lukebemish.crochet.tasks.TaskGraphExecution;
+import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Named;
 import org.gradle.api.Project;

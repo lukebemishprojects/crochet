@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.tasks;
+package dev.lukebemish.crochet.internal.tasks;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;

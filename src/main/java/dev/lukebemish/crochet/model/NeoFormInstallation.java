@@ -4,7 +4,7 @@ import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
-import dev.lukebemish.crochet.tasks.NeoFormInstallationArtifacts;
+import dev.lukebemish.crochet.internal.tasks.NeoFormInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Project;

@@ -3,7 +3,7 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
-import dev.lukebemish.crochet.tasks.GenerateArgFiles;
+import dev.lukebemish.crochet.internal.tasks.GenerateArgFiles;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Named;

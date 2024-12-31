@@ -19,9 +19,4 @@ public abstract class InheritanceContext {
     public abstract Property<Boolean> getMultiloader();
 
     public abstract ListProperty<String> getCompileLanguages();
-
-    /**
-     * Ignored with recompile.
-     */
-    public abstract Property<String> getMarkAdditionalString();
 }

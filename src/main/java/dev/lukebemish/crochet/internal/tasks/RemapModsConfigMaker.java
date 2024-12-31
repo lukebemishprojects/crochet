@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.tasks;
+package dev.lukebemish.crochet.internal.tasks;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.model.InstallationDistribution;

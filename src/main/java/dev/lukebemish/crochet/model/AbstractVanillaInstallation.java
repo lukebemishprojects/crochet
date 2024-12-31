@@ -12,7 +12,7 @@ import dev.lukebemish.crochet.mappings.MappingsStructure;
 import dev.lukebemish.crochet.mappings.MergedMappingsStructure;
 import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
 import dev.lukebemish.crochet.mappings.ReversedMappingsStructure;
-import dev.lukebemish.crochet.tasks.VanillaInstallationArtifacts;
+import dev.lukebemish.crochet.internal.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -173,6 +173,8 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
             };
             context.getRuntimeElements().attributes(attributesAction);
             context.getApiElements().attributes(attributesAction);
+            project.getConfigurations().getByName(context.getSourceSet().getCompileClasspathConfigurationName()).attributes(attributesAction);
+            project.getConfigurations().getByName(context.getSourceSet().getRuntimeClasspathConfigurationName()).attributes(attributesAction);
         });
     }
 

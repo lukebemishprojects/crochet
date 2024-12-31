@@ -86,7 +86,6 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
         cacheDirs.add(cacheDir.toAbsolutePath());
     }
 
-    @SuppressWarnings("UnstableApiUsage")
     public DaemonExecutor start(JavaLauncher javaLauncher, String jarPath) {
         synchronized (this) {
             if (daemon == null) {
@@ -102,6 +101,10 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
                     }
                     properties.putAll(getProviders().gradlePropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
                     properties.putAll(getProviders().systemPropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
+
+                    // These are all very expensive; some computers can do these all at once but many cannot, and as they're all parallelized it doesn't save much.
+                    properties.put("dev.lukebemish.taskgraphrunner.parallelism.groups", "jst+decompile+remapMods");
+
                     for (Map.Entry<String, String> entry : properties.entrySet()) {
                         args.add("-D"+entry.getKey()+"="+entry.getValue());
                     }

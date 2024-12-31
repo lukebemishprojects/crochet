@@ -35,6 +35,28 @@ public abstract class CrochetFeatureContext {
         action.execute(this);
     }
 
+    /**
+     * Ignored with recompile-based inheritance.
+     */
+    public void manifestOriginMarker(String marker) {
+        var thisSourceSet = getProject().getExtensions().getByType(SourceSetContainer.class).getByName(this.name);
+        var thisMarker = InheritanceMarker.getOrCreate(getProject().getObjects(), thisSourceSet);
+        thisMarker.getSourceToManifestNameMap().put(this.name, marker);
+        getProject().getTasks().named(thisSourceSet.getJarTaskName(), Jar.class, task -> {
+            var markngString = thisMarker.getSourceToManifestNameMap().get().get(name);
+            if (markngString != null) {
+                var stringifier = getProject().getObjects().newInstance(FileListStringifier.class);
+                stringifier.getDirectories().from(thisSourceSet.getOutput());
+                stringifier.getFiles().from(thisSourceSet.getOutput().getAsFileTree());
+                task.manifest(manifest -> {
+                    manifest.attributes(Map.of(
+                        markngString, stringifier
+                    ));
+                });
+            }
+        });
+    }
+
     public void inherit(String name, Action<InheritanceContext> action) {
         var inheritance = getProject().getObjects().newInstance(InheritanceContext.class);
         action.execute(inheritance);
@@ -44,9 +66,6 @@ public abstract class CrochetFeatureContext {
 
         var thisMarker = InheritanceMarker.getOrCreate(getProject().getObjects(), thisSourceSet);
         thisMarker.getInheritsFrom().add(name);
-        if (inheritance.getMarkAdditionalString().isPresent()) {
-            thisMarker.getSourceToManifestNameMap().put(this.name, inheritance.getMarkAdditionalString().get());
-        }
         var otherMarker = InheritanceMarker.getOrCreate(getProject().getObjects(), otherSourceSet);
         thisMarker.getSourceToManifestNameMap().putAll(otherMarker.getSourceToManifestNameMap());
         otherMarker.getInheritedBy().add(this.name);

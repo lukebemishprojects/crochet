@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.tasks;
+package dev.lukebemish.crochet.internal.tasks;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.mappings.FileMappingsStructure;
@@ -81,18 +81,26 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
         MappingsSource.File namedToObjMappingsFile = new MappingsSource.File(mappingsInput);
         MappingsSource namedToObfMappings = namedToObjMappingsFile;
         if (vanillaMappings) {
-            namedToObjMappingsFile.extension = new InputValue.DirectInput(new Value.StringValue("txt"));
+            namedToObjMappingsFile.extension = new InputValue.DirectInput(new Value.DirectStringValue("txt"));
         }
         if (!reversedMappings) {
             namedToObfMappings = new MappingsSource.Reversed(namedToObfMappings);
         }
+
+        var obfToIntermediaryMappings = new TaskModel.TransformMappings(
+            "obfToIntermediaryMappings",
+            MappingsFormat.TINY2,
+            new MappingsSource.File(new Input.ParameterInput("intermediary"))
+        );
+        obfToIntermediaryMappings.sourceJar = new Input.TaskInput(wrapped.aliases.get("binaryObf"));
+        wrapped.tasks.add(obfToIntermediaryMappings);
 
         wrapped.tasks.add(new TaskModel.TransformMappings(
             "namedToIntermediaryMappings",
             MappingsFormat.TINY2,
             new MappingsSource.Chained(List.of(
                 namedToObfMappings,
-                new MappingsSource.File(new Input.ParameterInput("intermediary"))
+                new MappingsSource.File(new Input.TaskInput(new Output(obfToIntermediaryMappings.name(), "output")))
             ))
         ));
 
@@ -181,7 +189,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
             Argument.direct("--map"),
             new Argument.FileInput(null, new Input.TaskInput(new Output("namedToIntermediaryMappings", "output")), PathSensitivity.NONE),
             Argument.direct("--cfg"),
-            new Argument.LibrariesFile(null, List.of(new Input.TaskInput(new Output("listLibraries", "output"))), new InputValue.DirectInput(new Value.StringValue("-e=")))
+            new Argument.LibrariesFile(null, List.of(new Input.TaskInput(new Output("listLibraries", "output"))), new InputValue.DirectInput(new Value.DirectStringValue("-e=")))
         ), new Input.DirectInput(Value.tool("autorenamingtool")));
         intermediaryRename.classpathScopedJvm = true;
         wrapped.tasks.add(intermediaryRename);

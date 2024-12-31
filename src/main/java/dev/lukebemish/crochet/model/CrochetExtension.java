@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.model;
 
 import org.gradle.api.Action;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
+import org.gradle.api.NamedDomainObjectCollection;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
@@ -22,6 +23,7 @@ public abstract class CrochetExtension {
     private final ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> installations;
     private final CrochetFeaturesContext features;
     private final CrochetTasksContext tasks;
+    private final NamedDomainObjectContainer<SplitSourceSet> splitSourceSets;
 
     @Inject
     public CrochetExtension(Project project) {
@@ -63,6 +65,8 @@ public abstract class CrochetExtension {
 
         // Runs should also be non-lazy, to trigger task creation
         this.getRuns().whenObjectAdded(o -> {});
+
+        this.splitSourceSets = objects.domainObjectContainer(SplitSourceSet.class);
     }
 
     public ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> getInstallations() {
@@ -83,6 +87,18 @@ public abstract class CrochetExtension {
 
     public void tasks(Action<CrochetTasksContext> action) {
         action.execute(getTasks());
+    }
+
+    public NamedDomainObjectCollection<SplitSourceSet> getSplitSourceSets() {
+        return splitSourceSets;
+    }
+
+    public SplitSourceSet fabricSplitSourceSets(String name, Action<FabricSplitSourceSetsSpec> action) {
+        var spec = project.getObjects().newInstance(FabricSplitSourceSetsSpec.class);
+        action.execute(spec);
+        var splitSourceSet = spec.setup(project, this, name);
+        splitSourceSets.add(splitSourceSet);
+        return splitSourceSet;
     }
 
     public void installations(Action<ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation>> action) {

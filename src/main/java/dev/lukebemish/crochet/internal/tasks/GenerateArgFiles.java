@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.tasks;
+package dev.lukebemish.crochet.internal.tasks;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
