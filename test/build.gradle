@@ -55,16 +55,24 @@ crochet {
         joined('main')
     }
 
+    features {
+        create('yarn') {
+            disablePublication()
+        }
+    }
+
     fabricInstallation('fabricYarn') {
-        minecraft = '1.21.1'
+        minecraft = '1.21.4'
 
         dependencies {
-            loader 'net.fabricmc:fabric-loader:0.16.0'
+            loader 'net.fabricmc:fabric-loader:0.16.9'
             mappings chained {
                 add intermediary()
-                add(artifact 'net.fabricmc:yarn:1.21.1+build.3:v2')
+                add(artifact 'net.fabricmc:yarn:1.21.4+build.4:v2')
             }
         }
+
+        forFeature(sourceSets.yarn)
     }
 
     vanillaInstallation('vanilla') {
@@ -91,6 +99,11 @@ crochet {
         }
         fabricYarnClient {
             client installations.fabricYarn
+            implementation(project(':')) {
+                capabilities {
+                    requireFeature('yarn')
+                }
+            }
         }
         neoFormClient {
             client installations.neoForm
