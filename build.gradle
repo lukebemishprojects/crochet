@@ -143,6 +143,10 @@ repositories {
 
     mavenCentral()
     gradlePluginPortal()
+    maven {
+        name 'Staging'
+        url 'https://maven.lukebemish.dev/staging/'
+    }
 }
 
 var versions = new Properties()

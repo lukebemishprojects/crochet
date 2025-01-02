@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.internal.pistonmeta;
+package dev.lukebemish.crochet.internal.metadata.pistonmeta;
 
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;

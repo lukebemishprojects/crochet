@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.internal.pistonmeta;
+package dev.lukebemish.crochet.internal.metadata.pistonmeta;
 
 import com.google.gson.annotations.SerializedName;
 import org.jspecify.annotations.Nullable;

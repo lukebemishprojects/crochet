@@ -1,7 +1,8 @@
-package dev.lukebemish.crochet.internal;
+package dev.lukebemish.crochet.internal.metadata;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import dev.lukebemish.crochet.internal.CrochetPlugin;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
@@ -48,7 +49,6 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
         details.withVariant("compile", variant -> {
             dependenciesFor("common", variant, libraries, id);
         });
-
 
         details.withVariant("runtime", variant -> {
             dependenciesFor("common", variant, libraries, id);
@@ -104,6 +104,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             if (libraries.has(distribution)) {
                 libraries.getAsJsonArray(distribution).forEach(element -> {
                     var dependency = element.getAsJsonObject();
+                    // TODO: this needs to be non-transitive!
                     dependencies.add(dependency.getAsJsonPrimitive("name").getAsString());
                 });
             }

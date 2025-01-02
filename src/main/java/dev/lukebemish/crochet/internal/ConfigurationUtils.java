@@ -1,6 +1,6 @@
 package dev.lukebemish.crochet.internal;
 
-import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
 import org.gradle.api.artifacts.component.ComponentSelector;
 import org.gradle.api.artifacts.result.DependencyResult;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;

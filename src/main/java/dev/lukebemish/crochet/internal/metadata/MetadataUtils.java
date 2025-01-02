@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.internal.pistonmeta;
+package dev.lukebemish.crochet.internal.metadata;
 
 import org.gradle.api.artifacts.DirectDependenciesMetadata;
 
@@ -17,7 +17,9 @@ public final class MetadataUtils {
                 var existingVersion = dep.getVersionConstraint().getRequiredVersion();
                 dep.version(version -> {
                     if (!existingVersion.isEmpty()) {
-                        version.strictly(existingVersion);
+                        // Make this non-strict for now and handle deps slightly differently
+                        //version.strictly(existingVersion);
+                        version.require(existingVersion);
                     }
                 });
             });

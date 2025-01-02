@@ -1,11 +1,13 @@
 package dev.lukebemish.crochet.internal;
 
 import dev.lukebemish.crochet.CrochetProperties;
-import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
-import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaVersionLister;
-import dev.lukebemish.crochet.internal.pistonmeta.ServerDependenciesMetadataRule;
-import dev.lukebemish.crochet.internal.pistonmeta.VersionAsArtifactRule;
-import dev.lukebemish.crochet.internal.pistonmeta.VersionManifest;
+import dev.lukebemish.crochet.internal.metadata.FabricInstallerRule;
+import dev.lukebemish.crochet.internal.metadata.NeoMinecraftDependenciesRule;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaVersionLister;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.ServerDependenciesMetadataRule;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.VersionAsArtifactRule;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.VersionManifest;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -57,6 +59,8 @@ public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
 
         components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_META_ARTIFACT, VersionAsArtifactRule.class);
         components.withModule(MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT_DATA_ARTIFACT, VersionAsArtifactRule.class);
+
+        components.withModule("net.neoforged:minecraft-dependencies", NeoMinecraftDependenciesRule.class);
     }
 
     private void repositories(RepositoryHandler repositoryHandler) {

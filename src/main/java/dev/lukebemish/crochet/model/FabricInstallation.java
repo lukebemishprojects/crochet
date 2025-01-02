@@ -110,6 +110,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         this.loaderConfiguration = project.getConfigurations().maybeCreate(getName()+"FabricLoader");
         this.loaderConfiguration.fromDependencyCollector(getDependencies().getLoader());
+        this.nonUpgradableDependencies.extendsFrom(this.loaderConfiguration);
 
         this.getDependencies().getIntermediary().add(project.provider(() ->
             this.getDependencies().module("net.fabricmc", "intermediary", this.getMinecraft().get()))
@@ -286,6 +287,11 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             config.attributes(attributes -> {
                 copyAttributes(runClasspath.getAttributes(), attributes, project.getProviders());
             });
+            config.shouldResolveConsistentlyWith(switch (runType) {
+                case CLIENT -> nonUpgradableClientRuntimeDependencies;
+                case SERVER -> nonUpgradableServerRuntimeDependencies;
+                case DATA -> nonUpgradableClientRuntimeDependencies;
+            });
             config.setCanBeConsumed(false);
         }).get();
 
@@ -422,6 +428,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
                 copyAttributes(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()).getAttributes(), attributes, project.getProviders());
             });
             config.setCanBeConsumed(false);
+            config.shouldResolveConsistentlyWith(switch (getDistribution().get()) {
+                case CLIENT, JOINED -> nonUpgradableClientCompileDependencies;
+                case SERVER, COMMON -> nonUpgradableServerCompileDependencies;
+            });
         }).get();
 
         var excludedCompileClasspath = project.getConfigurations().register(sourceSet.getTaskName("crochetExcluded", "compileClasspath"), config -> {
@@ -918,6 +928,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
     @Override
     void forRun(Run run, RunType runType) {
+        super.forRun(run, runType);
         run.argFilesTask.configure(task -> {
             task.getMinecraftVersion().set(getMinecraft());
             task.dependsOn(writeLog4jConfig);

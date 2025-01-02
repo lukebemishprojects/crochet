@@ -28,6 +28,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
 
     @Override
     void forRun(Run run, RunType runType) {
+        super.forRun(run, runType);
         run.argFilesTask.configure(task -> task.getMinecraftVersion().set(getMinecraft()));
 
         run.classpath.fromDependencyCollector(run.getImplementation());

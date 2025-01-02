@@ -6,12 +6,17 @@ import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.InheritanceMarker;
 import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
 import org.apache.commons.lang3.StringUtils;
+import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
+import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.attributes.Bundling;
 import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.LibraryElements;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Property;
@@ -77,6 +82,12 @@ public abstract class MinecraftInstallation implements Named {
     final Configuration minecraftResources;
     final Configuration minecraftLineMapped;
     final Configuration minecraftDependencies;
+
+    final DependencyScopeConfiguration nonUpgradableDependencies;
+    final Configuration nonUpgradableClientCompileDependencies;
+    final Configuration nonUpgradableServerCompileDependencies;
+    final Configuration nonUpgradableClientRuntimeDependencies;
+    final Configuration nonUpgradableServerRuntimeDependencies;
 
     @SuppressWarnings("UnstableApiUsage")
     @Inject
@@ -202,6 +213,50 @@ public abstract class MinecraftInstallation implements Named {
         });
 
         this.minecraftDependencies = project.getConfigurations().create("crochet"+ StringUtils.capitalize(name)+"MinecraftDependencies");
+
+        this.nonUpgradableDependencies = project.getConfigurations().dependencyScope("crochet"+StringUtils.capitalize(name)+"NonUpgradableDependencies", config -> config.extendsFrom(minecraftDependencies)).get();
+        Action<AttributeContainer> sharedAttributeAction = attributes -> {
+            attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
+            attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, project.getObjects().named(Bundling.class, Bundling.EXTERNAL));
+            attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.JAR));
+        };
+        this.nonUpgradableClientCompileDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableClientCompileDependencies", config -> {
+            config.extendsFrom(this.nonUpgradableDependencies);
+            config.setCanBeConsumed(false);
+            config.attributes(attributes -> {
+                sharedAttributeAction.execute(attributes);
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+            });
+        });
+        this.nonUpgradableServerCompileDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableServerCompileDependencies", config -> {
+            config.extendsFrom(this.nonUpgradableDependencies);
+            config.setCanBeConsumed(false);
+            config.attributes(attributes -> {
+                sharedAttributeAction.execute(attributes);
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+            });
+        });
+        this.nonUpgradableClientRuntimeDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableClientRuntimeDependencies", config -> {
+            config.extendsFrom(this.nonUpgradableDependencies);
+            config.setCanBeConsumed(false);
+            config.attributes(attributes -> {
+                sharedAttributeAction.execute(attributes);
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+            });
+        });
+        this.nonUpgradableServerRuntimeDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableServerRuntimeDependencies", config -> {
+            config.extendsFrom(this.nonUpgradableDependencies);
+            config.setCanBeConsumed(false);
+            config.attributes(attributes -> {
+                sharedAttributeAction.execute(attributes);
+                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+            });
+        });
+
 
         this.minecraftResources = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftResources");
         this.minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config -> {
@@ -378,5 +433,15 @@ public abstract class MinecraftInstallation implements Named {
         return this.dependencies;
     }
 
-    abstract void forRun(Run run, RunType runType);
+    void forRun(Run run, RunType runType) {
+        if (!runType.allowsDistribution(getDistribution().get())) {
+            throw new IllegalArgumentException("Run type "+runType+" is not allowed for distribution "+getDistribution().get());
+        }
+
+        run.classpath.shouldResolveConsistentlyWith(switch (runType) {
+            case CLIENT -> nonUpgradableClientRuntimeDependencies;
+            case SERVER -> nonUpgradableServerRuntimeDependencies;
+            case DATA -> nonUpgradableClientRuntimeDependencies;
+        });
+    }
 }

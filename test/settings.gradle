@@ -5,6 +5,10 @@ pluginManagement {
         }
 
         gradlePluginPortal()
+        maven {
+            name 'Staging'
+            url 'https://maven.lukebemish.dev/staging/'
+        }
     }
 
     includeBuild '../'

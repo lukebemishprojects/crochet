@@ -5,7 +5,7 @@ import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
-import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.mappings.ChainedMappingsStructure;
 import dev.lukebemish.crochet.mappings.FileMappingsStructure;
 import dev.lukebemish.crochet.mappings.MappingsStructure;
@@ -91,7 +91,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         vanillaConfigMaker.getDistribution().set(getDistribution());
         this.binaryArtifactsTask.configure(t -> t.getConfigMaker().set(vanillaConfigMaker));
 
-        var decompileCompileClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformCompileClasspath", config -> {
+        var decompileCompileClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"RunnerCompileClasspath", config -> {
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
@@ -99,7 +99,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
-        var decompileRuntimeClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformRuntimeClasspath", config -> {
+        var decompileRuntimeClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"RunnerRuntimeClasspath", config -> {
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
@@ -187,6 +187,10 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         };
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
             config.extendsFrom(minecraft);
+            config.shouldResolveConsistentlyWith(switch (getDistribution().get()) {
+                case CLIENT, JOINED -> nonUpgradableClientCompileDependencies;
+                case SERVER, COMMON -> nonUpgradableServerCompileDependencies;
+            });
             config.attributes(attributesAction);
         });
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME), config -> {

@@ -14,7 +14,7 @@ public enum InstallationDistribution implements Serializable {
         this.attributeValue = attributeValue;
     }
 
-    public String neoAttributeValue() {
+    String neoAttributeValue() {
         return attributeValue;
     }
 }

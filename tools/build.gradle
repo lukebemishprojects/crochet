@@ -26,6 +26,10 @@ repositories {
     maven {
         url = 'https://maven.fabricmc.net/'
     }
+    maven {
+        name 'Staging'
+        url 'https://maven.lukebemish.dev/staging/'
+    }
 }
 
 var versions = new Properties()

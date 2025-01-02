@@ -1,8 +1,9 @@
-package dev.lukebemish.crochet.internal.pistonmeta;
+package dev.lukebemish.crochet.internal.metadata.pistonmeta;
 
 import com.google.gson.stream.JsonReader;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
+import dev.lukebemish.crochet.internal.metadata.MetadataUtils;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;

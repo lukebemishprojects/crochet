@@ -12,7 +12,7 @@ import javax.inject.Inject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -93,7 +93,7 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
                     processConfiguration.javaExecutable(javaLauncher.getExecutablePath().toString());
 
                     List<String> args = new ArrayList<>();
-                    Map<String, String> properties = new HashMap<>(PropertiesUtils.networkProperties(getProviders()).get());
+                    Map<String, String> properties = new LinkedHashMap<>(PropertiesUtils.networkProperties(getProviders()).get());
                     properties.put("stdout.encoding", "UTF-8");
                     properties.put("stderr.encoding", "UTF-8");
                     if (getParameters().getLogLevel().isPresent()) {

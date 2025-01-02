@@ -3,7 +3,7 @@ package dev.lukebemish.crochet.model;
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
-import dev.lukebemish.crochet.internal.pistonmeta.PistonMetaMetadataRule;
+import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.internal.tasks.NeoFormInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
@@ -176,6 +176,7 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
 
     @Override
     void forRun(Run run, RunType runType) {
+        super.forRun(run, runType);
         run.argFilesTask.configure(task -> task.getMinecraftVersion().set(getMinecraft()));
 
         run.classpath.fromDependencyCollector(run.getImplementation());
