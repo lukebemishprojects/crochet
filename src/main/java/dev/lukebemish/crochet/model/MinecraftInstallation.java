@@ -323,6 +323,8 @@ public abstract class MinecraftInstallation implements Named {
         return name;
     }
 
+    public abstract Provider<String> getMinecraft();
+
     public void forFeature(SourceSet sourceSet) {
         if (sourceSets.add(sourceSet)) {
             this.crochetExtension.forSourceSet(this.getName(), sourceSet);

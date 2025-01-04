@@ -1,9 +1,9 @@
 package dev.lukebemish.crochet.internal.tasks;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
-import dev.lukebemish.crochet.mappings.FileMappingsStructure;
-import dev.lukebemish.crochet.mappings.MergedMappingsStructure;
-import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.FileMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MergedMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MojangOfficialMappingsStructure;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
 import dev.lukebemish.taskgraphrunner.model.Input;

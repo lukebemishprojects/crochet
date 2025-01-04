@@ -1,8 +1,8 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.MappingsConfigurationCounter;
-import dev.lukebemish.crochet.mappings.FileMappingsStructure;
-import dev.lukebemish.crochet.mappings.MappingsStructure;
+import dev.lukebemish.crochet.model.mappings.FileMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MappingsStructure;
 import org.gradle.api.artifacts.dsl.DependencyCollector;
 
 import javax.inject.Inject;

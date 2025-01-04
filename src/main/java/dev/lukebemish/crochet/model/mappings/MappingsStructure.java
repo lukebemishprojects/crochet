@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.mappings;
+package dev.lukebemish.crochet.model.mappings;
 
 import dev.lukebemish.taskgraphrunner.model.Input;
 import dev.lukebemish.taskgraphrunner.model.InputValue;

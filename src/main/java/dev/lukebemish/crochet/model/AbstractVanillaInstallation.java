@@ -6,12 +6,12 @@ import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
-import dev.lukebemish.crochet.mappings.ChainedMappingsStructure;
-import dev.lukebemish.crochet.mappings.FileMappingsStructure;
-import dev.lukebemish.crochet.mappings.MappingsStructure;
-import dev.lukebemish.crochet.mappings.MergedMappingsStructure;
-import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
-import dev.lukebemish.crochet.mappings.ReversedMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.ChainedMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.FileMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MergedMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MojangOfficialMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.ReversedMappingsStructure;
 import dev.lukebemish.crochet.internal.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
@@ -33,7 +33,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     final Project project;
     final VanillaInstallationArtifacts vanillaConfigMaker;
 
-    final Property<String> minecraftVersion;
+    final Property<String> minecraftVersionProperty;
 
     @Inject
     public AbstractVanillaInstallation(String name, CrochetExtension extension) {
@@ -42,8 +42,8 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         this.project = extension.project;
 
         // Create early so getMinecraft provider works right
-        this.minecraftVersion = project.getObjects().property(String.class);
-        this.minecraftVersion.set(minecraftDependencies.getIncoming().getResolutionResult().getRootComponent().map(ConfigurationUtils::extractMinecraftVersion));
+        this.minecraftVersionProperty = project.getObjects().property(String.class);
+        this.minecraftVersionProperty.set(minecraftDependencies.getIncoming().getResolutionResult().getRootComponent().map(ConfigurationUtils::extractMinecraftVersion));
 
         var minecraftPistonMeta = project.getConfigurations().dependencyScope("crochet"+StringUtils.capitalize(name)+"PistonMetaDownloads");
         var clientJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientJarPistonMetaDownloads", c -> {
@@ -81,7 +81,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "versionjson"));
             });
         });
-        project.getDependencies().addProvider(minecraftPistonMeta.getName(), minecraftVersion.map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
+        project.getDependencies().addProvider(minecraftPistonMeta.getName(), minecraftVersionProperty.map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
 
         this.vanillaConfigMaker = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
         vanillaConfigMaker.getMinecraftVersion().set(getMinecraft());
@@ -157,7 +157,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
     }
 
     public Provider<String> getMinecraft() {
-        return this.minecraftVersion;
+        return this.minecraftVersionProperty;
     }
 
     @Override

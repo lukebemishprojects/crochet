@@ -1,6 +1,6 @@
 package dev.lukebemish.crochet.internal.tasks;
 
-import dev.lukebemish.crochet.mappings.MappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MappingsStructure;
 import dev.lukebemish.crochet.model.InstallationDistribution;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;

@@ -4,6 +4,7 @@ import groovy.transform.TupleConstructor
 
 plugins {
     id 'java-gradle-plugin'
+    id 'org.gradle.kotlin.kotlin-dsl' version '5.1.2' // Version for gradle 8.12
     id 'maven-publish'
     id 'dev.lukebemish.managedversioning'
     alias cLibs.plugins.gradlepublish
@@ -103,6 +104,10 @@ managedVersioning {
     }
 
     apply()
+}
+
+tasks.validatePlugins {
+    enableStricterValidation.set(true)
 }
 
 println "Version: ${project.version}"

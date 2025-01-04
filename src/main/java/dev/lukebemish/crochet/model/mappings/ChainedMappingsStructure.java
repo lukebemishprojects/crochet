@@ -1,4 +1,4 @@
-package dev.lukebemish.crochet.mappings;
+package dev.lukebemish.crochet.model.mappings;
 
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Nested;

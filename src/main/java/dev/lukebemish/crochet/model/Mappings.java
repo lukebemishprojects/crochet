@@ -1,12 +1,12 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.MappingsConfigurationCounter;
-import dev.lukebemish.crochet.mappings.ChainedMappingsStructure;
-import dev.lukebemish.crochet.mappings.FileMappingsStructure;
-import dev.lukebemish.crochet.mappings.MappingsStructure;
-import dev.lukebemish.crochet.mappings.MergedMappingsStructure;
-import dev.lukebemish.crochet.mappings.MojangOfficialMappingsStructure;
-import dev.lukebemish.crochet.mappings.ReversedMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.ChainedMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.FileMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MergedMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.MojangOfficialMappingsStructure;
+import dev.lukebemish.crochet.model.mappings.ReversedMappingsStructure;
 import org.gradle.api.Action;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.Dependencies;
