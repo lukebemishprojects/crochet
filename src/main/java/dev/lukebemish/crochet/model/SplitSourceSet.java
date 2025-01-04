@@ -24,28 +24,28 @@ public class SplitSourceSet implements Named {
         return name;
     }
 
-    MinecraftInstallation getJoined() {
+    public MinecraftInstallation getJoined() {
         if (joined == null) {
             throw new IllegalStateException("Joined source set not present in "+getName());
         }
         return joined;
     }
 
-    MinecraftInstallation getCommon() {
+    public MinecraftInstallation getCommon() {
         if (common == null) {
             throw new IllegalStateException("Common source set not present in "+getName());
         }
         return common;
     }
 
-    MinecraftInstallation getClient() {
+    public MinecraftInstallation getClient() {
         if (client == null) {
             throw new IllegalStateException("Client source set not present in "+getName());
         }
         return client;
     }
 
-    MinecraftInstallation getServer() {
+    public MinecraftInstallation getServer() {
         if (server == null) {
             throw new IllegalStateException("Server source set not present in "+getName());
         }

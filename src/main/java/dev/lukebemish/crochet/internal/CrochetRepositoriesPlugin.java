@@ -11,6 +11,7 @@ import dev.lukebemish.crochet.internal.metadata.pistonmeta.VersionManifest;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.ArtifactRepositoryContainer;
 import org.gradle.api.artifacts.dsl.ComponentMetadataHandler;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
@@ -69,6 +70,7 @@ public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
             repo.setUrl(URI.create("https://libraries.minecraft.net/"));
             repo.metadataSources(MavenArtifactRepository.MetadataSources::mavenPom);
             repo.content(MinecraftLibrariesMavenContent::applyContent);
+            repo.artifactUrls(ArtifactRepositoryContainer.MAVEN_CENTRAL_URL);
         });
         repositoryHandler.remove(minecraftLibraries);
         repositoryHandler.addFirst(minecraftLibraries);
