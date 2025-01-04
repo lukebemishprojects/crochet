@@ -13,6 +13,7 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.DisableCachingByDefault;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 
+@DisableCachingByDefault(because = "Not worth caching")
 public abstract class GenerateArgFiles extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getArgFile();

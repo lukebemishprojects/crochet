@@ -7,10 +7,12 @@ import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.DisableCachingByDefault;
 
 import java.io.IOException;
 import java.nio.file.Files;
 
+@DisableCachingByDefault(because = "Not worth caching")
 public abstract class MakeRemapClasspathFile extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getRemapClasspathFile();

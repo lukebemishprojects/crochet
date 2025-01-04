@@ -16,6 +16,7 @@ import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.DisableCachingByDefault;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipFile;
 
+@DisableCachingByDefault(because = "Not worth caching")
 public abstract class ExtractFabricDependencies extends DefaultTask {
     @InputFiles
     @PathSensitive(PathSensitivity.NONE)
