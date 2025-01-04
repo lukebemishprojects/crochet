@@ -35,6 +35,7 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.work.DisableCachingByDefault;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -51,7 +52,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@SuppressWarnings("UnstableApiUsage")
+@DisableCachingByDefault(because = "TaskGraphRunner cache makes local caching a waste of disk space; remote caching disabled as gradle is not selective")
 public abstract class TaskGraphExecution extends DefaultTask {
     private static final Gson GSON = new GsonBuilder().create();
 

@@ -6,11 +6,13 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.DisableCachingByDefault;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 
+@DisableCachingByDefault(because = "Not worth caching")
 public abstract class WriteFile extends DefaultTask {
     @Input
     public abstract Property<String> getContents();
