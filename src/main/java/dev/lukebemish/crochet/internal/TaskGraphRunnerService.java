@@ -99,11 +99,14 @@ public abstract class TaskGraphRunnerService implements BuildService<TaskGraphRu
                     if (getParameters().getLogLevel().isPresent()) {
                         properties.put(LOG_LEVEL_PROPERTY, getParameters().getLogLevel().get());
                     }
-                    properties.putAll(getProviders().gradlePropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
-                    properties.putAll(getProviders().systemPropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
 
                     // These are all very expensive; some computers can do these all at once but many cannot, and as they're all parallelized it doesn't save much.
                     properties.put("dev.lukebemish.taskgraphrunner.parallelism.groups", "jst+decompile+remapMods");
+                    // And these ones should be considered heavy
+                    properties.put("dev.lukebemish.taskgraphrunner.jst+decompile+remapMods.heavy", "true");
+
+                    properties.putAll(getProviders().gradlePropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
+                    properties.putAll(getProviders().systemPropertiesPrefixedBy("dev.lukebemish.taskgraphrunner").get());
 
                     for (Map.Entry<String, String> entry : properties.entrySet()) {
                         args.add("-D"+entry.getKey()+"="+entry.getValue());
