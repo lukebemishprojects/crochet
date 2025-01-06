@@ -1,6 +1,6 @@
 package dev.lukebemish.crochet.model;
 
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
@@ -80,7 +80,7 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
         this.assetsProperties = project.getLayout().getBuildDirectory().file("crochet/installations/"+name+"/assets.properties");
         this.downloadAssetsTask = project.getTasks().register(name+"CrochetDownloadAssets", TaskGraphExecution.class, task -> {
             task.setGroup("crochet setup");
-            task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
+            task.getClasspath().from(project.getConfigurations().named(CrochetProjectPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("assets", assetsProperties, project.getObjects()));
             // Bounce, to avoid capturing the installation in the args
             var assetsProperties = this.assetsProperties;
@@ -182,7 +182,7 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
             task.setGroup("crochet setup");
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("resources", resources, project.getObjects()));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("binarySourceIndependent", binary, project.getObjects()));
-            task.getClasspath().from(project.getConfigurations().named(CrochetPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
+            task.getClasspath().from(project.getConfigurations().named(CrochetProjectPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
         this.sourcesArtifactsTask = project.getTasks().register(name + "CrochetMinecraftSourcesArtifacts", TaskGraphExecution.class, task -> {
@@ -259,7 +259,7 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
             var group = CROSS_PROJECT_SHARING_CAPABILITY_GROUP + sharingInstallationTypeTag();
             var module = tag + "-" + externalTag;
             configuration.getOutgoing().capability(group + ":" + module + ":" + "1.0.0");
-            configuration.getAttributes().attributeProvider(CrochetPlugin.LOCAL_DISTRIBUTION_ATTRIBUTE, getDistribution().map(it -> it.name().toLowerCase(Locale.ROOT)));
+            configuration.getAttributes().attributeProvider(CrochetProjectPlugin.LOCAL_DISTRIBUTION_ATTRIBUTE, getDistribution().map(it -> it.name().toLowerCase(Locale.ROOT)));
         }
     }
 

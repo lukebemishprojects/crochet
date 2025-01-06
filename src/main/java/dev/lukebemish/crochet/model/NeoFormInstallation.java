@@ -1,7 +1,6 @@
 package dev.lukebemish.crochet.model;
 
-import dev.lukebemish.crochet.internal.ConfigurationUtils;
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.internal.tasks.NeoFormInstallationArtifacts;
@@ -12,9 +11,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 
 import javax.inject.Inject;
@@ -44,7 +41,7 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
@@ -55,21 +52,21 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
         var clientMappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientMappingsPistonMetaDownloads", c -> {
             c.extendsFrom(minecraftPistonMeta.get());
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
             });
         });
         var serverMappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ServerMappingsPistonMetaDownloads", c -> {
             c.extendsFrom(minecraftPistonMeta.get());
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
             });
         });
@@ -95,7 +92,7 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
@@ -103,20 +100,20 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
 
         this.neoFormConfigDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformConfig", config -> {
             config.setCanBeConsumed(false);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
         this.neoFormConfig = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Neoform", config -> {
             config.extendsFrom(this.neoFormConfigDependencies);
             config.setCanBeConsumed(false);
             config.setTransitive(false);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
 
         this.neoFormConfigDependencies.fromDependencyCollector(getDependencies().getNeoForm());
@@ -144,7 +141,7 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
             task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-jar", serverJarPistonMeta.get());
             task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-mappings", clientMappingsPistonMeta.get());
             task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-mappings", serverMappingsPistonMeta.get());
-            task.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
+            task.artifactsConfiguration(project.getConfigurations().getByName(CrochetProjectPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
         });
 
         this.getRecompile().convention(false);
@@ -155,7 +152,7 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
         return (NeoFormInstallationDependencies) dependencies;
     }
 
-    public void dependencies(Action<NeoFormInstallationDependencies> action) {
+    public void dependencies(Action<? super NeoFormInstallationDependencies> action) {
         action.execute(getDependencies());
     }
 
@@ -176,7 +173,7 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
         switch (runType) {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -193,7 +190,7 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
                 );
             }
             case SERVER -> {
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -205,7 +202,7 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
             }
             case DATA -> {
                 // TODO: what's the right stuff to go here?
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
+                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);

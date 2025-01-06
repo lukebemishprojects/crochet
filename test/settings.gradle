@@ -1,4 +1,6 @@
 pluginManagement {
+    includeBuild '../'
+
     repositories {
         if (settings.useLocalMavenForTesting) {
             mavenLocal()
@@ -10,8 +12,10 @@ pluginManagement {
             url 'https://maven.lukebemish.dev/staging/'
         }
     }
+}
 
-    includeBuild '../'
+plugins {
+    id 'dev.lukebemish.crochet'
 }
 
 includeBuild '../'
@@ -22,3 +26,9 @@ include(':subproject')
 include(':no-crochet')
 include(':with-kotlin')
 include(':consumes-shared')
+
+crochet {
+    vanillaInstallation('vanilla') {
+        minecraft = '1.21.1'
+    }
+}

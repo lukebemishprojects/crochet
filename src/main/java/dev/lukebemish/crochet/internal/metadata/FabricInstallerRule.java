@@ -2,7 +2,7 @@ package dev.lukebemish.crochet.internal.metadata;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
@@ -59,7 +59,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("client", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
             });
         });
 
@@ -68,7 +68,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("server", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
             });
         });
 
@@ -78,7 +78,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("development", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
             });
         });
 
@@ -88,7 +88,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("development", variant, libraries, id);
             defaultFiles(variant, id);
             variant.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
             });
         });
     }

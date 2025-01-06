@@ -1,14 +1,11 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
-import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.InheritanceMarker;
-import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
-import org.gradle.api.Named;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.attributes.AttributeContainer;
@@ -17,14 +14,11 @@ import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.Directory;
-import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
@@ -34,7 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public abstract class MinecraftInstallation implements Named {
+public abstract class MinecraftInstallation implements GeneralizedMinecraftInstallation {
     static final String ACCESS_TRANSFORMER_CATEGORY = "accesstransformer";
     static final String INTERFACE_INJECTION_CATEGORY = "interfaceinjection";
 
@@ -91,7 +85,7 @@ public abstract class MinecraftInstallation implements Named {
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
                 sharedAttributeAction.execute(attributes);
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
@@ -100,7 +94,7 @@ public abstract class MinecraftInstallation implements Named {
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
                 sharedAttributeAction.execute(attributes);
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
@@ -109,7 +103,7 @@ public abstract class MinecraftInstallation implements Named {
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
                 sharedAttributeAction.execute(attributes);
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
@@ -118,7 +112,7 @@ public abstract class MinecraftInstallation implements Named {
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
                 sharedAttributeAction.execute(attributes);
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
@@ -129,35 +123,20 @@ public abstract class MinecraftInstallation implements Named {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
             config.extendsFrom(minecraftResources);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
 
         this.minecraftLineMapped = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftLineMapped", config -> {
             config.setCanBeConsumed(false);
             config.extendsFrom(minecraftDependencies);
             config.extendsFrom(minecraftResources);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
     }
 
+    @Override
     public Property<InstallationDistribution> getDistribution() {
         return this.distribution;
-    }
-
-    public void client() {
-        this.distribution.set(InstallationDistribution.CLIENT);
-    }
-
-    public void common() {
-        this.distribution.set(InstallationDistribution.COMMON);
-    }
-
-    public void joined() {
-        this.distribution.set(InstallationDistribution.JOINED);
-    }
-
-    public void server() {
-        this.distribution.set(InstallationDistribution.SERVER);
     }
 
     @Override
@@ -179,7 +158,7 @@ public abstract class MinecraftInstallation implements Named {
             Action<AttributeContainer> attributesAction = attributes -> {
                 var dist = getDistribution().get();
                 if (dist != InstallationDistribution.JOINED) {
-                    attributes.attribute(CrochetPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
+                    attributes.attribute(CrochetProjectPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
                 }
             };
             context.getRuntimeElements().attributes(attributesAction);
@@ -213,7 +192,7 @@ public abstract class MinecraftInstallation implements Named {
         Action<AttributeContainer> attributesAction = attributes -> {
             var dist = getDistribution().get();
             if (dist != InstallationDistribution.JOINED) {
-                attributes.attribute(CrochetPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
+                attributes.attribute(CrochetProjectPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
             }
         };
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {

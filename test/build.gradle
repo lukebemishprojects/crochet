@@ -81,16 +81,12 @@ crochet {
         forFeature(sourceSets.yarn)
     }
 
-    vanillaInstallation('vanilla') {
-        minecraft = '1.21.1'
-
-        share('vanilla')
-    }
-
     neoFormInstallation('neoForm') {
         dependencies {
             neoForm 'net.neoforged:neoform:1.21.3-20241023.131943'
         }
+
+        share('neoform')
     }
 
     runs {

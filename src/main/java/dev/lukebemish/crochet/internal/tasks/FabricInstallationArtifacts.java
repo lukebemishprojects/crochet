@@ -1,6 +1,6 @@
 package dev.lukebemish.crochet.internal.tasks;
 
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.model.mappings.FileMappingsStructure;
 import dev.lukebemish.crochet.model.mappings.MergedMappingsStructure;
 import dev.lukebemish.crochet.model.mappings.MojangOfficialMappingsStructure;
@@ -120,7 +120,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                     new Argument.FileOutput("--output={}", "output", "cfg"),
                     new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToNamedMappings", "output")), PathSensitivity.NONE)
                 ),
-                new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
+                new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetProjectPlugin.VERSION))
             );
             transformAccessWideners.classpathScopedJvm = true;
 
@@ -159,7 +159,7 @@ public abstract class FabricInstallationArtifacts implements TaskGraphExecution.
                     new Argument.FileOutput("--output={}", "output", "json"),
                     new Argument.FileInput("--mappings={}", new Input.TaskInput(new Output("intermediaryToNamedMappings", "output")), PathSensitivity.NONE)
                 ),
-                new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION))
+                new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetProjectPlugin.VERSION))
             );
             transformInterfaceInjection.classpathScopedJvm = true;
 

@@ -1,6 +1,6 @@
 package dev.lukebemish.crochet.internal.tasks;
 
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.Versions;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
@@ -124,7 +124,7 @@ public abstract class RemapModsSourcesConfigMaker implements TaskGraphExecution.
             view.lenient(true);
             view.withVariantReselection();
             view.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetPlugin.CROCHET_REMAP_TYPE_REMAP);
+                attributes.attribute(CrochetProjectPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetProjectPlugin.CROCHET_REMAP_TYPE_REMAP);
                 attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, outer.getProject().getObjects().named(Category.class, Category.DOCUMENTATION));
                 attributes.attribute(DocsType.DOCS_TYPE_ATTRIBUTE, outer.getProject().getObjects().named(DocsType.class, DocsType.SOURCES));

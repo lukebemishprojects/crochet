@@ -27,7 +27,7 @@ version = '1.0.0'
 
 crochet {
     externalVanillaInstallation('vanilla') {
-        consume(':', 'vanilla')
+        consume("vanilla")
     }
 
     runs {

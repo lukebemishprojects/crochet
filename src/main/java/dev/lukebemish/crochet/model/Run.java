@@ -1,7 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.tasks.GenerateArgFiles;
 import org.apache.commons.lang3.StringUtils;
@@ -56,7 +56,7 @@ public abstract class Run implements Named, Dependencies {
             attributes.attribute(Category.CATEGORY_ATTRIBUTE, getProject().getObjects().named(Category.class, Category.LIBRARY));
             attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getProject().getObjects().named(LibraryElements.class, LibraryElements.CLASSES_AND_RESOURCES));
         });
-        classpath.extendsFrom(getProject().getConfigurations().getByName(CrochetPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
+        classpath.extendsFrom(getProject().getConfigurations().getByName(CrochetProjectPlugin.DEV_LAUNCH_CONFIGURATION_NAME));
         var defaultRunName = getProject().getBuildTreePath().equals(":") ? getName() : getName() + " (" + getProject().getBuildTreePath() + ")";
         this.getIdeName().convention(defaultRunName);
 

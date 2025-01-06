@@ -1,10 +1,8 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.CrochetProperties;
-import dev.lukebemish.crochet.internal.ConfigurationUtils;
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
-import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.model.mappings.ChainedMappingsStructure;
 import dev.lukebemish.crochet.model.mappings.FileMappingsStructure;
@@ -14,19 +12,15 @@ import dev.lukebemish.crochet.model.mappings.MojangOfficialMappingsStructure;
 import dev.lukebemish.crochet.model.mappings.ReversedMappingsStructure;
 import dev.lukebemish.crochet.internal.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
-import org.gradle.api.Action;
 import org.gradle.api.Project;
-import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.jetbrains.annotations.ApiStatus;
 
 import javax.inject.Inject;
-import java.util.Locale;
 import java.util.Map;
 
 public abstract class AbstractVanillaInstallation extends LocalMinecraftInstallation {
@@ -47,7 +41,7 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
@@ -58,14 +52,14 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
                 "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
             ));
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
         var mappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"MappingsPistonMetaDownloads", c -> {
             c.extendsFrom(minecraftPistonMeta.get());
             c.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
             });
         });
@@ -89,7 +83,7 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
@@ -97,7 +91,7 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
             config.extendsFrom(minecraftDependencies);
             config.setCanBeConsumed(false);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
@@ -115,7 +109,7 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
             task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-jar", clientJarPistonMeta.get());
             task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-jar", serverJarPistonMeta.get());
             task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-mappings", mappingsPistonMeta.get(), vanillaConfigMaker.getMappings().map(AbstractVanillaInstallation::requiresVanillaMappings));
-            task.artifactsConfiguration(project.getConfigurations().getByName(CrochetPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
+            task.artifactsConfiguration(project.getConfigurations().getByName(CrochetProjectPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
         });
     }
 

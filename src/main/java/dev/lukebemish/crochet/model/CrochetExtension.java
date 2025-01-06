@@ -2,11 +2,11 @@ package dev.lukebemish.crochet.model;
 
 import org.gradle.api.Action;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
-import org.gradle.api.NamedDomainObjectCollection;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class CrochetExtension {
+public abstract class CrochetExtension implements ExtensionAware {
     final TaskProvider<Task> idePostSync;
     final TaskProvider<Task> generateSources;
     final Project project;
@@ -24,6 +24,8 @@ public abstract class CrochetExtension {
     private final CrochetFeaturesContext features;
     private final CrochetTasksContext tasks;
     private final NamedDomainObjectContainer<SplitSourceSet> splitSourceSets;
+    private final NamedDomainObjectContainer<DependencySet> sharedDependencySets;
+    private final NamedDomainObjectContainer<SharedInstallation> sharedInstallations;
 
     @Inject
     public CrochetExtension(Project project) {
@@ -74,10 +76,13 @@ public abstract class CrochetExtension {
         this.getRuns().whenObjectAdded(o -> {});
 
         this.splitSourceSets = objects.domainObjectContainer(SplitSourceSet.class);
-    }
+        this.sharedDependencySets = objects.domainObjectContainer(DependencySet.class);
+        this.sharedInstallations = objects.domainObjectContainer(SharedInstallation.class);
 
-    public ExtensiblePolymorphicDomainObjectContainer<MinecraftInstallation> getInstallations() {
-        return installations;
+        this.getExtensions().add("installations", this.installations);
+        this.getExtensions().add("splitSourceSets", this.splitSourceSets);
+        this.getExtensions().add("sharedDependencySets", this.sharedDependencySets);
+        this.getExtensions().add("sharedInstallations", this.sharedInstallations);
     }
 
     public CrochetFeaturesContext getFeatures() {
@@ -96,10 +101,6 @@ public abstract class CrochetExtension {
         action.execute(getTasks());
     }
 
-    public NamedDomainObjectCollection<SplitSourceSet> getSplitSourceSets() {
-        return splitSourceSets;
-    }
-
     public SplitSourceSet fabricSplitSourceSets(String name, Action<FabricSplitSourceSetsSpec> action) {
         var spec = project.getObjects().newInstance(FabricSplitSourceSetsSpec.class);
         action.execute(spec);
@@ -112,19 +113,19 @@ public abstract class CrochetExtension {
         action.execute(installations);
     }
 
-    public NamedDomainObjectProvider<FabricInstallation> fabricInstallation(String name, Action<FabricInstallation> action) {
+    public NamedDomainObjectProvider<FabricInstallation> fabricInstallation(String name, Action<? super FabricInstallation> action) {
         return installations.register(name, FabricInstallation.class, action);
     }
 
-    public NamedDomainObjectProvider<NeoFormInstallation> neoFormInstallation(String name, Action<NeoFormInstallation> action) {
+    public NamedDomainObjectProvider<NeoFormInstallation> neoFormInstallation(String name, Action<? super NeoFormInstallation> action) {
         return installations.register(name, NeoFormInstallation.class, action);
     }
 
-    public NamedDomainObjectProvider<VanillaInstallation> vanillaInstallation(String name, Action<VanillaInstallation> action) {
+    public NamedDomainObjectProvider<VanillaInstallation> vanillaInstallation(String name, Action<? super VanillaInstallation> action) {
         return installations.register(name, VanillaInstallation.class, action);
     }
 
-    public NamedDomainObjectProvider<ExternalVanillaInstallation> externalVanillaInstallation(String name, Action<ExternalVanillaInstallation> action) {
+    public NamedDomainObjectProvider<ExternalVanillaInstallation> externalVanillaInstallation(String name, Action<? super ExternalVanillaInstallation> action) {
         return installations.register(name, ExternalVanillaInstallation.class, action);
     }
 
@@ -141,7 +142,7 @@ public abstract class CrochetExtension {
         if (installation == null) {
             return null;
         }
-        return getInstallations().getByName(installation);
+        return installations.getByName(installation);
     }
 
     void forSourceSet(String installation, SourceSet sourceSet) {
@@ -149,5 +150,9 @@ public abstract class CrochetExtension {
         if (existing != null) {
             throw new IllegalStateException("Source set " + sourceSet.getName() + " is already associated with installation " + existing);
         }
+    }
+
+    void addSharedInstallation(String name) {
+        sharedInstallations.add(project.getObjects().newInstance(SharedInstallation.class, name));
     }
 }

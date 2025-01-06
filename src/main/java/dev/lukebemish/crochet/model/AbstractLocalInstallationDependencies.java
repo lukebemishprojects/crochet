@@ -10,7 +10,7 @@ import javax.inject.Inject;
 
 @SuppressWarnings("UnstableApiUsage")
 public abstract class AbstractLocalInstallationDependencies<T extends AbstractLocalInstallationDependencies<T>> implements Dependencies {
-    private final LocalMinecraftInstallation installation;
+    final LocalMinecraftInstallation installation;
 
     @Inject
     public AbstractLocalInstallationDependencies(LocalMinecraftInstallation installation) {

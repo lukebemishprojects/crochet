@@ -1,6 +1,6 @@
 package dev.lukebemish.crochet.internal.tasks;
 
-import dev.lukebemish.crochet.internal.CrochetPlugin;
+import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.model.InstallationDistribution;
 import dev.lukebemish.taskgraphrunner.model.Argument;
 import dev.lukebemish.taskgraphrunner.model.Config;
@@ -103,7 +103,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
 
         var remapTask = new TaskModel.DaemonExecutedTool("remapMods", List.of(
             Argument.direct("remap-mods")
-        ), new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetPlugin.VERSION)));
+        ), new Input.DirectInput(Value.artifact("dev.lukebemish.crochet:tools:" + CrochetProjectPlugin.VERSION)));
 
         remapTask.classpathScopedJvm = true;
 

@@ -26,6 +26,10 @@ repositories {
 }
 
 crochet {
+    externalVanillaInstallation("vanilla") {
+        consume(sharedInstallations.vanilla)
+    }
+
     fabricInstallation("fabric") {
         minecraftVersion = "1.21.4"
 
