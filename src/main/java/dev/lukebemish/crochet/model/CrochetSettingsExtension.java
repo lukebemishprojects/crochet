@@ -8,7 +8,7 @@ import org.gradle.api.model.ObjectFactory;
 import javax.inject.Inject;
 
 public abstract class CrochetSettingsExtension {
-    private final ExtensiblePolymorphicDomainObjectContainer<SettingsMinecraftInstallation<?, ?, ?>> installations;
+    private final ExtensiblePolymorphicDomainObjectContainer<SettingsMinecraftInstallation<?, ?>> installations;
 
     @Inject
     protected abstract ObjectFactory getObjects();
@@ -17,7 +17,7 @@ public abstract class CrochetSettingsExtension {
     @Inject
     public CrochetSettingsExtension(Settings settings) {
         this.installations = getObjects().polymorphicDomainObjectContainer(
-            (Class<SettingsMinecraftInstallation<?, ?, ?>>) (Class) SettingsMinecraftInstallation.class
+            (Class<SettingsMinecraftInstallation<?, ?>>) (Class) SettingsMinecraftInstallation.class
         );
         this.installations.registerFactory(
             SettingsMinecraftInstallation.Vanilla.class,
@@ -33,7 +33,7 @@ public abstract class CrochetSettingsExtension {
         );
     }
 
-    public ExtensiblePolymorphicDomainObjectContainer<SettingsMinecraftInstallation<?, ?, ?>> getInstallations() {
+    public ExtensiblePolymorphicDomainObjectContainer<SettingsMinecraftInstallation<?, ?>> getInstallations() {
         return installations;
     }
 

@@ -13,6 +13,7 @@ import dev.lukebemish.crochet.model.mappings.ReversedMappingsStructure;
 import dev.lukebemish.crochet.internal.tasks.VanillaInstallationArtifacts;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.VersionConstraint;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.provider.Property;
@@ -124,8 +125,8 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
     }
 
     @Override
-    public AbstractVanillaInstallationDependencies getDependencies() {
-        return (AbstractVanillaInstallationDependencies) dependencies;
+    public AbstractVanillaInstallationDependencies<?> getDependencies() {
+        return (AbstractVanillaInstallationDependencies<?>) dependencies;
     }
 
     @ApiStatus.Experimental
@@ -135,13 +136,35 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
         setMinecraft(project.provider(() -> string));
     }
 
+    /**
+     * Sets the Minecraft version to use for this installation; the version can be a string or a {@link VersionConstraint}.
+     */
     @SuppressWarnings("UnstableApiUsage")
-    public void setMinecraft(Provider<String> string) {
+    public void setMinecraft(Provider<?> provider) {
         getDependencies().getMinecraftDependencies().add(
-            project.provider(() -> project.getDependencies().create(
-                (getUseStubBackedMinecraftDependencies().get() ? CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP + ":minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+string.get()
-            ))
+            project.provider(() -> dependencies.module(
+                (getUseStubBackedMinecraftDependencies().get() ? CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP + ":minecraft-dependencies" : "net.neoforged:minecraft-dependencies")
+            )), dep -> {
+                var value = provider.get();
+                if (value instanceof VersionConstraint version) {
+                    dep.version(v -> {
+                        if (!version.getPreferredVersion().isEmpty()) v.prefer(version.getPreferredVersion());
+                        if (!version.getRejectedVersions().isEmpty()) v.reject(version.getRejectedVersions().toArray(String[]::new));
+                        if (version.getBranch() != null) v.setBranch(version.getBranch());
+                        if (!version.getStrictVersion().isEmpty()) v.strictly(version.getStrictVersion());
+                        if (!version.getRequiredVersion().isEmpty()) v.require(version.getRequiredVersion());
+                    });
+                } else if (value instanceof String string) {
+                    dep.version(v -> v.require(string));
+                } else {
+                    throw new IllegalArgumentException("Unsupported type for minecraft version: " + value.getClass());
+                }
+            }
         );
+    }
+
+    public void setMinecraft(VersionConstraint version) {
+        setMinecraft(project.provider(() -> version));
     }
 
     @Override

@@ -4,6 +4,7 @@ import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import org.gradle.api.Action;
+import org.gradle.api.artifacts.VersionConstraint;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -13,7 +14,7 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class SettingsMinecraftInstallation<T extends SettingsMinecraftInstallation<T, R, D>, R extends LocalMinecraftInstallation, D extends AbstractLocalInstallationDependencies<D>> implements GeneralizedMinecraftInstallation {
+public abstract class SettingsMinecraftInstallation<R extends LocalMinecraftInstallation, D extends AbstractLocalInstallationDependencies<D>> implements GeneralizedMinecraftInstallation {
     @SuppressWarnings("UnstableApiUsage")
     @Inject
     public SettingsMinecraftInstallation(String name, Settings settings) {
@@ -44,7 +45,7 @@ public abstract class SettingsMinecraftInstallation<T extends SettingsMinecraftI
         dependencyActions.add(action);
     }
 
-    public abstract static class AbstractVanilla<T extends SettingsMinecraftInstallation<T, R, D>, R extends AbstractVanillaInstallation, D extends AbstractVanillaInstallationDependencies<D>> extends SettingsMinecraftInstallation<T, R, D> {
+    public abstract static class AbstractVanilla<T extends SettingsMinecraftInstallation<R, D>, R extends AbstractVanillaInstallation, D extends AbstractVanillaInstallationDependencies<D>> extends SettingsMinecraftInstallation<R, D> {
         @Inject
         public AbstractVanilla(String name, Settings settings) {
             super(name, settings);
@@ -62,19 +63,43 @@ public abstract class SettingsMinecraftInstallation<T extends SettingsMinecraftI
             });
         }
 
-        public void setMinecraft(Provider<String> string) {
+        public void setMinecraft(VersionConstraint version) {
+            dependencies(dependencies -> {
+                setMinecraftOnDependencies(dependencies.installation.crochetExtension.project.provider(() -> version), dependencies);
+            });
+        }
+
+        /**
+         * Sets the Minecraft version to use for this installation; the version can be a string or a {@link VersionConstraint}.
+         */
+        public void setMinecraft(Provider<?> string) {
             dependencies(dependencies -> {
                 setMinecraftOnDependencies(string, dependencies);
             });
         }
 
         @SuppressWarnings("UnstableApiUsage")
-        private void setMinecraftOnDependencies(Provider<String> string, D dependencies) {
+        private void setMinecraftOnDependencies(Provider<?> provider, D dependencies) {
             var installation = (AbstractVanillaInstallation) dependencies.installation;
             dependencies.getMinecraftDependencies().add(
                 dependencies.installation.crochetExtension.project.provider(() ->
-                    dependencies.module((installation.getUseStubBackedMinecraftDependencies().get() ? CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP + ":minecraft-dependencies" : "net.neoforged:minecraft-dependencies")+":"+ string.get())
-                )
+                    dependencies.module((installation.getUseStubBackedMinecraftDependencies().get() ? CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP + ":minecraft-dependencies" : "net.neoforged:minecraft-dependencies"))
+                ), dep -> {
+                    var value = provider.get();
+                    if (value instanceof VersionConstraint version) {
+                        dep.version(v -> {
+                            if (!version.getPreferredVersion().isEmpty()) v.prefer(version.getPreferredVersion());
+                            if (!version.getRejectedVersions().isEmpty()) v.reject(version.getRejectedVersions().toArray(String[]::new));
+                            if (version.getBranch() != null) v.setBranch(version.getBranch());
+                            if (!version.getStrictVersion().isEmpty()) v.strictly(version.getStrictVersion());
+                            if (!version.getRequiredVersion().isEmpty()) v.require(version.getRequiredVersion());
+                        });
+                    } else if (value instanceof String string) {
+                        dep.version(v -> v.require(string));
+                    } else {
+                        throw new IllegalArgumentException("Unsupported type for minecraft version: " + value.getClass());
+                    }
+                }
             );
         }
 
@@ -125,7 +150,7 @@ public abstract class SettingsMinecraftInstallation<T extends SettingsMinecraftI
         }
     }
 
-    public abstract static class NeoForm extends SettingsMinecraftInstallation<NeoForm, NeoFormInstallation, NeoFormInstallationDependencies> {
+    public abstract static class NeoForm extends SettingsMinecraftInstallation<NeoFormInstallation, NeoFormInstallationDependencies> {
         @Inject
         public NeoForm(String name, Settings settings) {
             super(name, settings);
