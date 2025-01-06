@@ -2,9 +2,9 @@ package dev.lukebemish.crochet.model;
 
 import javax.inject.Inject;
 
-public abstract class VanillaInstallationDependencies extends AbstractVanillaInstallationDependencies {
+public abstract class VanillaInstallationDependencies extends AbstractVanillaInstallationDependencies<VanillaInstallationDependencies> {
     @Inject
-    public VanillaInstallationDependencies(MinecraftInstallation installation) {
+    public VanillaInstallationDependencies(VanillaInstallation installation) {
         super(installation);
     }
 }

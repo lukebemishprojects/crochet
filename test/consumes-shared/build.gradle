@@ -1,0 +1,46 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'dev.lukebemish.crochet'
+}
+
+repositories {
+    if (project.useLocalMavenForTesting) {
+        mavenLocal()
+    }
+
+    mavenCentral()
+    maven {
+        name = "ParchmentMC"
+        url = uri("https://maven.parchmentmc.org/")
+    }
+    maven {
+        name 'Staging'
+        url 'https://maven.lukebemish.dev/staging/'
+    }
+}
+
+java.withSourcesJar()
+
+group = 'dev.lukebemish.crochet.crochet-test'
+version = '1.0.0'
+
+crochet {
+    externalVanillaInstallation('vanilla') {
+        consume(':', 'vanilla')
+    }
+
+    runs {
+        vanillaClient {
+            client installations.vanilla
+        }
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}

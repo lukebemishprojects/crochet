@@ -29,21 +29,15 @@ import javax.inject.Inject;
 import java.util.Locale;
 import java.util.Map;
 
-public abstract class AbstractVanillaInstallation extends MinecraftInstallation {
+public abstract class AbstractVanillaInstallation extends LocalMinecraftInstallation {
     final Project project;
     final VanillaInstallationArtifacts vanillaConfigMaker;
-
-    final Property<String> minecraftVersionProperty;
 
     @Inject
     public AbstractVanillaInstallation(String name, CrochetExtension extension) {
         super(name, extension);
 
         this.project = extension.project;
-
-        // Create early so getMinecraft provider works right
-        this.minecraftVersionProperty = project.getObjects().property(String.class);
-        this.minecraftVersionProperty.set(minecraftDependencies.getIncoming().getResolutionResult().getRootComponent().map(ConfigurationUtils::extractMinecraftVersion));
 
         var minecraftPistonMeta = project.getConfigurations().dependencyScope("crochet"+StringUtils.capitalize(name)+"PistonMetaDownloads");
         var clientJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientJarPistonMetaDownloads", c -> {
@@ -81,7 +75,7 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "versionjson"));
             });
         });
-        project.getDependencies().addProvider(minecraftPistonMeta.getName(), minecraftVersionProperty.map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
+        project.getDependencies().addProvider(minecraftPistonMeta.getName(), getMinecraft().map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
 
         this.vanillaConfigMaker = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
         vanillaConfigMaker.getMinecraftVersion().set(getMinecraft());
@@ -156,51 +150,13 @@ public abstract class AbstractVanillaInstallation extends MinecraftInstallation 
         );
     }
 
-    public Provider<String> getMinecraft() {
-        return this.minecraftVersionProperty;
-    }
-
     @Override
     public void forFeature(SourceSet sourceSet) {
         super.forFeature(sourceSet);
-        sharedFeature(sourceSet);
-        FeatureUtils.forSourceSetFeature(project, sourceSet.getName(), context -> {
-            Action<AttributeContainer> attributesAction = attributes -> {
-                var dist = getDistribution().get();
-                if (dist != InstallationDistribution.JOINED) {
-                    attributes.attribute(CrochetPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
-                }
-            };
-            context.getRuntimeElements().attributes(attributesAction);
-            context.getApiElements().attributes(attributesAction);
-            project.getConfigurations().getByName(context.getSourceSet().getCompileClasspathConfigurationName()).attributes(attributesAction);
-            project.getConfigurations().getByName(context.getSourceSet().getRuntimeClasspathConfigurationName()).attributes(attributesAction);
-        });
-    }
-
-    private void sharedFeature(SourceSet sourceSet) {
-        Action<AttributeContainer> attributesAction = attributes -> {
-            var dist = getDistribution().get();
-            if (dist != InstallationDistribution.JOINED) {
-                attributes.attribute(CrochetPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, dist.name().toLowerCase(Locale.ROOT));
-            }
-        };
-        project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
-            config.extendsFrom(minecraft);
-            config.shouldResolveConsistentlyWith(switch (getDistribution().get()) {
-                case CLIENT, JOINED -> nonUpgradableClientCompileDependencies;
-                case SERVER, COMMON -> nonUpgradableServerCompileDependencies;
-            });
-            config.attributes(attributesAction);
-        });
-        project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME), config -> {
-            config.attributes(attributesAction);
-        });
     }
 
     @Override
     public void forLocalFeature(SourceSet sourceSet) {
         super.forLocalFeature(sourceSet);
-        sharedFeature(sourceSet);
     }
 }

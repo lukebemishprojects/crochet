@@ -30,6 +30,7 @@ public class CrochetPlugin implements Plugin<Project> {
     public static final Attribute<String> NEO_DISTRIBUTION_ATTRIBUTE = Attribute.of("net.neoforged.distribution", String.class);
     public static final Attribute<String> NEO_OPERATING_SYSTEM_ATTRIBUTE = Attribute.of("net.neoforged.operatingsystem", String.class);
     public static final Attribute<String> CROCHET_DISTRIBUTION_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.distribution", String.class);
+    public static final Attribute<String> LOCAL_DISTRIBUTION_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.local.distribution", String.class);
     // This attribute SHOULD NOT be published -- it is for use only in internal pre-remapping-collecting setups
     public static final Attribute<String> CROCHET_REMAP_TYPE_ATTRIBUTE = Attribute.of("dev.lukebemish.crochet.remap", String.class);
     // Dependencies on things that'll need to be remapped when it's all said and done

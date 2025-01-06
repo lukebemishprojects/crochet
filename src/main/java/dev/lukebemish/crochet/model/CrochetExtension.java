@@ -51,6 +51,13 @@ public abstract class CrochetExtension {
             NeoFormInstallation.class,
             name -> objects.newInstance(NeoFormInstallation.class, name, this)
         );
+
+        // External stuff
+        this.installations.registerFactory(
+            ExternalVanillaInstallation.class,
+            name -> objects.newInstance(ExternalVanillaInstallation.class, name, this)
+        );
+
         // This collection should be non-lazy as it configures other lazy things (namely, tasks)
         this.installations.whenObjectAdded(o -> {});
 
@@ -115,6 +122,10 @@ public abstract class CrochetExtension {
 
     public NamedDomainObjectProvider<VanillaInstallation> vanillaInstallation(String name, Action<VanillaInstallation> action) {
         return installations.register(name, VanillaInstallation.class, action);
+    }
+
+    public NamedDomainObjectProvider<ExternalVanillaInstallation> externalVanillaInstallation(String name, Action<ExternalVanillaInstallation> action) {
+        return installations.register(name, ExternalVanillaInstallation.class, action);
     }
 
     public abstract NamedDomainObjectContainer<Run> getRuns();

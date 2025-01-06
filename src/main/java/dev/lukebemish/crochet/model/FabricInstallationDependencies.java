@@ -8,9 +8,9 @@ import org.gradle.api.artifacts.dsl.DependencyCollector;
 import javax.inject.Inject;
 
 @SuppressWarnings("UnstableApiUsage")
-public abstract class FabricInstallationDependencies extends AbstractVanillaInstallationDependencies implements Mappings {
+public abstract class FabricInstallationDependencies extends AbstractVanillaInstallationDependencies<FabricInstallationDependencies> implements Mappings {
     @Inject
-    public FabricInstallationDependencies(MinecraftInstallation installation) {
+    public FabricInstallationDependencies(FabricInstallation installation) {
         super(installation);
     }
 

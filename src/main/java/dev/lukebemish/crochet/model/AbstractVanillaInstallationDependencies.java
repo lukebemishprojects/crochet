@@ -7,9 +7,9 @@ import org.gradle.api.provider.Provider;
 
 import javax.inject.Inject;
 
-public abstract class AbstractVanillaInstallationDependencies extends AbstractInstallationDependencies implements Mappings {
+public abstract class AbstractVanillaInstallationDependencies<T extends AbstractVanillaInstallationDependencies<T>> extends AbstractLocalInstallationDependencies<T> implements Mappings {
     @Inject
-    public AbstractVanillaInstallationDependencies(MinecraftInstallation installation) {
+    public AbstractVanillaInstallationDependencies(AbstractVanillaInstallation installation) {
         super(installation);
     }
 

@@ -21,3 +21,4 @@ rootProject.name = 'crochet-test'
 include(':subproject')
 include(':no-crochet')
 include(':with-kotlin')
+include(':consumes-shared')

@@ -194,8 +194,8 @@ public abstract class Run implements Named, Dependencies {
         }
         this.installation = installation;
         this.argFilesTask.configure(task -> {
-            task.getAssetsProperties().set(installation.assetsProperties);
-            task.dependsOn(installation.downloadAssetsTask);
+            task.getAssetsProperties().set(installation.assetsPropertiesFiles.getSingleFile());
+            task.dependsOn(installation.assetsPropertiesFiles);
         });
         installation.forRun(this, runType);
     }

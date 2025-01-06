@@ -76,11 +76,15 @@ crochet {
             }
         }
 
+        share('yarn')
+
         forFeature(sourceSets.yarn)
     }
 
     vanillaInstallation('vanilla') {
         minecraft = '1.21.1'
+
+        share('vanilla')
     }
 
     neoFormInstallation('neoForm') {

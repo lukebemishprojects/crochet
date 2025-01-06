@@ -22,11 +22,9 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public abstract class NeoFormInstallation extends MinecraftInstallation {
+public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
     final Project project;
     final NeoFormInstallationArtifacts neoFormConfigMaker;
-
-    final Property<String> minecraftVersion;
 
     final Configuration parchmentData;
     final Configuration neoFormConfigDependencies;
@@ -37,7 +35,6 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
         super(name, extension);
 
         this.project = extension.project;
-        this.minecraftVersion = project.getObjects().property(String.class);
 
         var minecraftPistonMeta = project.getConfigurations().dependencyScope("crochet"+ StringUtils.capitalize(name)+"PistonMetaDownloads");
         var clientJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientJarPistonMetaDownloads", c -> {
@@ -82,7 +79,7 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "versionjson"));
             });
         });
-        project.getDependencies().addProvider(minecraftPistonMeta.getName(), minecraftVersion.map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
+        project.getDependencies().addProvider(minecraftPistonMeta.getName(), getMinecraft().map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
 
         this.parchmentData = project.getConfigurations().create(name+"ParchmentData");
         this.parchmentData.fromDependencyCollector(getDependencies().getParchment());
@@ -132,7 +129,6 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
             }
             return copy;
         }).collect(Collectors.toCollection(ArrayList::new))));
-        this.minecraftVersion.set(minecraftDependencies.getIncoming().getResolutionResult().getRootComponent().map(ConfigurationUtils::extractMinecraftVersion));
 
         neoFormConfigMaker.getNeoForm().from(neoFormConfig);
 
@@ -164,15 +160,11 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
     }
 
     @Override
-    protected AbstractInstallationDependencies makeDependencies(Project project) {
+    protected NeoFormInstallationDependencies makeDependencies(Project project) {
         return project.getObjects().newInstance(NeoFormInstallationDependencies.class, this);
     }
 
     public abstract Property<Boolean> getRecompile();
-
-    public Provider<String> getMinecraft() {
-        return this.minecraftVersion;
-    }
 
     @Override
     void forRun(Run run, RunType runType) {
@@ -229,16 +221,15 @@ public abstract class NeoFormInstallation extends MinecraftInstallation {
     @Override
     public void forFeature(SourceSet sourceSet) {
         super.forFeature(sourceSet);
-        project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
-            config.extendsFrom(minecraft);
-        });
     }
 
     @Override
     public void forLocalFeature(SourceSet sourceSet) {
         super.forLocalFeature(sourceSet);
-        project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
-            config.extendsFrom(minecraft);
-        });
+    }
+
+    @Override
+    protected String sharingInstallationTypeTag() {
+        return "neoform";
     }
 }

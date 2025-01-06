@@ -1,29 +1,13 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.CrochetPlugin;
-import org.gradle.api.Action;
-import org.gradle.api.Project;
 
 import javax.inject.Inject;
 
-public abstract class VanillaInstallation extends AbstractVanillaInstallation {
+public abstract class ExternalVanillaInstallation extends AbstractExternalVanillaInstallation {
     @Inject
-    public VanillaInstallation(String name, CrochetExtension extension) {
+    public ExternalVanillaInstallation(String name, CrochetExtension extension) {
         super(name, extension);
-    }
-
-    @Override
-    protected VanillaInstallationDependencies makeDependencies(Project project) {
-        return project.getObjects().newInstance(VanillaInstallationDependencies.class, this);
-    }
-
-    @Override
-    public VanillaInstallationDependencies getDependencies() {
-        return (VanillaInstallationDependencies) super.getDependencies();
-    }
-
-    public void dependencies(Action<AbstractVanillaInstallationDependencies> action) {
-        action.execute(getDependencies());
     }
 
     @Override
@@ -37,7 +21,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
                 run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
-                project.afterEvaluate(p -> {
+                crochetExtension.project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
                     } else {
@@ -54,7 +38,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
             }
             case SERVER -> {
                 run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server"));
-                project.afterEvaluate(p -> {
+                crochetExtension.project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
                     } else {
@@ -66,7 +50,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
             case DATA -> {
                 // TODO: what's the right stuff to go here?
                 run.classpath.attributes(attributes -> attributes.attribute(CrochetPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
-                project.afterEvaluate(p -> {
+                crochetExtension.project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
                     } else {

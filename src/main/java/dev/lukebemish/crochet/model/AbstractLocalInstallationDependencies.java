@@ -9,12 +9,18 @@ import org.gradle.api.artifacts.dsl.DependencyCollector;
 import javax.inject.Inject;
 
 @SuppressWarnings("UnstableApiUsage")
-public abstract class AbstractInstallationDependencies implements Dependencies {
-    private final MinecraftInstallation installation;
+public abstract class AbstractLocalInstallationDependencies<T extends AbstractLocalInstallationDependencies<T>> implements Dependencies {
+    private final LocalMinecraftInstallation installation;
 
     @Inject
-    public AbstractInstallationDependencies(MinecraftInstallation installation) {
+    public AbstractLocalInstallationDependencies(LocalMinecraftInstallation installation) {
         this.installation = installation;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T configure(Action<? super T> action) {
+        action.execute((T) this);
+        return (T) this;
     }
 
     public abstract DependencyCollector getAccessTransformers();
@@ -45,10 +51,5 @@ public abstract class AbstractInstallationDependencies implements Dependencies {
 
     public Dependency publishAccessTransformers(Object path) {
         return publishAccessTransformers(path, artifact -> {});
-    }
-
-    public AbstractInstallationDependencies configure(Action<? super AbstractInstallationDependencies> action) {
-        action.execute(this);
-        return this;
     }
 }

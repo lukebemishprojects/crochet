@@ -24,6 +24,7 @@ import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Category;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
@@ -64,7 +65,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Configuration loaderConfiguration;
     final Configuration intermediaryMinecraft;
     final Configuration mappingsClasspath;
-    final TaskProvider<WriteFile> writeLog4jConfig;
+    final FileCollection writeLog4jConfig;
     final FabricInstallationArtifacts fabricConfigMaker;
 
     private final CrochetExtension extension;
@@ -81,12 +82,13 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
 
         this.extension = extension;
 
-        this.writeLog4jConfig = project.getTasks().register("writeCrochet"+StringUtils.capitalize(name)+"Log4jConfig", WriteFile.class, task -> {
+        var writeLog4jConfigTask = project.getTasks().register("writeCrochet"+StringUtils.capitalize(name)+"Log4jConfig", WriteFile.class, task -> {
             task.getContents().convention(
                 Log4jSetup.FABRIC_CONFIG
             );
             task.getOutputFile().convention(project.getLayout().getBuildDirectory().file("crochet/installations/"+this.getName()+"/log4j2.xml"));
         });
+        this.writeLog4jConfig = extension.project.files(writeLog4jConfigTask.flatMap(WriteFile::getOutputFile)).builtBy(writeLog4jConfigTask);
 
         this.vanillaConfigMaker.getSidedAnnotation().set(SingleVersionGenerator.Options.SidedAnnotation.FABRIC);
         this.fabricConfigMaker = project.getObjects().newInstance(FabricInstallationArtifacts.class);
@@ -1009,5 +1011,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             }
             default -> throw new IllegalArgumentException("Unsupported run type: "+runType);
         }
+    }
+
+    @Override
+    protected String sharingInstallationTypeTag() {
+        return "fabric";
     }
 }
