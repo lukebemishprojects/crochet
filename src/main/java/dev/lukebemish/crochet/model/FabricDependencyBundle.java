@@ -5,12 +5,12 @@ import org.gradle.api.Named;
 
 import javax.inject.Inject;
 
-public abstract class DependencySet implements Named {
+public abstract class FabricDependencyBundle implements Named {
     private final Action<FabricRemapDependencies> action;
     private final String name;
 
     @Inject
-    public DependencySet(String name, Action<FabricRemapDependencies> action) {
+    public FabricDependencyBundle(String name, Action<FabricRemapDependencies> action) {
         this.action = action;
         this.name = name;
     }

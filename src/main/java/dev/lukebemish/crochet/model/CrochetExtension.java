@@ -24,7 +24,7 @@ public abstract class CrochetExtension implements ExtensionAware {
     private final CrochetFeaturesContext features;
     private final CrochetTasksContext tasks;
     private final NamedDomainObjectContainer<SplitSourceSet> splitSourceSets;
-    private final NamedDomainObjectContainer<DependencySet> sharedDependencySets;
+    private final NamedDomainObjectContainer<FabricDependencyBundle> fabricDependencyBundles;
     private final NamedDomainObjectContainer<SharedInstallation> sharedInstallations;
 
     @Inject
@@ -75,13 +75,19 @@ public abstract class CrochetExtension implements ExtensionAware {
         // Runs should also be non-lazy, to trigger task creation
         this.getRuns().whenObjectAdded(o -> {});
 
-        this.splitSourceSets = objects.domainObjectContainer(SplitSourceSet.class);
-        this.sharedDependencySets = objects.domainObjectContainer(DependencySet.class);
-        this.sharedInstallations = objects.domainObjectContainer(SharedInstallation.class);
+        this.splitSourceSets = objects.domainObjectContainer(SplitSourceSet.class, name -> {
+            throw new UnsupportedOperationException("Cannot instantiate SplitSourceSet on this container.");
+        });
+        this.fabricDependencyBundles = objects.domainObjectContainer(FabricDependencyBundle.class, name -> {
+            throw new UnsupportedOperationException("Cannot instantiate FabricDependencyBundle on this container.");
+        });
+        this.sharedInstallations = objects.domainObjectContainer(SharedInstallation.class, name -> {
+            throw new UnsupportedOperationException("Cannot instantiate SharedInstallation on this container.");
+        });
 
         this.getExtensions().add("installations", this.installations);
         this.getExtensions().add("splitSourceSets", this.splitSourceSets);
-        this.getExtensions().add("sharedDependencySets", this.sharedDependencySets);
+        this.getExtensions().add("fabricDependencyBundles", this.fabricDependencyBundles);
         this.getExtensions().add("sharedInstallations", this.sharedInstallations);
     }
 
