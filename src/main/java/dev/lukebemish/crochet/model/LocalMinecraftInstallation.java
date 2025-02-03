@@ -1,9 +1,14 @@
 package dev.lukebemish.crochet.model;
 
+import com.google.common.base.Suppliers;
+import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
+import dev.lukebemish.crochet.internal.Memoize;
+import dev.lukebemish.crochet.internal.TaskUtils;
 import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
+import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
@@ -27,24 +32,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<DependencyScopeConfiguration> accessTransformers;
+    final DependencyScopeConfiguration accessTransformers;
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<ResolvableConfiguration> accessTransformersPath;
+    final ResolvableConfiguration accessTransformersPath;
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<DependencyScopeConfiguration> accessTransformersApi;
+    final DependencyScopeConfiguration accessTransformersApi;
 
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<DependencyScopeConfiguration> injectedInterfaces;
+    final DependencyScopeConfiguration injectedInterfaces;
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<ResolvableConfiguration> injectedInterfacesPath;
+    final ResolvableConfiguration injectedInterfacesPath;
     @SuppressWarnings("UnstableApiUsage")
-    final Provider<DependencyScopeConfiguration> injectedInterfacesApi;
+    final DependencyScopeConfiguration injectedInterfacesApi;
 
-    final Provider<Configuration> accessTransformersElements;
-    final Provider<Configuration> injectedInterfacesElements;
+    final Supplier<Configuration> accessTransformersElements;
+    final Memoize<Configuration> injectedInterfacesElements;
 
     final TaskProvider<TaskGraphExecution> downloadAssetsTask;
 
@@ -61,15 +67,6 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
     final TaskProvider<TaskGraphExecution> sourcesArtifactsTask;
     final TaskProvider<TaskGraphExecution> lineMappedBinaryArtifactsTask;
 
-    final Configuration minecraftElements;
-    final Configuration minecraftDependenciesElements;
-    final Configuration minecraftResourcesElements;
-    final Configuration minecraftLineMappedElements;
-
-    final Configuration nonUpgradableElements;
-
-    final Configuration assetsPropertiesElements;
-
     @SuppressWarnings("UnstableApiUsage")
     @Inject
     public LocalMinecraftInstallation(String name, CrochetExtension extension) {
@@ -78,8 +75,7 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
         var project = extension.project;
 
         this.assetsProperties = project.getLayout().getBuildDirectory().file("crochet/installations/"+name+"/assets.properties");
-        this.downloadAssetsTask = project.getTasks().register(name+"CrochetDownloadAssets", TaskGraphExecution.class, task -> {
-            task.setGroup("crochet setup");
+        this.downloadAssetsTask = TaskUtils.registerInternal(this, TaskGraphExecution.class, name, "DownloadAssets", task -> {
             task.getClasspath().from(project.getConfigurations().named(CrochetProjectPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("assets", assetsProperties, project.getObjects()));
             // Bounce, to avoid capturing the installation in the args
@@ -105,52 +101,51 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
 
         this.dependencies = makeDependencies(project);
 
-        this.accessTransformersApi = project.getConfigurations().dependencyScope(name+"AccessTransformersApi", config -> {
+        this.accessTransformersApi = ConfigurationUtils.dependencyScope(this, name, null, "accessTransformersApi", config -> {
             config.fromDependencyCollector(getDependencies().getAccessTransformersApi());
         });
-        this.accessTransformers = project.getConfigurations().dependencyScope(name+"AccessTransformers", config -> {
+        this.accessTransformers = ConfigurationUtils.dependencyScope(this, name, null, "accessTransformers", config -> {
             config.fromDependencyCollector(getDependencies().getAccessTransformers());
         });
-        this.accessTransformersPath = project.getConfigurations().resolvable(name+"AccessTransformersPath", config -> {
+        this.accessTransformersPath = ConfigurationUtils.resolvableInternal(this, name, "accessTransformersPath", config -> {
             config.attributes(attributes ->
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY))
             );
-            config.extendsFrom(this.accessTransformersApi.get());
-            config.extendsFrom(this.accessTransformers.get());
+            config.extendsFrom(this.accessTransformersApi);
+            config.extendsFrom(this.accessTransformers);
         });
 
-        this.injectedInterfacesApi = project.getConfigurations().dependencyScope(name+"InterfaceInjectionsApi", config -> {
+        this.injectedInterfacesApi = ConfigurationUtils.dependencyScope(this, name, null, "injectedInterfacesApi", config -> {
             config.fromDependencyCollector(getDependencies().getInjectedInterfacesApi());
         });
-        this.injectedInterfaces = project.getConfigurations().dependencyScope(name+"InterfaceInjections", config -> {
+        this.injectedInterfaces = ConfigurationUtils.dependencyScope(this, name, null, "injectedInterfaces", config -> {
             config.fromDependencyCollector(getDependencies().getInjectedInterfaces());
         });
-        this.injectedInterfacesPath = project.getConfigurations().resolvable(name+"InterfaceInjectionsPath", config -> {
+        this.injectedInterfacesPath = ConfigurationUtils.resolvableInternal(this, name, "injectedInterfacesPath", config -> {
             config.attributes(attributes ->
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY))
             );
-            config.extendsFrom(this.injectedInterfacesApi.get());
-            config.extendsFrom(this.injectedInterfaces.get());
+            config.extendsFrom(this.injectedInterfacesApi);
+            config.extendsFrom(this.injectedInterfaces);
         });
 
-        this.accessTransformersElements = project.getConfigurations().register(name+"AccessTransformersElements", config -> {
+        this.accessTransformersElements = Suppliers.memoize(() -> ConfigurationUtils.consumable(this, name, null, "accessTransformersElements", config -> {
             config.attributes(attributes ->
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY))
             );
-            config.setCanBeResolved(false);
-            config.setCanBeDeclared(false);
-            config.setCanBeConsumed(false);
-            config.extendsFrom(this.accessTransformersApi.get());
-        });
+            config.setVisible(false);
+            config.extendsFrom(this.accessTransformersApi);
+        }));
 
-        this.injectedInterfacesElements = project.getConfigurations().register(name+"InterfaceInjectionsElements", config -> {
-            config.attributes(attributes ->
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY))
-            );
-            config.setCanBeResolved(false);
-            config.setCanBeDeclared(false);
-            config.setCanBeConsumed(false);
-            config.extendsFrom(this.injectedInterfacesApi.get());
+        this.injectedInterfacesElements = Memoize.of(() -> {
+            var c = ConfigurationUtils.consumable(this, name, null, "injectedInterfacesElements", config -> {
+                config.attributes(attributes ->
+                    attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY))
+                );
+                config.setVisible(false);
+                config.extendsFrom(this.injectedInterfacesApi);
+            });
+            return c;
         });
 
         var workingDirectory = project.getLayout().getBuildDirectory().dir("crochet/installations/" + name);
@@ -178,19 +173,18 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
             model.mapBinaryToSourceWithLineMaps(binary, sources, binaryLineMapped);
         }
 
-        this.binaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftBinaryArtifacts", TaskGraphExecution.class, task -> {
-            task.setGroup("crochet setup");
+        this.binaryArtifactsTask = TaskUtils.registerInternal(this, TaskGraphExecution.class, name, "crochetMinecraftBinaryArtifacts", task -> {
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("resources", resources, project.getObjects()));
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("binarySourceIndependent", binary, project.getObjects()));
             task.getClasspath().from(project.getConfigurations().named(CrochetProjectPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
 
-        this.sourcesArtifactsTask = project.getTasks().register(name + "CrochetMinecraftSourcesArtifacts", TaskGraphExecution.class, task -> {
+        this.sourcesArtifactsTask = TaskUtils.registerInternal(this, TaskGraphExecution.class, name, "crochetMinecraftSourcesArtifacts", task -> {
             task.copyConfigFrom(binaryArtifactsTask.get());
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("sources", sources, project.getObjects()));
         });
 
-        this.lineMappedBinaryArtifactsTask = project.getTasks().register(name + "CrochetMinecraftLineMappedBinaryArtifacts", TaskGraphExecution.class, task -> {
+        this.lineMappedBinaryArtifactsTask = TaskUtils.registerInternal(this, TaskGraphExecution.class, name, "crochetMinecraftLineMappedBinaryArtifacts", task -> {
             task.copyConfigFrom(binaryArtifactsTask.get());
             task.getTargets().add(TaskGraphExecution.GraphOutput.of("binary", binaryLineMapped, project.getObjects()));
         });
@@ -227,29 +221,6 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
         );
 
         extension.idePostSync.configure(t -> t.dependsOn(binaryArtifactsTask));
-
-        this.minecraftElements = project.getConfigurations().consumable(name+"MinecraftElements", config -> {
-            config.extendsFrom(minecraft);
-        }).get();
-        this.minecraftDependenciesElements = project.getConfigurations().consumable(name+"MinecraftDependenciesElements", config -> {
-            config.extendsFrom(minecraftDependencies);
-        }).get();
-        this.minecraftResourcesElements = project.getConfigurations().consumable(name+"MinecraftResourcesElements", config -> {
-            config.extendsFrom(minecraftResources);
-        }).get();
-        this.minecraftLineMappedElements = project.getConfigurations().consumable(name+"MinecraftLineMappedElements", config -> {
-            config.extendsFrom(minecraftLineMapped);
-        }).get();
-        this.nonUpgradableElements = project.getConfigurations().consumable(name+"NonUpgradableElements", config -> {
-            config.extendsFrom(nonUpgradableDependencies);
-        }).get();
-
-        var assetsPropertiesConfiguration = project.getConfigurations().dependencyScope(name+"AssetsProperties");
-        project.getDependencies().add(assetsPropertiesConfiguration.getName(), assetsPropertiesFiles);
-
-        this.assetsPropertiesElements = project.getConfigurations().consumable(name+"AssetsPropertiesElements", config -> {
-            config.extendsFrom(assetsPropertiesConfiguration.get());
-        }).get();
     }
 
     public void share(String externalTag) {
@@ -266,15 +237,9 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
     @Override
     public void forFeature(SourceSet sourceSet) {
         super.forFeature(sourceSet);
+        forFeatureShared(sourceSet);
         FeatureUtils.forSourceSetFeature(crochetExtension.project, sourceSet.getName(), context -> {
-            forFeatureShared(context);
-
             AtomicBoolean atsAdded = new AtomicBoolean(false);
-            context.withCapabilities(accessTransformersElements.get());
-            accessTransformersElements.get().setCanBeConsumed(true);
-            accessTransformersElements.get().attributes(attributes -> {
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY));
-            });
             accessTransformersElements.get().getDependencies().configureEach(dep -> {
                 if (!atsAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(accessTransformersElements.get());
@@ -287,11 +252,6 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
             });
 
             AtomicBoolean iisAdded = new AtomicBoolean(false);
-            context.withCapabilities(injectedInterfacesElements.get());
-            injectedInterfacesElements.get().setCanBeConsumed(true);
-            injectedInterfacesElements.get().attributes(attributes -> {
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY));
-            });
             injectedInterfacesElements.get().getDependencies().configureEach(dep -> {
                 if (canPublishInjectedInterfaces() && !iisAdded.compareAndSet(false, true)) {
                     context.publishWithVariants(injectedInterfacesElements.get());
@@ -312,8 +272,8 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
     private static final List<String> INSTALLATION_CONFIGURATION_NAMES = List.of(
         "AccessTransformers",
         "AccessTransformersApi",
-        "InterfaceInjections",
-        "InterfaceInjectionsApi"
+        "InjectedInterfaces",
+        "InjectedInterfacesApi"
     );
 
     @Override
@@ -326,32 +286,60 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
     @Override
     public void forLocalFeature(SourceSet sourceSet) {
         super.forLocalFeature(sourceSet);
+        forFeatureShared(sourceSet);
+    }
+
+    private void forFeatureShared(SourceSet sourceSet) {
         FeatureUtils.forSourceSetFeature(crochetExtension.project, sourceSet.getName(), context -> {
-            forFeatureShared(context);
+            context.withCapabilities(accessTransformersElements.get());
+            accessTransformersElements.get().attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, ACCESS_TRANSFORMER_CATEGORY));
+            });
+
+            context.withCapabilities(injectedInterfacesElements.get());
+            injectedInterfacesElements.get().attributes(attributes -> {
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, crochetExtension.project.getObjects().named(Category.class, INTERFACE_INJECTION_CATEGORY));
+            });
         });
     }
 
-    protected final AbstractLocalInstallationDependencies dependencies;
+    protected final AbstractLocalInstallationDependencies<?> dependencies;
 
-    public AbstractLocalInstallationDependencies getDependencies() {
+    public AbstractLocalInstallationDependencies<?> getDependencies() {
         return this.dependencies;
-    }
-
-    private void forFeatureShared(FeatureUtils.Context context) {
-        context.withCapabilities(accessTransformersElements.get());
-        context.withCapabilities(injectedInterfacesElements.get());
     }
 
     protected abstract String sharingInstallationTypeTag();
 
     protected Map<String, Configuration> getConfigurationsToLink() {
+        return configurationsToLink.get();
+    }
+
+    private final Supplier<Map<String, Configuration>> configurationsToLink = Suppliers.memoize(this::makeConfigurationsToLink);
+
+    protected Map<String, Configuration> makeConfigurationsToLink() {
+        var assetsPropertiesConfiguration = ConfigurationUtils.dependencyScopeInternal(this, getName(), "assetsProperties", config -> {});
+        crochetExtension.project.getDependencies().add(assetsPropertiesConfiguration.getName(), assetsPropertiesFiles);
+
         return Map.of(
-            "assets-properties", assetsPropertiesElements,
-            "minecraft", minecraftElements,
-            "minecraft-dependencies", minecraftDependenciesElements,
-            "minecraft-resources", minecraftResourcesElements,
-            "minecraft-line-mapped", minecraftLineMappedElements,
-            "non-upgradable", nonUpgradableElements
+            "assets-properties", ConfigurationUtils.consumableInternal(this, getName(), "assetsPropertiesElements", config -> {
+                config.extendsFrom(assetsPropertiesConfiguration);
+            }),
+            "minecraft", ConfigurationUtils.consumableInternal(this, getName(), "minecraftElements", config -> {
+                config.extendsFrom(minecraft);
+            }),
+            "minecraft-dependencies", ConfigurationUtils.consumableInternal(this, getName(), "minecraftDependenciesElements", config -> {
+                config.extendsFrom(minecraftDependencies);
+            }),
+            "minecraft-resources", ConfigurationUtils.consumableInternal(this, getName(), "minecraftResourcesElements", config -> {
+                config.extendsFrom(minecraftResources);
+            }),
+            "minecraft-line-mapped", ConfigurationUtils.consumableInternal(this, getName(), "minecraftLineMappedElements", config -> {
+                config.extendsFrom(minecraftLineMapped);
+            }),
+            "non-upgradable", ConfigurationUtils.consumableInternal(this, getName(), "nonUpgradableElements", config -> {
+                config.extendsFrom(nonUpgradableDependencies);
+            })
         );
     }
 }

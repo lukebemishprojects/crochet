@@ -8,8 +8,8 @@ pluginManagement {
 
         gradlePluginPortal()
         maven {
-            name 'Staging'
-            url 'https://maven.lukebemish.dev/staging/'
+            name = 'Staging'
+            url = 'https://maven.lukebemish.dev/staging/'
         }
     }
 }
@@ -30,5 +30,21 @@ include(':consumes-shared')
 crochet {
     vanillaInstallation('vanilla') {
         minecraft = '1.21.1'
+    }
+
+    fabricInstallation('yarn') {
+        minecraft = '1.21.4'
+
+        dependencies {
+            loader 'net.fabricmc:fabric-loader:0.16.9'
+            mappings chained {
+                add intermediary()
+                add(artifact 'net.fabricmc:yarn:1.21.4+build.4:v2')
+            }
+        }
+
+        bundle {
+            modApi 'net.fabricmc.fabric-api:fabric-api:0.114.1+1.21.4'
+        }
     }
 }

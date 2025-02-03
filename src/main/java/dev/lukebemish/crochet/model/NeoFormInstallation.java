@@ -1,29 +1,27 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
 import dev.lukebemish.crochet.internal.tasks.NeoFormInstallationArtifacts;
-import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleDependency;
-import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.SourceSet;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
     final Project project;
     final NeoFormInstallationArtifacts neoFormConfigMaker;
 
-    final Configuration parchmentData;
+    final Configuration parchment;
     final Configuration neoFormConfigDependencies;
     final Configuration neoFormConfig;
 
@@ -33,91 +31,56 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
 
         this.project = extension.project;
 
-        var minecraftPistonMeta = project.getConfigurations().dependencyScope("crochet"+ StringUtils.capitalize(name)+"PistonMetaDownloads");
-        var clientJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientJarPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.exclude(Map.of(
-                "group", CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP,
-                "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
-            ));
-            c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-            });
-        });
-        var serverJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ServerJarPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.exclude(Map.of(
-                "group", CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP,
-                "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
-            ));
-            c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-            });
-        });
-        var clientMappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientMappingsPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
-            });
-        });
-        var serverMappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ServerMappingsPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
-            });
-        });
-        var versionJsonPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"VersionJsonPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.attributes(attributes -> {
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "versionjson"));
-            });
-        });
+        var minecraftPistonMeta = ConfigurationUtils.pistonMetaDependencies(this, name);
+        var clientJarPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.CLIENT_JAR);
+        var serverJarPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.SERVER_JAR);
+        var clientMappingsPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.CLIENT_MAPPINGS);
+        var serverMappingsPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.SERVER_MAPPINGS);
+        var versionJsonPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.VERSION_JSON);
         project.getDependencies().addProvider(minecraftPistonMeta.getName(), getMinecraft().map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
 
-        this.parchmentData = project.getConfigurations().create(name+"ParchmentData");
-        this.parchmentData.fromDependencyCollector(getDependencies().getParchment());
+        this.parchment = ConfigurationUtils.dependencyScope(this, name, null, "parchment", c -> {});
+        this.parchment.fromDependencyCollector(getDependencies().getParchment());
+
+        var parchmentData = ConfigurationUtils.resolvableInternal(this, name, "parchmentData", c -> {
+            c.extendsFrom(parchment);
+        });
 
         this.neoFormConfigMaker = project.getObjects().newInstance(NeoFormInstallationArtifacts.class);
         neoFormConfigMaker.getAccessTransformers().from(this.accessTransformersPath);
         neoFormConfigMaker.getInjectedInterfaces().from(this.injectedInterfacesPath);
-        neoFormConfigMaker.getParchment().from(this.parchmentData);
+        neoFormConfigMaker.getParchment().from(parchmentData);
         neoFormConfigMaker.getRecompile().set(this.getRecompile());
         this.binaryArtifactsTask.configure(t -> t.getConfigMaker().set(neoFormConfigMaker));
 
-        var decompileCompileClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformCompileClasspath", config -> {
-            config.extendsFrom(minecraftDependencies);
-            config.setCanBeConsumed(false);
-            config.attributes(attributes -> {
+        var decompileCompileClasspath = ConfigurationUtils.resolvableInternal(this, name, "neoFormCompileClasspath", c -> {
+            c.extendsFrom(minecraftDependencies);
+            c.attributes(attributes -> {
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
-        var decompileRuntimeClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformRuntimeClasspath", config -> {
-            config.extendsFrom(minecraftDependencies);
-            config.setCanBeConsumed(false);
-            config.attributes(attributes -> {
+        var decompileRuntimeClasspath = ConfigurationUtils.resolvableInternal(this, name, "neoFormRuntimeClasspath", c -> {
+            c.extendsFrom(minecraftDependencies);
+            c.attributes(attributes -> {
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
 
-        this.neoFormConfigDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NeoformConfig", config -> {
-            config.setCanBeConsumed(false);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+        var neoForm = ConfigurationUtils.dependencyScope(this, name, null, "neoForm", c -> {});
+        this.neoFormConfigDependencies = ConfigurationUtils.resolvableInternal(this, name, "neoFormConfigDependencies", c -> {
+            c.extendsFrom(neoForm);
+            c.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
-        this.neoFormConfig = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Neoform", config -> {
-            config.extendsFrom(this.neoFormConfigDependencies);
-            config.setCanBeConsumed(false);
-            config.setTransitive(false);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+        this.neoFormConfig = ConfigurationUtils.resolvableInternal(this, name, "neoFormConfig", c -> {
+            c.extendsFrom(neoForm);
+            c.setTransitive(false);
+            c.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
 
-        this.neoFormConfigDependencies.fromDependencyCollector(getDependencies().getNeoForm());
-        this.minecraftDependencies.getDependencies().addAllLater(project.provider(() -> this.neoFormConfigDependencies.getAllDependencies().stream().map(d -> {
+        neoForm.fromDependencyCollector(getDependencies().getNeoForm());
+        this.minecraftDependencies.getDependencies().addAllLater(project.provider(() -> neoForm.getAllDependencies().stream().map(d -> {
             var copy = d.copy();
             if (copy instanceof ModuleDependency moduleDependency) {
                 copy = moduleDependency.capabilities(capabilities -> {
@@ -126,21 +89,20 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
             }
             return copy;
         }).collect(Collectors.toCollection(ArrayList::new))));
+        this.minecraftDependencies.getDependencyConstraints().addAllLater(project.provider(neoForm::getDependencyConstraints));
 
         neoFormConfigMaker.getNeoForm().from(neoFormConfig);
-
-        this.minecraftDependencies.getDependencyConstraints().addAllLater(project.provider(this.neoFormConfigDependencies::getDependencyConstraints));
 
         this.binaryArtifactsTask.configure(task -> {
             task.artifactsConfiguration(decompileCompileClasspath);
             task.artifactsConfiguration(decompileRuntimeClasspath);
             task.artifactsConfiguration(neoFormConfigDependencies);
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-version-json", versionJsonPistonMeta.get());
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-version-json", versionJsonPistonMeta);
             // Both for now as the config is always JOINED
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-jar", clientJarPistonMeta.get());
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-jar", serverJarPistonMeta.get());
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-mappings", clientMappingsPistonMeta.get());
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-mappings", serverMappingsPistonMeta.get());
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-jar", clientJarPistonMeta);
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-jar", serverJarPistonMeta);
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-mappings", clientMappingsPistonMeta);
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-mappings", serverMappingsPistonMeta);
             task.artifactsConfiguration(project.getConfigurations().getByName(CrochetProjectPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
         });
 
@@ -168,7 +130,9 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
         super.forRun(run, runType);
         run.argFilesTask.configure(task -> task.getMinecraftVersion().set(getMinecraft()));
 
-        run.classpath.fromDependencyCollector(run.getImplementation());
+        var implementation = ConfigurationUtils.dependencyScopeInternal(project, run.getName(), "runImplementation", c -> {});
+        implementation.fromDependencyCollector(run.getImplementation());
+        run.classpath.extendsFrom(implementation);
 
         switch (runType) {
             case CLIENT -> {

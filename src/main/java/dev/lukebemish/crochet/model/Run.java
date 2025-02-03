@@ -7,7 +7,7 @@ import dev.lukebemish.crochet.internal.tasks.GenerateArgFiles;
 import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
-import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.artifacts.dsl.Dependencies;
 import org.gradle.api.artifacts.dsl.DependencyCollector;
 import org.gradle.api.attributes.Category;
@@ -41,7 +41,7 @@ public abstract class Run implements Named, Dependencies {
     final TaskProvider<GenerateArgFiles> argFilesTask;
     private MinecraftInstallation installation;
 
-    final Configuration classpath;
+    final ResolvableConfiguration classpath;
 
     @Inject
     protected abstract JavaToolchainService getToolchainService();
@@ -49,8 +49,7 @@ public abstract class Run implements Named, Dependencies {
     @Inject
     public Run(String name) {
         this.name = name;
-        this.classpath = getProject().getConfigurations().maybeCreate("crochetRun"+StringUtils.capitalize(name)+"Classpath");
-        classpath.setCanBeConsumed(false);
+        this.classpath = ConfigurationUtils.resolvableInternal(getProject(), name, "runClasspath", c -> {});
         classpath.attributes(attributes -> {
             attributes.attribute(Usage.USAGE_ATTRIBUTE, getProject().getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             attributes.attribute(Category.CATEGORY_ATTRIBUTE, getProject().getObjects().named(Category.class, Category.LIBRARY));

@@ -6,13 +6,13 @@ import org.gradle.api.Project;
 import javax.inject.Inject;
 
 public abstract class VanillaInstallation extends AbstractVanillaInstallation {
-    private final VanillaInstallationRunLogic runLogic;
+    private final VanillaInstallationLogic logic;
 
     @Inject
     public VanillaInstallation(String name, CrochetExtension extension) {
         super(name, extension);
 
-        runLogic = new VanillaInstallationRunLogic(this) {};
+        logic = new VanillaInstallationLogic(this) {};
     }
 
     @Override
@@ -32,7 +32,7 @@ public abstract class VanillaInstallation extends AbstractVanillaInstallation {
     @Override
     void forRun(Run run, RunType runType) {
         super.forRun(run, runType);
-        runLogic.forRun(run, runType);
+        logic.forRun(run, runType);
     }
 
     @Override

@@ -17,18 +17,18 @@ import org.gradle.api.provider.Provider;
 @SuppressWarnings("UnstableApiUsage")
 public interface Mappings extends Dependencies {
     default MappingsStructure artifact(Dependency dependency) {
-        var configuration = getProject().getExtensions().getByType(MappingsConfigurationCounter.class).newConfiguration();
-        configuration.getDependencies().add(dependency);
+        var configurations = getProject().getExtensions().getByType(MappingsConfigurationCounter.class).newConfiguration();
+        configurations.dependencies().getDependencies().add(dependency);
         var source = getObjectFactory().newInstance(FileMappingsStructure.class);
-        source.getMappingsFile().from(configuration);
+        source.getMappingsFile().from(configurations.classpath());
         return source;
     }
 
     default MappingsStructure artifact(Provider<Dependency> dependencyProvider) {
-        var configuration = getProject().getExtensions().getByType(MappingsConfigurationCounter.class).newConfiguration();
-        configuration.getDependencies().addLater(dependencyProvider);
+        var configurations = getProject().getExtensions().getByType(MappingsConfigurationCounter.class).newConfiguration();
+        configurations.dependencies().getDependencies().addLater(dependencyProvider);
         var source = getObjectFactory().newInstance(FileMappingsStructure.class);
-        source.getMappingsFile().from(configuration);
+        source.getMappingsFile().from(configurations.classpath());
         return source;
     }
 

@@ -1,12 +1,14 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
-import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ModuleDependency;
+import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.provider.Provider;
 
 import javax.inject.Inject;
@@ -16,16 +18,18 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public abstract class ExternalMinecraftInstallation extends MinecraftInstallation {
-    final Configuration assetsProperties;
+    final DependencyScopeConfiguration assetsProperties;
+    final ResolvableConfiguration assetsPropertiesPath;
 
     @Inject
     public ExternalMinecraftInstallation(String name, CrochetExtension extension) {
         super(name, extension);
 
-        var project = extension.project;
-
-        assetsProperties = project.getConfigurations().maybeCreate("crochet"+ StringUtils.capitalize(name)+"AssetsProperties");
-        assetsPropertiesFiles.from(assetsProperties);
+        assetsProperties = ConfigurationUtils.dependencyScopeInternal(this, name, "assetsProperties", c -> {});
+        assetsPropertiesPath = ConfigurationUtils.resolvableInternal(this, name, "assetsPropertiesPath", c -> {
+            c.extendsFrom(assetsProperties);
+        });
+        this.assetsPropertiesFiles.from(assetsPropertiesPath);
     }
 
     boolean linked = false;
@@ -44,16 +48,12 @@ public abstract class ExternalMinecraftInstallation extends MinecraftInstallatio
     }
 
     @SuppressWarnings("UnstableApiUsage")
-    public void consume(String name) {
-        consume(crochetExtension.project.getIsolated().getRootProject().getPath(), name);
-    }
-
     public void consume(SharedInstallation sharedInstallation) {
-        consume(sharedInstallation.getName());
+        consume(crochetExtension.project.getIsolated().getRootProject().getPath(), sharedInstallation.getName()+"Shared");
     }
 
     public void consume(NamedDomainObjectProvider<SharedInstallation> sharedInstallation) {
-        consume(sharedInstallation.getName());
+        consume(sharedInstallation.get());
     }
 
     public void consume(String project, String name) {

@@ -6,11 +6,12 @@ plugins {
     id 'java-gradle-plugin'
     id 'org.gradle.kotlin.kotlin-dsl' version '5.1.2' // Version for gradle 8.12
     id 'maven-publish'
+    id 'checkstyle'
     id 'dev.lukebemish.managedversioning'
     alias cLibs.plugins.gradlepublish
 }
 
-group='dev.lukebemish'
+group = 'dev.lukebemish'
 
 managedVersioning {
     versionFile.set project.file('version.properties')
@@ -149,8 +150,8 @@ repositories {
     mavenCentral()
     gradlePluginPortal()
     maven {
-        name 'Staging'
-        url 'https://maven.lukebemish.dev/staging/'
+        name = 'Staging'
+        url = 'https://maven.lukebemish.dev/staging/'
     }
 }
 
@@ -192,8 +193,12 @@ java {
 tasks.withType(AbstractArchiveTask) {
     preserveFileTimestamps = false
     reproducibleFileOrder = true
-    dirMode = 0755
-    fileMode = 0644
+    dirPermissions {
+        unix 0755
+    }
+    filePermissions {
+        unix 0644
+    }
 }
 
 abstract class DownloadManifest extends DefaultTask {

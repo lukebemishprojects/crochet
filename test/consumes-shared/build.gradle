@@ -15,8 +15,8 @@ repositories {
         url = uri("https://maven.parchmentmc.org/")
     }
     maven {
-        name 'Staging'
-        url 'https://maven.lukebemish.dev/staging/'
+        name = 'Staging'
+        url = 'https://maven.lukebemish.dev/staging/'
     }
 }
 
@@ -27,7 +27,7 @@ version = '1.0.0'
 
 crochet {
     externalVanillaInstallation('vanilla') {
-        consume("vanilla")
+        consume(sharedInstallations.vanilla)
     }
 
     runs {

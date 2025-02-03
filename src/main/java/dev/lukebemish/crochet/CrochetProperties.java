@@ -14,4 +14,7 @@ public final class CrochetProperties {
     public static final String PISTON_META_URL = "dev.lukebemish.crochet.repositories.piston-meta-url";
     public static final String PISTON_DATA_URL = "dev.lukebemish.crochet.repositories.piston-data-url";
     public static final String DEPENDENCY_STUB_URL = "dev.lukebemish.crochet.repositories.dependency-stub-url";
+
+    public static final String CROCHET_VALIDATE_CONFIGURATIONS = "dev.lukebemish.crochet.validation.validate-configurations-path";
+    public static final String CROCHET_VALIDATE_CONFIGURATIONS_MODE = "dev.lukebemish.crochet.validation.validate-configurations-mode";
 }

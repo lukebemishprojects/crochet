@@ -4,10 +4,11 @@ import org.gradle.api.Action;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.plugins.ExtensionAware;
 
 import javax.inject.Inject;
 
-public abstract class CrochetSettingsExtension {
+public abstract class CrochetSettingsExtension implements ExtensionAware {
     private final ExtensiblePolymorphicDomainObjectContainer<SettingsMinecraftInstallation<?, ?>> installations;
 
     @Inject
@@ -31,6 +32,8 @@ public abstract class CrochetSettingsExtension {
             SettingsMinecraftInstallation.NeoForm.class,
             name -> getObjects().newInstance(SettingsMinecraftInstallation.NeoForm.class, name, name, settings)
         );
+
+        this.getExtensions().add("installations", this.installations);
     }
 
     public ExtensiblePolymorphicDomainObjectContainer<SettingsMinecraftInstallation<?, ?>> getInstallations() {

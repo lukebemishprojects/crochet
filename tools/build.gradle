@@ -1,6 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'checkstyle'
     id 'signing'
     id 'com.gradleup.shadow'
     id 'dev.lukebemish.managedversioning'
@@ -27,8 +28,8 @@ repositories {
         url = 'https://maven.fabricmc.net/'
     }
     maven {
-        name 'Staging'
-        url 'https://maven.lukebemish.dev/staging/'
+        name = 'Staging'
+        url = 'https://maven.lukebemish.dev/staging/'
     }
 }
 

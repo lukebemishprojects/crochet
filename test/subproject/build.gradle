@@ -15,8 +15,8 @@ repositories {
         url = uri("https://maven.parchmentmc.org/")
     }
     maven {
-        name 'Staging'
-        url 'https://maven.lukebemish.dev/staging/'
+        name = 'Staging'
+        url = 'https://maven.lukebemish.dev/staging/'
     }
 }
 

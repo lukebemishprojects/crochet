@@ -1,13 +1,14 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import org.gradle.api.Project;
 
-public abstract class VanillaInstallationRunLogic {
+abstract class VanillaInstallationLogic {
     private final MinecraftInstallation minecraftInstallation;
     private final Project project;
 
-    public VanillaInstallationRunLogic(MinecraftInstallation minecraftInstallation) {
+    VanillaInstallationLogic(MinecraftInstallation minecraftInstallation) {
         this.minecraftInstallation = minecraftInstallation;
         this.project = minecraftInstallation.crochetExtension.project;
     }
@@ -15,7 +16,9 @@ public abstract class VanillaInstallationRunLogic {
     void forRun(Run run, RunType runType) {
         run.argFilesTask.configure(task -> task.getMinecraftVersion().set(minecraftInstallation.getMinecraft()));
 
-        run.classpath.fromDependencyCollector(run.getImplementation());
+        var implementation = ConfigurationUtils.dependencyScopeInternal(project, run.getName(), "runImplementation", c -> {});
+        implementation.fromDependencyCollector(run.getImplementation());
+        run.classpath.extendsFrom(implementation);
 
         project.afterEvaluate(p -> {
             if (run.getAvoidNeedlessDecompilation().get()) {

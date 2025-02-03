@@ -1,5 +1,9 @@
 package dev.lukebemish.crochet.model;
 
+import dev.lukebemish.crochet.internal.ProjectHolder;
+import dev.lukebemish.crochet.internal.TaskUtils;
+import dev.lukebemish.crochet.internal.tasks.MakeRunDirectories;
+import kotlin.jvm.JvmName;
 import org.gradle.api.Action;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -16,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class CrochetExtension implements ExtensionAware {
+public abstract class CrochetExtension extends ProjectHolder implements ExtensionAware {
     final TaskProvider<Task> idePostSync;
     final TaskProvider<Task> generateSources;
     final Project project;
@@ -26,9 +30,11 @@ public abstract class CrochetExtension implements ExtensionAware {
     private final NamedDomainObjectContainer<SplitSourceSet> splitSourceSets;
     private final NamedDomainObjectContainer<FabricDependencyBundle> fabricDependencyBundles;
     private final NamedDomainObjectContainer<SharedInstallation> sharedInstallations;
+    private final NamedDomainObjectContainer<Run> runs;
 
     @Inject
     public CrochetExtension(Project project) {
+        super(project);
         this.project = project;
         this.generateSources = project.getTasks().register("crochetGenerateSources", t -> t.setGroup("crochet setup"));
         this.idePostSync = project.getTasks().register("crochetIdeSetup", t -> {
@@ -59,6 +65,10 @@ public abstract class CrochetExtension implements ExtensionAware {
             ExternalVanillaInstallation.class,
             name -> objects.newInstance(ExternalVanillaInstallation.class, name, this)
         );
+        this.installations.registerFactory(
+            ExternalFabricInstallation.class,
+            name -> objects.newInstance(ExternalFabricInstallation.class, name, this)
+        );
 
         // This collection should be non-lazy as it configures other lazy things (namely, tasks)
         this.installations.whenObjectAdded(o -> {});
@@ -72,25 +82,38 @@ public abstract class CrochetExtension implements ExtensionAware {
             startParameter.setTaskRequests(taskRequests);
         }
 
-        // Runs should also be non-lazy, to trigger task creation
-        this.getRuns().whenObjectAdded(o -> {});
+
+        this.fabricDependencyBundles = objects.domainObjectContainer(FabricDependencyBundle.class, name -> {
+            throw new UnsupportedOperationException("Cannot instantiate FabricDependencyBundle on this container.");
+        });
 
         this.splitSourceSets = objects.domainObjectContainer(SplitSourceSet.class, name -> {
             throw new UnsupportedOperationException("Cannot instantiate SplitSourceSet on this container.");
         });
-        this.fabricDependencyBundles = objects.domainObjectContainer(FabricDependencyBundle.class, name -> {
-            throw new UnsupportedOperationException("Cannot instantiate FabricDependencyBundle on this container.");
-        });
         this.sharedInstallations = objects.domainObjectContainer(SharedInstallation.class, name -> {
             throw new UnsupportedOperationException("Cannot instantiate SharedInstallation on this container.");
         });
+        this.runs = objects.domainObjectContainer(Run.class);
 
         this.getExtensions().add("installations", this.installations);
         this.getExtensions().add("splitSourceSets", this.splitSourceSets);
-        this.getExtensions().add("fabricDependencyBundles", this.fabricDependencyBundles);
         this.getExtensions().add("sharedInstallations", this.sharedInstallations);
+        this.getExtensions().add("runs", this.runs);
+
+        this.getExtensions().add("features", getFeatures());
+        this.getExtensions().add("tasks", getTasks());
+
+
+        var makeRunDirectories = TaskUtils.registerInternal(project, MakeRunDirectories.class, "", "makeRunDirectories", t -> {});
+        this.idePostSync.configure(t -> t.dependsOn(makeRunDirectories));
+
+        // Runs should also be non-lazy, to trigger task creation
+        this.runs.whenObjectAdded(run -> {
+            makeRunDirectories.configure(t -> t.getRunDirectories().from(run.getRunDirectory()));
+        });
     }
 
+    @JvmName(name = "getFeatures")
     public CrochetFeaturesContext getFeatures() {
         return features;
     }
@@ -99,6 +122,7 @@ public abstract class CrochetExtension implements ExtensionAware {
         action.execute(getFeatures());
     }
 
+    @JvmName(name = "getTasks")
     public CrochetTasksContext getTasks() {
         return tasks;
     }
@@ -119,6 +143,11 @@ public abstract class CrochetExtension implements ExtensionAware {
         action.execute(installations);
     }
 
+    @JvmName(name = "getInstallations")
+    public NamedDomainObjectContainer<MinecraftInstallation> getInstallations() {
+        return installations;
+    }
+
     public NamedDomainObjectProvider<FabricInstallation> fabricInstallation(String name, Action<? super FabricInstallation> action) {
         return installations.register(name, FabricInstallation.class, action);
     }
@@ -135,10 +164,32 @@ public abstract class CrochetExtension implements ExtensionAware {
         return installations.register(name, ExternalVanillaInstallation.class, action);
     }
 
-    public abstract NamedDomainObjectContainer<Run> getRuns();
+    public NamedDomainObjectProvider<ExternalFabricInstallation> externalFabricInstallation(String name, Action<? super ExternalFabricInstallation> action) {
+        return installations.register(name, ExternalFabricInstallation.class, action);
+    }
 
     public void runs(Action<NamedDomainObjectContainer<Run>> action) {
-        action.execute(getRuns());
+        action.execute(runs);
+    }
+
+    @JvmName(name = "getRuns")
+    public NamedDomainObjectContainer<Run> getRuns() {
+        return runs;
+    }
+
+    @JvmName(name = "getSplitSourceSets")
+    public NamedDomainObjectContainer<SplitSourceSet> getSplitSourceSets() {
+        return splitSourceSets;
+    }
+
+    @JvmName(name = "getFabricDependencyBundles")
+    public NamedDomainObjectContainer<FabricDependencyBundle> getFabricDependencyBundles() {
+        return fabricDependencyBundles;
+    }
+
+    @JvmName(name = "getSharedInstallations")
+    public NamedDomainObjectContainer<SharedInstallation> getSharedInstallations() {
+        return sharedInstallations;
     }
 
     private final Map<SourceSet, String> sourceSets = new HashMap<>();
@@ -160,5 +211,13 @@ public abstract class CrochetExtension implements ExtensionAware {
 
     void addSharedInstallation(String name) {
         sharedInstallations.add(project.getObjects().newInstance(SharedInstallation.class, name));
+    }
+
+    void addBundle(FabricDependencyBundle bundle) {
+        fabricDependencyBundles.add(bundle);
+    }
+
+    FabricDependencyBundle getBundle(String name) {
+        return fabricDependencyBundles.getByName(name+"Shared");
     }
 }

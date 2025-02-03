@@ -2,16 +2,14 @@ package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
+import dev.lukebemish.crochet.internal.ExtensionHolder;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.InheritanceMarker;
-import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
+import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.attributes.AttributeContainer;
-import org.gradle.api.attributes.Bundling;
-import org.gradle.api.attributes.Category;
-import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.plugins.JavaPlugin;
@@ -28,11 +26,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public abstract class MinecraftInstallation implements GeneralizedMinecraftInstallation {
+public abstract class MinecraftInstallation extends ExtensionHolder implements GeneralizedMinecraftInstallation {
     static final String ACCESS_TRANSFORMER_CATEGORY = "accesstransformer";
     static final String INTERFACE_INJECTION_CATEGORY = "interfaceinjection";
 
     protected static final String CROSS_PROJECT_SHARING_CAPABILITY_GROUP = "dev.lukebemish.crochet.local.shared-";
+    protected static final String CROSS_PROJECT_BUNDLE_CAPABILITY_GROUP = "dev.lukebemish.crochet.local.bundle-";
 
     private final String name;
     private final Set<SourceSet> sourceSets = new LinkedHashSet<>();
@@ -41,22 +40,24 @@ public abstract class MinecraftInstallation implements GeneralizedMinecraftInsta
 
     private final Property<String> minecraftVersionProperty;
 
-    final Configuration minecraft;
-    final Configuration minecraftResources;
-    final Configuration minecraftLineMapped;
-    final Configuration minecraftDependencies;
+    final DependencyScopeConfiguration minecraft;
+    final DependencyScopeConfiguration minecraftResources;
+    final DependencyScopeConfiguration minecraftLineMapped;
+
+    final DependencyScopeConfiguration minecraftDependencies;
 
     final DependencyScopeConfiguration nonUpgradableDependencies;
-    final Configuration nonUpgradableClientCompileDependencies;
-    final Configuration nonUpgradableServerCompileDependencies;
-    final Configuration nonUpgradableClientRuntimeDependencies;
-    final Configuration nonUpgradableServerRuntimeDependencies;
+    final ResolvableConfiguration nonUpgradableClientCompileVersioning;
+    final ResolvableConfiguration nonUpgradableServerCompileVersioning;
+    final ResolvableConfiguration nonUpgradableClientRuntimeVersioning;
+    final ResolvableConfiguration nonUpgradableServerRuntimeVersioning;
 
     final ConfigurableFileCollection assetsPropertiesFiles;
 
-    @SuppressWarnings("UnstableApiUsage")
     @Inject
     public MinecraftInstallation(String name, CrochetExtension extension) {
+        super(extension);
+
         this.name = name;
         this.crochetExtension = extension;
 
@@ -68,69 +69,69 @@ public abstract class MinecraftInstallation implements GeneralizedMinecraftInsta
         this.distribution.finalizeValueOnRead();
         this.distribution.convention(InstallationDistribution.JOINED);
 
-        this.minecraftDependencies = project.getConfigurations().create("crochet"+ StringUtils.capitalize(name)+"MinecraftDependencies");
+        this.minecraftDependencies = ConfigurationUtils.dependencyScope(this, name, null, "minecraftDependencies", config -> {});
+        Configuration minecraftDependenciesVersioning = ConfigurationUtils.resolvableInternal(this, name, "minecraftDependenciesVersioning", config -> {
+            config.attributes(attributes -> {
+                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+            });
+            config.extendsFrom(minecraftDependencies);
+        });
 
         // Create early so getMinecraft provider works right
         this.minecraftVersionProperty = project.getObjects().property(String.class);
-        this.minecraftVersionProperty.set(minecraftDependencies.getIncoming().getResolutionResult().getRootComponent().map(ConfigurationUtils::extractMinecraftVersion));
+        this.minecraftVersionProperty.set(minecraftDependenciesVersioning.getIncoming().getResolutionResult().getRootComponent().map(ConfigurationUtils::extractMinecraftVersion));
 
-        this.nonUpgradableDependencies = project.getConfigurations().dependencyScope("crochet"+StringUtils.capitalize(name)+"NonUpgradableDependencies", config -> config.extendsFrom(minecraftDependencies)).get();
+        this.nonUpgradableDependencies = ConfigurationUtils.dependencyScopeInternal(this, name, "nonUpgradableDependencies", config -> {
+            config.extendsFrom(minecraftDependencies);
+        });
         Action<AttributeContainer> sharedAttributeAction = attributes -> {
-            attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
+            /*attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, project.getObjects().named(Bundling.class, Bundling.EXTERNAL));
-            attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.JAR));
+            attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.JAR));*/
+            // TODO: is this necessary? It _shouldn't_ be...
         };
-        this.nonUpgradableClientCompileDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableClientCompileDependencies", config -> {
-            config.extendsFrom(this.nonUpgradableDependencies);
-            config.setCanBeConsumed(false);
+        this.nonUpgradableClientCompileVersioning = ConfigurationUtils.resolvableInternal(this, name, "nonUpgradableClientCompileVersioning", config -> {
+            config.extendsFrom(nonUpgradableDependencies);
+            config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                sharedAttributeAction.execute(attributes);
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
-        this.nonUpgradableServerCompileDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableServerCompileDependencies", config -> {
-            config.extendsFrom(this.nonUpgradableDependencies);
-            config.setCanBeConsumed(false);
+        this.nonUpgradableServerCompileVersioning = ConfigurationUtils.resolvableInternal(this, name, "nonUpgradableServerCompileVersioning", config -> {
+            config.extendsFrom(nonUpgradableDependencies);
+            config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                sharedAttributeAction.execute(attributes);
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
-        this.nonUpgradableClientRuntimeDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableClientRuntimeDependencies", config -> {
-            config.extendsFrom(this.nonUpgradableDependencies);
-            config.setCanBeConsumed(false);
+        this.nonUpgradableClientRuntimeVersioning = ConfigurationUtils.resolvableInternal(this, name, "nonUpgradableClientRuntimeVersioning", config -> {
+            config.extendsFrom(nonUpgradableDependencies);
+            config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                sharedAttributeAction.execute(attributes);
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
-        this.nonUpgradableServerRuntimeDependencies = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"NonUpgradableServerRuntimeDependencies", config -> {
-            config.extendsFrom(this.nonUpgradableDependencies);
-            config.setCanBeConsumed(false);
+        this.nonUpgradableServerRuntimeVersioning = ConfigurationUtils.resolvableInternal(this, name, "nonUpgradableServerRuntimeVersioning", config -> {
+            config.extendsFrom(nonUpgradableDependencies);
+            config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                sharedAttributeAction.execute(attributes);
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
 
-
-        this.minecraftResources = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftResources");
-        this.minecraft = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"Minecraft", config -> {
-            config.setCanBeConsumed(false);
+        this.minecraftResources = ConfigurationUtils.dependencyScopeInternal(this, name, "minecraftResources", config -> {});
+        this.minecraft = ConfigurationUtils.dependencyScopeInternal(this, name, "minecraft", config -> {
             config.extendsFrom(minecraftDependencies);
             config.extendsFrom(minecraftResources);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
-
-        this.minecraftLineMapped = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"MinecraftLineMapped", config -> {
-            config.setCanBeConsumed(false);
+        this.minecraftLineMapped = ConfigurationUtils.dependencyScopeInternal(this, name, "minecraftLineMapped", config -> {
             config.extendsFrom(minecraftDependencies);
             config.extendsFrom(minecraftResources);
-            config.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
         });
     }
 
@@ -198,8 +199,8 @@ public abstract class MinecraftInstallation implements GeneralizedMinecraftInsta
         project.getConfigurations().named(sourceSet.getTaskName(null, JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME), config -> {
             config.extendsFrom(minecraft);
             config.shouldResolveConsistentlyWith(switch (getDistribution().get()) {
-                case CLIENT, JOINED -> nonUpgradableClientCompileDependencies;
-                case SERVER, COMMON -> nonUpgradableServerCompileDependencies;
+                case CLIENT, JOINED -> nonUpgradableClientCompileVersioning;
+                case SERVER, COMMON -> nonUpgradableServerCompileVersioning;
             });
             config.attributes(attributesAction);
         });
@@ -242,8 +243,8 @@ public abstract class MinecraftInstallation implements GeneralizedMinecraftInsta
         }
 
         run.classpath.shouldResolveConsistentlyWith(switch (runType) {
-            case CLIENT, DATA -> nonUpgradableClientRuntimeDependencies;
-            case SERVER -> nonUpgradableServerRuntimeDependencies;
+            case CLIENT, DATA -> nonUpgradableClientRuntimeVersioning;
+            case SERVER -> nonUpgradableServerRuntimeVersioning;
         });
     }
 }

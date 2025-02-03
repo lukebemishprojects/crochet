@@ -1,6 +1,7 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.CrochetProperties;
+import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
@@ -11,10 +12,8 @@ import dev.lukebemish.crochet.model.mappings.MergedMappingsStructure;
 import dev.lukebemish.crochet.model.mappings.MojangOfficialMappingsStructure;
 import dev.lukebemish.crochet.model.mappings.ReversedMappingsStructure;
 import dev.lukebemish.crochet.internal.tasks.VanillaInstallationArtifacts;
-import org.apache.commons.lang3.StringUtils;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.VersionConstraint;
-import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -22,7 +21,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.jetbrains.annotations.ApiStatus;
 
 import javax.inject.Inject;
-import java.util.Map;
 
 public abstract class AbstractVanillaInstallation extends LocalMinecraftInstallation {
     final Project project;
@@ -34,42 +32,11 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
 
         this.project = extension.project;
 
-        var minecraftPistonMeta = project.getConfigurations().dependencyScope("crochet"+StringUtils.capitalize(name)+"PistonMetaDownloads");
-        var clientJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ClientJarPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.exclude(Map.of(
-                "group", CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP,
-                "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
-            ));
-            c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-            });
-        });
-        var serverJarPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"ServerJarPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.exclude(Map.of(
-                "group", CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP,
-                "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
-            ));
-            c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
-            });
-        });
-        var mappingsPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"MappingsPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
-            });
-        });
-        var versionJsonPistonMeta = project.getConfigurations().resolvable("crochet"+StringUtils.capitalize(name)+"VersionJsonPistonMetaDownloads", c -> {
-            c.extendsFrom(minecraftPistonMeta.get());
-            c.attributes(attributes -> {
-                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "versionjson"));
-            });
-        });
+        var minecraftPistonMeta = ConfigurationUtils.pistonMetaDependencies(this, name);
+        var clientJarPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.CLIENT_JAR);
+        var serverJarPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.SERVER_JAR);
+        var mappingsPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.CLIENT_MAPPINGS);
+        var versionJsonPistonMeta = ConfigurationUtils.pistonMeta(this, name, minecraftPistonMeta, ConfigurationUtils.PistonMetaPiece.VERSION_JSON);
         project.getDependencies().addProvider(minecraftPistonMeta.getName(), getMinecraft().map(v -> CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":"+PistonMetaMetadataRule.MINECRAFT+":"+v));
 
         this.vanillaConfigMaker = project.getObjects().newInstance(VanillaInstallationArtifacts.class);
@@ -80,18 +47,16 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
         vanillaConfigMaker.getDistribution().set(getDistribution());
         this.binaryArtifactsTask.configure(t -> t.getConfigMaker().set(vanillaConfigMaker));
 
-        var decompileCompileClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"RunnerCompileClasspath", config -> {
-            config.extendsFrom(minecraftDependencies);
-            config.setCanBeConsumed(false);
-            config.attributes(attributes -> {
+        var decompileCompileClasspath = ConfigurationUtils.resolvableInternal(this, name, "RunnerCompileClasspath", c -> {
+            c.extendsFrom(minecraftDependencies);
+            c.attributes(attributes -> {
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
-        var decompileRuntimeClasspath = project.getConfigurations().create("crochet"+StringUtils.capitalize(name)+"RunnerRuntimeClasspath", config -> {
-            config.extendsFrom(minecraftDependencies);
-            config.setCanBeConsumed(false);
-            config.attributes(attributes -> {
+        var decompileRuntimeClasspath = ConfigurationUtils.resolvableInternal(this, name, "RunnerRuntimeClasspath", c -> {
+            c.extendsFrom(minecraftDependencies);
+            c.attributes(attributes -> {
                 attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
@@ -105,11 +70,11 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
         this.binaryArtifactsTask.configure(task -> {
             task.artifactsConfiguration(decompileCompileClasspath);
             task.artifactsConfiguration(decompileRuntimeClasspath);
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-version-json", versionJsonPistonMeta.get());
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-version-json", versionJsonPistonMeta);
             // Both for now as the config is always JOINED
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-jar", clientJarPistonMeta.get());
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-jar", serverJarPistonMeta.get());
-            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-mappings", mappingsPistonMeta.get(), vanillaConfigMaker.getMappings().map(AbstractVanillaInstallation::requiresVanillaMappings));
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-client-jar", clientJarPistonMeta);
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-server-jar", serverJarPistonMeta);
+            task.singleFileConfiguration("dev.lukebemish.crochet.internal:minecraft-mappings", mappingsPistonMeta, vanillaConfigMaker.getMappings().map(AbstractVanillaInstallation::requiresVanillaMappings));
             task.artifactsConfiguration(project.getConfigurations().getByName(CrochetProjectPlugin.TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME));
         });
     }

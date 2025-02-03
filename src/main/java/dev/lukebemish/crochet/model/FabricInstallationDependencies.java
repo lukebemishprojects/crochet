@@ -21,10 +21,10 @@ public abstract class FabricInstallationDependencies extends AbstractVanillaInst
     public abstract DependencyCollector getAccessWideners();
 
     public MappingsStructure intermediary() {
-        var configuration = getProject().getExtensions().getByType(MappingsConfigurationCounter.class).newConfiguration();
-        configuration.fromDependencyCollector(getIntermediary());
+        var configurations = getProject().getExtensions().getByType(MappingsConfigurationCounter.class).newConfiguration();
+        configurations.dependencies().fromDependencyCollector(getIntermediary());
         var source = getObjectFactory().newInstance(FileMappingsStructure.class);
-        source.getMappingsFile().from(configuration);
+        source.getMappingsFile().from(configurations.classpath());
         return source;
     }
 }

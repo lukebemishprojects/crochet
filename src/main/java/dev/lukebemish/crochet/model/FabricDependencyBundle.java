@@ -6,7 +6,7 @@ import org.gradle.api.Named;
 import javax.inject.Inject;
 
 public abstract class FabricDependencyBundle implements Named {
-    private final Action<FabricRemapDependencies> action;
+    final Action<FabricRemapDependencies> action;
     private final String name;
 
     @Inject

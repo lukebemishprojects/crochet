@@ -15,8 +15,8 @@ repositories {
         url = uri("https://maven.parchmentmc.org/")
     }
     maven {
-        name 'Staging'
-        url 'https://maven.lukebemish.dev/staging/'
+        name = 'Staging'
+        url = 'https://maven.lukebemish.dev/staging/'
     }
 }
 
@@ -65,21 +65,11 @@ crochet {
         }
     }
 
-    fabricInstallation('fabricYarn') {
-        minecraft = '1.21.4'
+    /*externalFabricInstallation('fabricYarn') {
+        consume(sharedInstallations.yarn)
 
-        dependencies {
-            loader 'net.fabricmc:fabric-loader:0.16.9'
-            mappings chained {
-                add intermediary()
-                add(artifact 'net.fabricmc:yarn:1.21.4+build.4:v2')
-            }
-        }
-
-        share('yarn')
-
-        forFeature(sourceSets.yarn)
-    }
+        //forFeature(sourceSets.yarn)
+    }*/
 
     neoFormInstallation('neoForm') {
         dependencies {
@@ -90,9 +80,6 @@ crochet {
     }
 
     runs {
-        vanillaClient {
-            client installations.vanilla
-        }
         fabricClient {
             client splitSourceSets.main.client
             implementation project(':')
@@ -101,14 +88,14 @@ crochet {
             server splitSourceSets.main.server
             implementation project(':')
         }
-        fabricYarnClient {
+        /*fabricYarnClient {
             client installations.fabricYarn
             implementation(project(':')) {
                 capabilities {
                     requireFeature('yarn')
                 }
             }
-        }
+        }*/
         neoFormClient {
             client installations.neoForm
         }

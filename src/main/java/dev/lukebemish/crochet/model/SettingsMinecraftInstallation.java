@@ -4,6 +4,7 @@ import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.CrochetPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
 import org.gradle.api.Action;
+import org.gradle.api.Project;
 import org.gradle.api.artifacts.VersionConstraint;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.provider.Property;
@@ -22,24 +23,31 @@ public abstract class SettingsMinecraftInstallation<R extends LocalMinecraftInst
             if (project.getPath().equals(project.getIsolated().getRootProject().getPath())) {
                 project.getPluginManager().apply(CrochetPlugin.class);
                 var crochet = project.getExtensions().getByType(CrochetExtension.class);
-                makeInstallation(name, crochet, this::configureInstallation);
+                makeInstallation(crochet, this::configureInstallation);
             }
             project.getPluginManager().withPlugin("dev.lukebemish.crochet", plugin -> {
                 var crochet = project.getExtensions().getByType(CrochetExtension.class);
                 crochet.addSharedInstallation(name);
+                generalSetup(crochet);
             });
         });
         getDistribution().convention(InstallationDistribution.JOINED);
     }
 
-    protected abstract void makeInstallation(String name, CrochetExtension extension, Action<? super R> action);
+    protected abstract void makeInstallation(CrochetExtension extension, Action<? super R> action);
+
+    protected void generalSetup(CrochetExtension crochet) {}
 
     protected void configureInstallation(R installation) {
         installation.getDistribution().set(getDistribution());
-        installation.share(getName());
+        installation.share(getInstallationName());
     }
 
     protected final List<Action<? super D>> dependencyActions = new ArrayList<>();
+
+    protected String getInstallationName() {
+        return getName()+"Shared";
+    }
 
     public void dependencies(Action<? super D> action) {
         dependencyActions.add(action);
@@ -117,8 +125,8 @@ public abstract class SettingsMinecraftInstallation<R extends LocalMinecraftInst
         }
 
         @Override
-        protected void makeInstallation(String name, CrochetExtension extension, Action<? super VanillaInstallation> action) {
-            extension.vanillaInstallation(name, action);
+        protected void makeInstallation(CrochetExtension extension, Action<? super VanillaInstallation> action) {
+            extension.vanillaInstallation(this.getInstallationName(), action);
         }
 
         @Override
@@ -136,9 +144,26 @@ public abstract class SettingsMinecraftInstallation<R extends LocalMinecraftInst
             super(name, settings);
         }
 
+        private final List<Action<FabricRemapDependencies>> bundleAction = new ArrayList<>();
+
         @Override
-        protected void makeInstallation(String name, CrochetExtension extension, Action<? super FabricInstallation> action) {
-            extension.fabricInstallation(name, action);
+        protected void generalSetup(CrochetExtension crochet) {
+            super.generalSetup(crochet);
+            var bundle = makeDependencyBundle(this.getInstallationName(), crochet.project);
+            crochet.addBundle(bundle);
+        }
+
+        @Override
+        protected void makeInstallation(CrochetExtension extension, Action<? super FabricInstallation> action) {
+            extension.fabricInstallation(this.getInstallationName(), action);
+        }
+
+        private FabricDependencyBundle makeDependencyBundle(String name, Project project) {
+            return project.getObjects().newInstance(FabricDependencyBundle.class, name, (Action<FabricRemapDependencies>) dependencies -> {
+                for (var action : bundleAction) {
+                    action.execute(dependencies);
+                }
+            });
         }
 
         @Override
@@ -147,6 +172,12 @@ public abstract class SettingsMinecraftInstallation<R extends LocalMinecraftInst
             for (var action : this.dependencyActions) {
                 action.execute(installation.getDependencies());
             }
+            var bundle = makeDependencyBundle(installation.getName(), installation.project);
+            installation.makeBundle(bundle);
+        }
+
+        public void bundle(Action<FabricRemapDependencies> action) {
+            bundleAction.add(action);
         }
     }
 
@@ -157,8 +188,8 @@ public abstract class SettingsMinecraftInstallation<R extends LocalMinecraftInst
         }
 
         @Override
-        protected void makeInstallation(String name, CrochetExtension extension, Action<? super NeoFormInstallation> action) {
-            extension.neoFormInstallation(name, action);
+        protected void makeInstallation(CrochetExtension extension, Action<? super NeoFormInstallation> action) {
+            extension.neoFormInstallation(this.getInstallationName(), action);
         }
 
         @Override

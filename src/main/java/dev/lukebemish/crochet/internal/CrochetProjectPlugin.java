@@ -15,15 +15,14 @@ import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.logging.configuration.ShowStacktrace;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
 
 public class CrochetProjectPlugin implements Plugin<Project> {
-    public static final String TASK_GRAPH_RUNNER_CONFIGURATION_NAME = "crochetTaskGraphRunnerClasspath";
-    public static final String TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME = "crochetTaskGraphRunnerDependencies";
-    public static final String DEV_LAUNCH_CONFIGURATION_NAME = "crochetDevLaunchClasspath";
-    public static final String TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME = "crochetTerminalConsoleAppender";
+    public static final String TASK_GRAPH_RUNNER_CONFIGURATION_NAME = "_crochetTaskGraphRunnerClasspath";
+    public static final String TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME = "_crochetTaskGraphRunnerToolsClasspath";
+    public static final String DEV_LAUNCH_CONFIGURATION_NAME = "_crochetDevLaunch";
+    public static final String TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME = "_crochetTerminalConsoleAppender";
 
     public static final String VERSION = CrochetProjectPlugin.class.getPackage().getImplementationVersion();
 
@@ -39,7 +38,7 @@ public class CrochetProjectPlugin implements Plugin<Project> {
     public static final String CROCHET_REMAP_TYPE_NON_REMAP = "not-to-remap";
 
     @Override
-    public void apply(@NotNull Project project) {
+    public void apply(Project project) {
         if (project.getProviders().gradleProperty(CrochetProperties.ADD_LIKELY_REPOSITORIES).map(Boolean::parseBoolean).orElse(true).get()) {
             if (!project.getPlugins().hasPlugin(CrochetRepositoriesMarker.class)) {
                 project.getPluginManager().apply(CrochetRepositoriesPlugin.class);
@@ -55,41 +54,56 @@ public class CrochetProjectPlugin implements Plugin<Project> {
         project.getExtensions().create("crochet.internal.mappingsConfigurationContainer", MappingsConfigurationCounter.class);
 
         // TaskGraphRunner
-        project.getConfigurations().register(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, config -> {
+        var taskGraphRunnerDependencies = ConfigurationUtils.dependencyScopeInternal(project, "", "TaskGraphRunner", config -> {});
+        var taskGraphRunnerClasspath = ConfigurationUtils.resolvableInternal(project, "", "TaskGraphRunnerClasspath", config -> {
             config.attributes(attributes -> {
                 // TaskGraphRunner runs on 21 in general
                 attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
                 // Prefer shadowed jar
                 attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
             });
-            config.setCanBeConsumed(false);
+            config.extendsFrom(taskGraphRunnerDependencies);
         });
-        project.getDependencies().add(TASK_GRAPH_RUNNER_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + Versions.TASK_GRAPH_RUNNER);
+        if (!TASK_GRAPH_RUNNER_CONFIGURATION_NAME.equals(taskGraphRunnerClasspath.getName())) {
+            throw new IllegalStateException("TaskGraphRunnerClasspath configuration name is not as expected: " + taskGraphRunnerClasspath.getName() + ", expected "+TASK_GRAPH_RUNNER_CONFIGURATION_NAME);
+        }
+        project.getDependencies().add(taskGraphRunnerDependencies.getName(), "dev.lukebemish:taskgraphrunner:" + Versions.TASK_GRAPH_RUNNER);
 
-        project.getConfigurations().register(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, config -> {
+        var taskGraphRunnerToolsDependencies = ConfigurationUtils.dependencyScopeInternal(project, "", "TaskGraphRunnerTools", config -> {});
+        var taskGraphRunnerToolsClasspath = ConfigurationUtils.resolvableInternal(project, "", "TaskGraphRunnerToolsClasspath", config -> {
             config.attributes(attributes -> {
                 // TaskGraphRunner runs on 21 in general
                 attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21);
             });
-            config.setCanBeConsumed(false);
+            config.extendsFrom(taskGraphRunnerToolsDependencies);
         });
-        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish:taskgraphrunner:" + Versions.TASK_GRAPH_RUNNER)).capabilities(capabilities -> {
+        if (!TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME.equals(taskGraphRunnerToolsClasspath.getName())) {
+            throw new IllegalStateException("TaskGraphRunnerToolsClasspath configuration name is not as expected: " + taskGraphRunnerToolsClasspath.getName() + ", expected "+TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME);
+        }
+
+        ((ModuleDependency) project.getDependencies().add(taskGraphRunnerToolsDependencies.getName(), "dev.lukebemish:taskgraphrunner:" + Versions.TASK_GRAPH_RUNNER)).capabilities(capabilities -> {
             capabilities.requireCapability("dev.lukebemish:taskgraphrunner-external-tools");
         });
-        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish.crochet:tools:" + VERSION)).attributes(attributes -> {
+        ((ModuleDependency) project.getDependencies().add(taskGraphRunnerToolsDependencies.getName(), "dev.lukebemish.crochet:tools:" + VERSION)).attributes(attributes -> {
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
         });
-        ((ModuleDependency) project.getDependencies().add(TASK_GRAPH_RUNNER_TOOLS_CONFIGURATION_NAME, "dev.lukebemish:christen:" + Versions.CHRISTEN)).attributes(attributes -> {
+        ((ModuleDependency) project.getDependencies().add(taskGraphRunnerToolsDependencies.getName(), "dev.lukebemish:christen:" + Versions.CHRISTEN)).attributes(attributes -> {
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.class, Bundling.SHADOWED));
         });
 
 
         // runs
-        project.getConfigurations().register(DEV_LAUNCH_CONFIGURATION_NAME);
-        project.getDependencies().add(DEV_LAUNCH_CONFIGURATION_NAME, "net.neoforged:DevLaunch:" + Versions.DEV_LAUNCH);
+        var devLaunchConfiguration = ConfigurationUtils.dependencyScopeInternal(project, "", "DevLaunch", config -> {});
+        if (!DEV_LAUNCH_CONFIGURATION_NAME.equals(devLaunchConfiguration.getName())) {
+            throw new IllegalStateException("DevLaunch configuration name is not as expected: " + devLaunchConfiguration.getName() + ", expected "+DEV_LAUNCH_CONFIGURATION_NAME);
+        }
+        project.getDependencies().add(devLaunchConfiguration.getName(), "net.neoforged:DevLaunch:" + Versions.DEV_LAUNCH);
 
-        project.getConfigurations().register(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME);
-        project.getDependencies().add(TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME, "net.minecrell:terminalconsoleappender:" + Versions.TERMINAL_CONSOLE_APPENDER);
+        var terminalConsoleAppenderConfiguration = ConfigurationUtils.dependencyScopeInternal(project, "", "TerminalConsoleAppender", config -> {});
+        if (!TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME.equals(terminalConsoleAppenderConfiguration.getName())) {
+            throw new IllegalStateException("TerminalConsoleAppender configuration name is not as expected: " + terminalConsoleAppenderConfiguration.getName() + ", expected "+TERMINAL_CONSOLE_APPENDER_CONFIGURATION_NAME);
+        }
+        project.getDependencies().add(terminalConsoleAppenderConfiguration.getName(), "net.minecrell:terminalconsoleappender:" + Versions.TERMINAL_CONSOLE_APPENDER);
 
         // configurations
         setupConventionalConfigurations(project);
@@ -130,10 +144,12 @@ public class CrochetProjectPlugin implements Plugin<Project> {
             var compileClasspath = project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName());
             var runtimeClasspath = project.getConfigurations().getByName(sourceSet.getRuntimeClasspathConfigurationName());
 
-            var localRuntime = project.getConfigurations().maybeCreate(sourceSet.getTaskName(null, "localRuntime"));
+            var localRuntime = ConfigurationUtils.dependencyScope(project, sourceSet.getName(), null, "localRuntime", c -> {});
             runtimeClasspath.extendsFrom(localRuntime);
 
-            var localImplementation = project.getConfigurations().maybeCreate(sourceSet.getTaskName(null, "localImplementation"));
+            // TODO: make sure that local run classpaths actually pull in the source set's runtime classpath.
+
+            var localImplementation = ConfigurationUtils.dependencyScope(project, sourceSet.getName(), null, "localImplementation", c -> {});
             compileClasspath.extendsFrom(localImplementation);
             runtimeClasspath.extendsFrom(localImplementation);
         });

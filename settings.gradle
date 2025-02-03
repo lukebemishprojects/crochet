@@ -6,7 +6,7 @@ pluginManagement {
 
         gradlePluginPortal()
         maven {
-            url "https://maven.lukebemish.dev/releases/"
+            url = "https://maven.lukebemish.dev/releases/"
         }
     }
     plugins {
