@@ -121,9 +121,6 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                 var serverDownload = version.downloads().get("server");
                                 var relativeUrl = serverDownload.url().substring(VersionManifest.PISTON_DATA_URL.length());
                                 serverDeps.add(CrochetRepositoriesPlugin.MOJANG_STUBS_GROUP+":" + ServerDependenciesMetadataRule.MINECRAFT_SERVER_DEPENDENCIES + ":" + relativeUrl);
-                            }
-
-                            if (!isNatives) {
                                 details.addVariant("clientCompileDependencies", v -> {
                                     v.withDependencies(deps -> {
                                         List<String> fullDeps = new ArrayList<>(clientDeps);
@@ -185,7 +182,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                             MetadataUtils.depsOf(deps, dep, false);
                                         });
                                         v.attributes(attributes -> {
-                                            attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.NATIVE_LINK));
+                                            attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
                                             attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
                                             attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
                                             attributes.attribute(CrochetProjectPlugin.NEO_OPERATING_SYSTEM_ATTRIBUTE, os);
