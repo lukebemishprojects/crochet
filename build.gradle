@@ -4,7 +4,7 @@ import groovy.transform.TupleConstructor
 
 plugins {
     id 'java-gradle-plugin'
-    id 'org.gradle.kotlin.kotlin-dsl' version '5.1.2' // Version for gradle 8.12
+    id 'org.gradle.kotlin.kotlin-dsl' version '5.2.0' // Version for project gradle
     id 'maven-publish'
     id 'checkstyle'
     id 'dev.lukebemish.managedversioning'
