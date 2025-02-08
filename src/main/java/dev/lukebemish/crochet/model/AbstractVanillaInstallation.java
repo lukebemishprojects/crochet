@@ -62,7 +62,7 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
             });
         });
 
-        var useStubDeps = project.getProviders().gradleProperty(CrochetProperties.USE_STUB_GENERATED_MINECRAFT_DEPENDENCIES).map(Boolean::parseBoolean).orElse(true);
+        var useStubDeps = project.getProviders().gradleProperty(CrochetProperties.USE_STUB_GENERATED_MINECRAFT_DEPENDENCIES).map(Boolean::parseBoolean).orElse(false);
         getUseStubBackedMinecraftDependencies().convention(useStubDeps);
 
         minecraftDependencies.fromDependencyCollector(getDependencies().getMinecraftDependencies());

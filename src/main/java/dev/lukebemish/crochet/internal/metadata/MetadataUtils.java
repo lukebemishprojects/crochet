@@ -11,6 +11,7 @@ public final class MetadataUtils {
     public static void depsOf(List<String> fullDeps, DirectDependenciesMetadata deps, boolean transitive) {
         var unique = new LinkedHashSet<>(fullDeps);
         for (var notation : unique) {
+            // TODO: correctly handle artifact selectors in notation here. Requires artifact selector support in the gradle API
             deps.add(notation, dep -> {
                 dep.excludes(excludes -> {
                     excludes.addExclude("*", "*");
