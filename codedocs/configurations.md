@@ -273,6 +273,21 @@ Attributes:
 Capabilities:
 - `dev.lukebemish.crochet.local.shared-<type-tag>:assets-properties-<share-tag>:1.0.0`
 
+### `_crochet*BinaryElements`
+`consumable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*BinaryLineMappedElements`
+`consumable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*ResourcesElements`
+`consumable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
 ## AbstractVanillaInstallation
 
 ### `_crochet*PistonMetaDownloads`
@@ -450,18 +465,8 @@ Attributes:
 Capabilities:
 - `dev.lukebemish.crochet.local.shared-<type-tag>:mappings-named-intermediary-<share-tag>:1.0.0`
 
-### `_crochet*CompileRemappedDependencies`
-`dependencyScope`
-
-Collects remapped bundle dependencies.
-
-### `_crochet*RuntimeRemappedDependencies`
-`dependencyScope`
-
-Collects remapped bundle dependencies.
-
 ### `_crochet*CompileRemapped`
-`consumable` extends `_crochet*CompileRemappedDependencies`
+`consumable`
 
 Exposes remapped version of bundle dependencies, for local and cross-project consumption.
 
@@ -472,7 +477,7 @@ Capabilities:
 - `dev.lukebemish.crochet.local.bundle-<type-tag>:<installation-name>-compile-remapped:1.0.0`
 
 ### `_crochet*RuntimeRemapped`
-`consumable` extends `_crochet*RuntimeRemappedDependencies`
+`consumable`
 
 Exposes remapped version of bundle dependencies, for local and cross-project consumption.
 
@@ -632,6 +637,36 @@ Depends on the generated assets properties file.
 
 Contains the generated assets properties file.
 
+### `_crochet*BinaryPath`
+`resolvable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*Binary`
+`dependencyScope` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*ResourcesPath`
+`resolvable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*BinaryLineMapped`
+`dependencyScope` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*Resources`
+`dependencyScope` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*BinaryLineMappedPath`
+`resolvable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
 ## ExternalFabricInstallation
 
 ### `_crochet*Loader`
@@ -693,6 +728,16 @@ Excluded dependencies from remapping for compile.
 `dependencyScope`
 
 Excluded dependencies from remapping for runtime.
+
+### `_crochet*MappingsClasspath`
+`resolvable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*Mappings`
+`dependencyScope` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
 
 ## FabricInstallationLogic
 
@@ -838,6 +883,16 @@ TODO: document purpose, attributes, etc.
 
 ### `_crochet*RemappedRunClasspath`
 `dependencyScope` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*ArtifactsCreationDummy`
+`consumable` (TODO: document extendsFrom)
+
+TODO: document purpose, attributes, etc.
+
+### `_crochet*ArtifactDummy`
+`resolvable` (TODO: document extendsFrom)
 
 TODO: document purpose, attributes, etc.
 

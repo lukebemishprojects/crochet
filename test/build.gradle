@@ -65,11 +65,11 @@ crochet {
         }
     }
 
-    /*externalFabricInstallation('fabricYarn') {
+    externalFabricInstallation('fabricYarn') {
         consume(sharedInstallations.yarn)
 
-        //forFeature(sourceSets.yarn)
-    }*/
+        forFeature(sourceSets.yarn)
+    }
 
     neoFormInstallation('neoForm') {
         dependencies {
@@ -88,14 +88,14 @@ crochet {
             server splitSourceSets.main.server
             implementation project(':')
         }
-        /*fabricYarnClient {
+        fabricYarnClient {
             client installations.fabricYarn
             implementation(project(':')) {
                 capabilities {
                     requireFeature('yarn')
                 }
             }
-        }*/
+        }
         neoFormClient {
             client installations.neoForm
         }

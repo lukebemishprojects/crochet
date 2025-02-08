@@ -339,6 +339,15 @@ public abstract class LocalMinecraftInstallation extends MinecraftInstallation {
             }),
             "non-upgradable", ConfigurationUtils.consumableInternal(this, getName(), "nonUpgradableElements", config -> {
                 config.extendsFrom(nonUpgradableDependencies);
+            }),
+            "binary", ConfigurationUtils.consumableInternal(this, getName(), "binaryElements", config -> {
+                crochetExtension.project.getArtifacts().add(config.getName(), binary, a -> a.builtBy(binaryArtifactsTask));
+            }),
+            "binary-line-mapped", ConfigurationUtils.consumableInternal(this, getName(), "binaryLineMappedElements", config -> {
+                crochetExtension.project.getArtifacts().add(config.getName(), binaryLineMapped, a -> a.builtBy(lineMappedBinaryArtifactsTask));
+            }),
+            "resources", ConfigurationUtils.consumableInternal(this, getName(), "resourcesElements", config -> {
+                crochetExtension.project.getArtifacts().add(config.getName(), resources, a -> a.builtBy(binaryArtifactsTask));
             })
         );
     }

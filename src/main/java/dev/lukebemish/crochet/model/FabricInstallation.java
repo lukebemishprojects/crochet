@@ -5,6 +5,7 @@ import dev.lukebemish.crochet.internal.ConfigurationUtils;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.FeatureUtils;
 import dev.lukebemish.crochet.internal.Log4jSetup;
+import dev.lukebemish.crochet.internal.Memoize;
 import dev.lukebemish.crochet.internal.TaskUtils;
 import dev.lukebemish.crochet.internal.tasks.ExtractFabricDependencies;
 import dev.lukebemish.crochet.internal.tasks.FabricInstallationArtifacts;
@@ -66,12 +67,10 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
     final Supplier<Configuration> accessWidenersElements;
     final TaskProvider<ExtractFabricDependencies> extractFabricForDependencies;
 
-    final DependencyScopeConfiguration compileRemappedDependencies;
-    final Supplier<ConsumableConfiguration> compileExclude;
-    final Supplier<ConsumableConfiguration> compileRemapped;
-    final DependencyScopeConfiguration runtimeRemappedDependencies;
-    final Supplier<ConsumableConfiguration> runtimeExclude;
-    final Supplier<ConsumableConfiguration> runtimeRemapped;
+    final Memoize<ConsumableConfiguration> compileExclude;
+    final Memoize<ConsumableConfiguration> compileRemapped;
+    final Memoize<ConsumableConfiguration> runtimeExclude;
+    final Memoize<ConsumableConfiguration> runtimeRemapped;
 
     private final FabricInstallationLogic logic;
 
@@ -227,26 +226,22 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         intermediaryJarFiles.builtBy(this.binaryArtifactsTask);
         project.getDependencies().add(intermediaryMinecraft.getName(), intermediaryJarFiles);
 
-        this.compileRemappedDependencies = ConfigurationUtils.dependencyScopeInternal(this, name, "compileRemappedDependencies", config -> {});
-        this.compileRemapped = Suppliers.memoize(() -> ConfigurationUtils.consumableInternal(this, name, "compileRemapped", config -> {
+        this.compileRemapped = Memoize.of(() -> ConfigurationUtils.consumableInternal(this, name, "compileRemapped", config -> {
             var group = CROSS_PROJECT_BUNDLE_CAPABILITY_GROUP + sharingInstallationTypeTag();
             config.getOutgoing().capability(group + ":" + name + "-compile-remapped" + ":" + "1.0.0");
             config.getAttributes().attributeProvider(CrochetProjectPlugin.LOCAL_DISTRIBUTION_ATTRIBUTE, getDistribution().map(it -> it.name().toLowerCase(Locale.ROOT)));
-            config.extendsFrom(compileRemappedDependencies);
         }));
-        this.compileExclude = Suppliers.memoize(() -> ConfigurationUtils.consumableInternal(this, name, "compileExclude", config -> {
+        this.compileExclude = Memoize.of(() -> ConfigurationUtils.consumableInternal(this, name, "compileExclude", config -> {
             var group = CROSS_PROJECT_BUNDLE_CAPABILITY_GROUP + sharingInstallationTypeTag();
             config.getOutgoing().capability(group + ":" + name + "-compile-exclude" + ":" + "1.0.0");
             config.getAttributes().attributeProvider(CrochetProjectPlugin.LOCAL_DISTRIBUTION_ATTRIBUTE, getDistribution().map(it -> it.name().toLowerCase(Locale.ROOT)));
         }));
-        this.runtimeRemappedDependencies = ConfigurationUtils.dependencyScopeInternal(this, name, "runtimeRemappedDependencies", config -> {});
-        this.runtimeRemapped = Suppliers.memoize(() -> ConfigurationUtils.consumableInternal(this, name, "runtimeRemapped", config -> {
+        this.runtimeRemapped = Memoize.of(() -> ConfigurationUtils.consumableInternal(this, name, "runtimeRemapped", config -> {
             var group = CROSS_PROJECT_BUNDLE_CAPABILITY_GROUP + sharingInstallationTypeTag();
             config.getOutgoing().capability(group + ":" + name + "-runtime-remapped" + ":" + "1.0.0");
             config.getAttributes().attributeProvider(CrochetProjectPlugin.LOCAL_DISTRIBUTION_ATTRIBUTE, getDistribution().map(it -> it.name().toLowerCase(Locale.ROOT)));
-            config.extendsFrom(runtimeRemappedDependencies);
         }));
-        this.runtimeExclude = Suppliers.memoize(() -> ConfigurationUtils.consumableInternal(this, name, "runtimeExclude", config -> {
+        this.runtimeExclude = Memoize.of(() -> ConfigurationUtils.consumableInternal(this, name, "runtimeExclude", config -> {
             var group = CROSS_PROJECT_BUNDLE_CAPABILITY_GROUP + sharingInstallationTypeTag();
             config.getOutgoing().capability(group + ":" + name + "-runtime-exclude" + ":" + "1.0.0");
             config.getAttributes().attributeProvider(CrochetProjectPlugin.LOCAL_DISTRIBUTION_ATTRIBUTE, getDistribution().map(it -> it.name().toLowerCase(Locale.ROOT)));
@@ -380,13 +375,13 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
         logic.forNamedBundle(
             "crochetBundle"+StringUtils.capitalize(bundle.getName()),
             dependencies,
-            compileRemappedDependencies,
+            compileRemapped.get(),
             compileExclude.get(),
-            runtimeRemappedDependencies,
+            runtimeRemapped.get(),
             runtimeExclude.get()
         );
-        compileRemapped.get();
-        runtimeRemapped.get();
+        compileRemapped.fix();
+        runtimeRemapped.fix();
     }
 
     private final List<Action<? super FabricSourceSetDependencies>> bundleActions = new ArrayList<>();

@@ -16,10 +16,12 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -176,9 +178,18 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         return config;
     }
 
-    public void setup(TaskGraphExecution outer, Configuration source, Configuration exclude, Directory destinationDirectory, ConfigurableFileCollection destinationFiles) {
-        destinationFiles.builtBy(outer);
+    public interface FileDestination {
+        void from(TaskGraphExecution task, Provider<List<RegularFile>> files);
+    }
 
+    public void setup(TaskGraphExecution outer, Configuration source, Configuration exclude, Directory destinationDirectory, ConfigurableFileCollection destinationFiles) {
+        setup(outer, source, exclude, destinationDirectory, (task, files) -> {
+            destinationFiles.builtBy(task);
+            destinationFiles.from(files);
+        });
+    }
+
+    public void setup(TaskGraphExecution outer, Configuration source, Configuration exclude, Directory destinationDirectory, FileDestination destinationFiles) {
         outer.dependsOn(source);
         var sourceArtifacts = source.getIncoming().getArtifacts().getResolvedArtifacts();
         var excludeArtifacts = exclude.getIncoming().getArtifacts().getResolvedArtifacts();
@@ -229,7 +240,7 @@ public abstract class RemapModsConfigMaker implements TaskGraphExecution.ConfigM
         var property = outer.getProject().getObjects().listProperty(ArtifactTarget.class);
         property.set(targetsProvider);
         property.finalizeValueOnRead();
-        destinationFiles.from(property.map(list -> new ArrayList<>(list.stream().map(a -> a.getTarget().get()).toList())));
+        destinationFiles.from(outer, property.map(list -> new ArrayList<>(list.stream().map(a -> a.getTarget().get()).toList())));
         this.getTargets().addAll(property);
 
         outer.getTargets().addAll(property.map(outer.getProject().getObjects().newInstance(TargetToOutputTransformer.class)));

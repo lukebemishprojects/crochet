@@ -19,6 +19,7 @@ import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.PublishArtifact;
 import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.AttributeContainer;
@@ -31,6 +32,7 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -103,7 +105,7 @@ abstract class FabricInstallationLogic {
 
     private boolean bundled = false;
 
-    void forNamedBundle(String name, FabricRemapDependencies dependencies, Configuration remappedCompileClasspath, ConsumableConfiguration excludeCompile, Configuration remappedRuntimeClasspath, ConsumableConfiguration excludeRuntime) {
+    void forNamedBundle(String name, FabricRemapDependencies dependencies, ConsumableConfiguration remappedCompileClasspath, ConsumableConfiguration excludeCompile, ConsumableConfiguration remappedRuntimeClasspath, ConsumableConfiguration excludeRuntime) {
         if (bundled) {
             throw new IllegalStateException("Bundle already made for installation "+minecraftInstallation.getName()+" in "+project.getPath());
         } else {
@@ -280,15 +282,24 @@ abstract class FabricInstallationLogic {
         runtimeRemappingClasspath.extendsFrom(intermediaryMinecraft());
         runtimeRemappingClasspath.shouldResolveConsistentlyWith(versioningRuntimeClasspath);
 
-        var remappedCompileMods = project.files();
-        project.getDependencies().add(remappedCompileClasspath.getName(), remappedCompileMods);
+        var artifactDummy = ConfigurationUtils.resolvableInternal(project, name, "artifactDummy", c -> {});
+        var artifacts = project.getArtifacts();
 
-        var remappedRuntimeMods = project.files();
-        project.getDependencies().add(remappedRuntimeClasspath.getName(), remappedRuntimeMods);
-
+        ListProperty<PublishArtifact> compileArtifactsList = project.getObjects().listProperty(PublishArtifact.class);
         var remapCompileMods = TaskUtils.registerInternal(project, TaskGraphExecution.class, name, "remapCompileClasspath", task -> {
             var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
-            configMaker.setup(task, modCompileClasspath, excludedCompileClasspath, workingDirectory().get().dir("compileClasspath").dir(name), remappedCompileMods);
+            configMaker.setup(task, modCompileClasspath, excludedCompileClasspath, workingDirectory().get().dir("compileClasspath").dir(name), (t, files) -> {
+                compileArtifactsList.set(files.map(fileList -> {
+                    var out = new ArrayList<PublishArtifact>();
+                    for (var file : fileList) {
+                        out.add(artifacts.add(artifactDummy.getName(), file, a -> {
+                            a.builtBy(t);
+                        }));
+                        artifactDummy.getArtifacts().clear();
+                    }
+                    return out;
+                }));
+            });
             task.dependsOn(intermediaryToNamedFlat());
             configMaker.getDistribution().set(minecraftInstallation.getDistribution());
             configMaker.getRemappingClasspath().from(compileRemappingClasspath);
@@ -298,11 +309,23 @@ abstract class FabricInstallationLogic {
             addArtifacts(task);
             task.getClasspath().from(project.getConfigurations().named(CrochetProjectPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
-        remappedCompileMods.builtBy(remapCompileMods);
+        remappedCompileClasspath.getArtifacts().addAllLater(remapCompileMods.zip(compileArtifactsList, (t, l) -> l));
 
+        ListProperty<PublishArtifact> runtimeArtifactsList = project.getObjects().listProperty(PublishArtifact.class);
         var remapRuntimeMods = TaskUtils.registerInternal(project, TaskGraphExecution.class, name, "remapRuntimeClasspath", task -> {
             var configMaker = project.getObjects().newInstance(RemapModsConfigMaker.class);
-            configMaker.setup(task, modRuntimeClasspath, excludedRuntimeClasspath, workingDirectory().get().dir("runtimeClasspath").dir(name), remappedRuntimeMods);
+            configMaker.setup(task, modRuntimeClasspath, excludedRuntimeClasspath, workingDirectory().get().dir("runtimeClasspath").dir(name), (t, files) -> {
+                runtimeArtifactsList.set(files.map(fileList -> {
+                    var out = new ArrayList<PublishArtifact>();
+                    for (var file : fileList) {
+                        out.add(artifacts.add(artifactDummy.getName(), file, a -> {
+                            a.builtBy(t);
+                        }));
+                        artifactDummy.getArtifacts().clear();
+                    }
+                    return out;
+                }));
+            });
             task.dependsOn(intermediaryToNamedFlat());
             configMaker.getDistribution().set(minecraftInstallation.getDistribution());
             configMaker.getRemappingClasspath().from(runtimeRemappingClasspath);
@@ -312,7 +335,7 @@ abstract class FabricInstallationLogic {
             addArtifacts(task);
             task.getClasspath().from(project.getConfigurations().named(CrochetProjectPlugin.TASK_GRAPH_RUNNER_CONFIGURATION_NAME));
         });
-        remappedRuntimeMods.builtBy(remapRuntimeMods);
+        remappedRuntimeClasspath.getArtifacts().addAllLater(remapRuntimeMods.zip(runtimeArtifactsList, (t, l) -> l));
 
         var remapCompileModSources = TaskUtils.registerInternal(project, TaskGraphExecution.class, name, "remapCompileClasspathSources", task -> {
             var configMaker = project.getObjects().newInstance(RemapModsSourcesConfigMaker.class);
@@ -786,7 +809,14 @@ abstract class FabricInstallationLogic {
                 attributes.attribute(CrochetProjectPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE, CrochetProjectPlugin.CROCHET_REMAP_TYPE_NON_REMAP)
             );
             config.getDependencies().addAllLater(project.provider(() ->
-                modCompileClasspath.getAllDependencies().stream().filter(dep -> dep instanceof ProjectDependency).toList()
+                modCompileClasspath.getAllDependencies().stream().filter(dep -> {
+                    // We explicitly do _not_ want to accidentally include special exclusion dependencies within this
+                    if (compileExclude() != null) {
+                        return (dep instanceof ProjectDependency) && !compileExclude().getAllDependencies().contains(dep);
+                    } else {
+                        return dep instanceof ProjectDependency;
+                    }
+                }).toList()
             ));
         });
 
@@ -990,7 +1020,9 @@ abstract class FabricInstallationLogic {
 
         minecraftInstallation.crochetExtension.idePostSync.configure(task -> {
             task.dependsOn(remapMods);
+        });
 
+        minecraftInstallation.crochetExtension.generateSources.configure(task -> {
             task.dependsOn(remapModSources);
         });
 

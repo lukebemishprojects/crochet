@@ -16,6 +16,10 @@ public sealed abstract class Memoize<T> implements Supplier<T> {
         return new Impl<>(supplier);
     }
 
+    public final void fix() {
+        get();
+    }
+
     private sealed interface Status<T> {
         T get();
 

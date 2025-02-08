@@ -21,6 +21,13 @@ public abstract class ExternalMinecraftInstallation extends MinecraftInstallatio
     final DependencyScopeConfiguration assetsProperties;
     final ResolvableConfiguration assetsPropertiesPath;
 
+    final DependencyScopeConfiguration binary;
+    final ResolvableConfiguration binaryPath;
+    final DependencyScopeConfiguration resources;
+    final ResolvableConfiguration resourcesPath;
+    final DependencyScopeConfiguration binaryLineMapped;
+    final ResolvableConfiguration binaryLineMappedPath;
+
     @Inject
     public ExternalMinecraftInstallation(String name, CrochetExtension extension) {
         super(name, extension);
@@ -30,6 +37,19 @@ public abstract class ExternalMinecraftInstallation extends MinecraftInstallatio
             c.extendsFrom(assetsProperties);
         });
         this.assetsPropertiesFiles.from(assetsPropertiesPath);
+
+        binary = ConfigurationUtils.dependencyScopeInternal(this, name, "binary", c -> {});
+        binaryPath = ConfigurationUtils.resolvableInternal(this, name, "binaryPath", c -> {
+            c.extendsFrom(binary);
+        });
+        resources = ConfigurationUtils.dependencyScopeInternal(this, name, "resources", c -> {});
+        resourcesPath = ConfigurationUtils.resolvableInternal(this, name, "resourcesPath", c -> {
+            c.extendsFrom(resources);
+        });
+        binaryLineMapped = ConfigurationUtils.dependencyScopeInternal(this, name, "binaryLineMapped", c -> {});
+        binaryLineMappedPath = ConfigurationUtils.resolvableInternal(this, name, "binaryLineMappedPath", c -> {
+            c.extendsFrom(binaryLineMapped);
+        });
     }
 
     boolean linked = false;
@@ -43,7 +63,10 @@ public abstract class ExternalMinecraftInstallation extends MinecraftInstallatio
             "minecraft-dependencies", minecraftDependencies,
             "minecraft-resources", minecraftResources,
             "minecraft-line-mapped", minecraftLineMapped,
-            "non-upgradable", nonUpgradableDependencies
+            "non-upgradable", nonUpgradableDependencies,
+            "resources", resources,
+            "binary", binary,
+            "binary-line-mapped", binaryLineMapped
         );
     }
 

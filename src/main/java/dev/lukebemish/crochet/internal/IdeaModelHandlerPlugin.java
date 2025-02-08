@@ -406,9 +406,11 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                                                             if (!(sourceRoot instanceof Element elementRoot)) {
                                                                 Element sourceRootElement = doc.createElement("root");
                                                                 sourceRootElement.setAttribute("url", newUrl);
+                                                                sourceRootElement.setAttribute("type", "java-source");
                                                                 sourcesNode.appendChild(sourceRootElement);
                                                             } else {
                                                                 elementRoot.setAttribute("url", newUrl);
+                                                                elementRoot.setAttribute("type", "java-source");
                                                             }
                                                         }
                                                     }
