@@ -15,6 +15,8 @@ import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.internal.artifacts.configurations.ConfigurationRole;
+import org.gradle.api.problems.ProblemGroup;
+import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemSpec;
 import org.gradle.api.problems.Problems;
 import org.gradle.api.problems.Severity;
@@ -44,6 +46,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class ConfigurationUtils implements BuildService<ConfigurationUtils.Params>, AutoCloseable {
+    @SuppressWarnings("UnstableApiUsage")
+    private static final ProblemGroup CONFIGURATION_VALIDATION = ProblemGroup.create("crochet-configuration-validation", "Crochet Configuration Validation");
+
     @Inject
     public ConfigurationUtils() {}
 
@@ -164,12 +169,12 @@ public abstract class ConfigurationUtils implements BuildService<ConfigurationUt
         }
     }
 
-    private void generateOrThrow(Action<ProblemSpec> action, String className, String configurationName, ConfigurationRole role) {
+    private void generateOrThrow(Action<ProblemSpec> action, String className, String configurationName, ConfigurationRole role, ProblemId id, Throwable throwable) {
         if (getParameters().getValidationMode().get() == ValidationMode.GENERATE) {
             missing.computeIfAbsent(className, k -> new HashMap<>()).put(configurationName, role);
-            getProblems().getReporter().reporting(action);
+            getProblems().getReporter().create(id, action);
         } else {
-            throw getProblems().getReporter().throwing(action);
+            throw getProblems().getReporter().throwing(throwable, id, action);
         }
     }
 
@@ -190,53 +195,59 @@ public abstract class ConfigurationUtils implements BuildService<ConfigurationUt
             break;
         }
         if (callingClass == null) {
-            throw getProblems().getReporter().throwing(problem ->
-                problem
-                    .id("crochet-configuration-validation-unknown-caller", "Unknown caller for configuration name pattern", SimpleProblemGroup.CONFIGURATION_VALIDATION)
+            var exception = new IllegalStateException("Could not determine calling class for configuration name pattern "+name);
+            throw getProblems().getReporter().throwing(exception, ProblemId.create("crochet-configuration-validation-unknown-caller", "Unknown caller for configuration name pattern", CONFIGURATION_VALIDATION),
+                problem -> problem
                     .contextualLabel("Could not determine calling class for configuration name pattern "+name)
                     .severity(Severity.ERROR)
                     .solution("Make sure ConfigurationUtils is called in such a way that the stack can be inspected")
                     .stackLocation()
-                    .withException(new IllegalStateException("Could not determine calling class for configuration name pattern "+name))
+                    .withException(exception)
             );
         }
         final var finalCallingClass = callingClass;
         final var finalFileName = Objects.requireNonNull(fileName);
         final var finalLineNumber = lineNumber;
         if (!classesFromConfiguration.getOrDefault(name, Set.of()).contains(callingClass)) {
+            var exception = new IllegalStateException("Configuration name pattern "+name+" does not match documented patterns for creating class "+finalCallingClass);
             generateOrThrow(problem ->
                 problem
-                    .id("crochet-configuration-validation-undocumented-pattern", "Undocumented configuration name pattern for caller", SimpleProblemGroup.CONFIGURATION_VALIDATION)
                     .contextualLabel("Configuration name pattern "+name+" does not match documented patterns for creating class "+finalCallingClass)
                     .severity(Severity.ERROR)
                     .solution("Document pattern "+name+" for class "+finalCallingClass)
                     .lineInFileLocation(finalFileName, finalLineNumber)
-                    .withException(new IllegalStateException("Configuration name pattern "+name+" does not match documented patterns for creating class "+finalCallingClass)),
-                callingClass, name, role
+                    .withException(exception),
+                callingClass, name, role,
+                ProblemId.create("crochet-configuration-validation-undocumented-pattern", "Undocumented configuration name pattern for caller", CONFIGURATION_VALIDATION),
+                exception
             );
             return;
         }
         var roleMap = configurationRoles.get(name);
         if (roleMap == null || roleMap.get(callingClass) == null) {
-            throw getProblems().getReporter().throwing(problem ->
-                problem
-                    .id("crochet-configuration-validation-undocumented-role", "Undocumented configuration name pattern role for caller", SimpleProblemGroup.CONFIGURATION_VALIDATION)
+            var exception = new IllegalStateException("Could not determine expected role for configuration name pattern "+name+" in creating class "+finalCallingClass);
+            throw getProblems().getReporter().throwing(
+                exception,
+                ProblemId.create("crochet-configuration-validation-undocumented-role", "Undocumented configuration name pattern role for caller", CONFIGURATION_VALIDATION),
+                problem -> problem
                     .contextualLabel("Could not determine expected role for configuration name pattern "+name+" in creating class "+finalCallingClass)
                     .severity(Severity.ERROR)
                     .solution("Document role for pattern "+name+" for class "+finalCallingClass)
                     .lineInFileLocation(finalFileName, finalLineNumber)
-                    .withException(new IllegalStateException("Could not determine expected role for configuration name pattern "+name+" in creating class "+finalCallingClass))
+                    .withException(exception)
             );
         }
         if (roleMap.get(callingClass) != role) {
-            throw getProblems().getReporter().throwing(problem ->
-                problem
-                    .id("crochet-configuration-validation-incorrect-role", "Incorrect role for configuration name pattern", SimpleProblemGroup.CONFIGURATION_VALIDATION)
+            var exception = new IllegalStateException("Configuration name pattern "+name+" does not match documented patterns for creating class "+finalCallingClass+"; expected role "+roleMap.get(finalCallingClass)+", got "+role);
+            throw getProblems().getReporter().throwing(
+                exception,
+                ProblemId.create("crochet-configuration-validation-incorrect-role", "Incorrect role for configuration name pattern", CONFIGURATION_VALIDATION),
+                problem -> problem
                     .contextualLabel("Configuration name pattern "+name+" does not match documented patterns for creating class "+finalCallingClass+"; expected role "+roleMap.get(finalCallingClass)+", got "+role)
                     .severity(Severity.ERROR)
                     .solution("Modify documented or actual role for pattern "+name+" for class "+finalCallingClass)
                     .lineInFileLocation(finalFileName, finalLineNumber)
-                    .withException(new IllegalStateException("Configuration name pattern "+name+" does not match documented patterns for creating class "+finalCallingClass+"; expected role "+roleMap.get(finalCallingClass)+", got "+role))
+                    .withException(exception)
             );
         }
     }
