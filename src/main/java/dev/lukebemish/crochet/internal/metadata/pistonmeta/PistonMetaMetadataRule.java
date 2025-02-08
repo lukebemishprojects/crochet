@@ -318,5 +318,4 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
             });
         }
     }
-
 }

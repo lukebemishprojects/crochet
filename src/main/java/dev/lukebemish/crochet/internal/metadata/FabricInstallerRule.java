@@ -104,8 +104,11 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             if (libraries.has(distribution)) {
                 libraries.getAsJsonArray(distribution).forEach(element -> {
                     var dependency = element.getAsJsonObject();
-                    // TODO: this needs to be non-transitive!
-                    dependencies.add(dependency.getAsJsonPrimitive("name").getAsString());
+                    dependencies.add(dependency.getAsJsonPrimitive("name").getAsString(), dep -> {
+                        dep.excludes(excludes -> {
+                            excludes.addExclude("*", "*");
+                        });
+                    });
                 });
             }
         });

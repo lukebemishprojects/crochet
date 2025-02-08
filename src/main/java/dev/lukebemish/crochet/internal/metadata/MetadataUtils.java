@@ -12,12 +12,13 @@ public final class MetadataUtils {
         var unique = new LinkedHashSet<>(fullDeps);
         for (var notation : unique) {
             deps.add(notation, dep -> {
-                // TODO: make this non-transitive with proper gradle API
-                // (this requires actually contributing said API to gradle)
+                dep.excludes(excludes -> {
+                    excludes.addExclude("*", "*");
+                });
                 var existingVersion = dep.getVersionConstraint().getRequiredVersion();
                 dep.version(version -> {
                     if (!existingVersion.isEmpty()) {
-                        // Make this non-strict for now and handle deps slightly differently
+                        // Make this non-strict and handle deps slightly differently
                         //version.strictly(existingVersion);
                         version.require(existingVersion);
                     }
