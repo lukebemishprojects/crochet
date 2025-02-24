@@ -22,7 +22,6 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
-import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
@@ -143,7 +142,6 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         }
     }
 
-    @SuppressWarnings("UnstableApiUsage")
     public abstract static class BuildFeaturesWrapper {
         @Inject
         public BuildFeaturesWrapper() {}
@@ -330,9 +328,14 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                 task.dependsOn(extension.taskDependencies.toArray());
                 task.getInputs().property("crochetSources", sources);
                 task.getInputs().property("crochetLineMappedBinaries", lineMappedBinaries);
-                task.getInputs().file(serviceProvider.get().getParameters().getLayoutFile()).withPathSensitivity(PathSensitivity.NONE).skipWhenEmpty();
+                task.getOutputs().upToDateWhen(t -> false);
                 task.usesService(serviceProvider);
                 task.doLast(t -> {
+                    var path = serviceProvider.get().getParameters().getLayoutFile().get().toPath();
+                    if (!Files.exists(path)) {
+                        LOGGER.error("No layout file found at " + path);
+                        return;
+                    }
                     Map<String, String> binariesToSourcesPathMap = new HashMap<>();
                     Map<String, String> binariesToLineMappedPathMap = new HashMap<>();
                     var finalBinaries = (List<String>) t.getInputs().getProperties().get("crochetBinaries");
@@ -345,7 +348,6 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                             binariesToLineMappedPathMap.put(finalBinaries.get(i), finalLineMappedBinaries.get(i));
                         }
                     }
-                    var path = serviceProvider.get().getParameters().getLayoutFile().get().toPath();
                     var tmpFile = t.getTemporaryDir().toPath().resolve("layout.json");
                     try {
                         if (Files.exists(tmpFile)) {
@@ -357,12 +359,13 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                         throw new UncheckedIOException(e);
                     }
                     IdeaLayoutJson layoutJson;
-                    try (var reader = Files.newBufferedReader(path)) {
+                    try (var reader = Files.newBufferedReader(tmpFile)) {
                         layoutJson = GSON.fromJson(reader, IdeaLayoutJson.class);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                     layoutJson.modulesMap.forEach((module, imlPathString) -> {
+                        LOGGER.info("Processing library sources for module " + module + " at "+ imlPathString);
                         var imlPath = new File(imlPathString).toPath();
                         if (Files.exists(imlPath)) {
                             var moduleDir = imlPath.getParent();
