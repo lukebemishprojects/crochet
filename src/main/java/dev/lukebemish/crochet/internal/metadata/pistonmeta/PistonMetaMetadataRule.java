@@ -3,6 +3,7 @@ package dev.lukebemish.crochet.internal.metadata.pistonmeta;
 import com.google.gson.stream.JsonReader;
 import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
+import dev.lukebemish.crochet.model.InstallationDistribution;
 import dev.lukebemish.crochet.internal.metadata.MetadataUtils;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
@@ -137,7 +138,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     v.attributes(attributes -> {
                                         attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
                                         attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                                        InstallationDistribution.CLIENT.apply(attributes);
                                     });
                                 });
                                 details.addVariant("clientRuntimeDependencies", v -> {
@@ -153,7 +154,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     v.attributes(attributes -> {
                                         attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
                                         attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                                        InstallationDistribution.CLIENT.apply(attributes);
                                     });
                                 });
                                 details.addVariant("serverCompileDependencies", v -> {
@@ -164,7 +165,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     v.attributes(attributes -> {
                                         attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_API));
                                         attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                                        InstallationDistribution.SERVER.apply(attributes);
                                     });
                                 });
                                 details.addVariant("serverRuntimeDependencies", v -> {
@@ -175,7 +176,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                     v.attributes(attributes -> {
                                         attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
                                         attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                                        InstallationDistribution.SERVER.apply(attributes);
                                     });
                                 });
                             } else {
@@ -187,7 +188,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                         v.attributes(attributes -> {
                                             attributes.attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage.class, Usage.NATIVE_LINK));
                                             attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
-                                            attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                                            InstallationDistribution.CLIENT.apply(attributes);
                                             attributes.attribute(CrochetProjectPlugin.NEO_OPERATING_SYSTEM_ATTRIBUTE, os);
                                         });
                                     });
@@ -206,7 +207,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                         attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements.class, LibraryElements.JAR));
                                         attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, Category.LIBRARY));
                                         attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                                        InstallationDistribution.CLIENT.apply(attributes);
                                     });
                                     if (!clientArtifact.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
                                         throw new IllegalStateException("Artifact URL not from piston-data " + clientArtifact.url() + " for " + versionString);
@@ -234,7 +235,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                         attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements.class, LibraryElements.JAR));
                                         attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, Category.LIBRARY));
                                         attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, javaVersion);
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                                        InstallationDistribution.SERVER.apply(attributes);
                                     });
                                     if (!serverArtifact.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
                                         throw new IllegalStateException("Artifact URL not from piston-data " + serverArtifact.url() + " for " + versionString);
@@ -261,7 +262,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                 details.addVariant("clientMappings", v -> {
                                     v.attributes(attributes -> {
                                         attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                                        InstallationDistribution.CLIENT.apply(attributes);
                                     });
                                     if (!clientMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
                                         throw new IllegalStateException("Mappings URL not from piston-data " + clientMappings.url() + " for " + versionString);
@@ -281,7 +282,7 @@ public abstract class PistonMetaMetadataRule implements ComponentMetadataRule {
                                 details.addVariant("serverMappings", v -> {
                                     v.attributes(attributes -> {
                                         attributes.attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category.class, "mappings"));
-                                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
+                                        InstallationDistribution.SERVER.apply(attributes);
                                     });
                                     if (!serverMappings.url().startsWith(VersionManifest.PISTON_DATA_URL)) {
                                         throw new IllegalStateException("Mappings URL not from piston-data " + serverMappings.url() + " for " + versionString);

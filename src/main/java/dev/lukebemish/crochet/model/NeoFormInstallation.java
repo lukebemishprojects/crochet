@@ -56,14 +56,14 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
         var decompileCompileClasspath = ConfigurationUtils.resolvableInternal(this, name, "neoFormCompileClasspath", c -> {
             c.extendsFrom(minecraftDependencies);
             c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                InstallationDistribution.JOINED.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
         var decompileRuntimeClasspath = ConfigurationUtils.resolvableInternal(this, name, "neoFormRuntimeClasspath", c -> {
             c.extendsFrom(minecraftDependencies);
             c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                InstallationDistribution.JOINED.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });
@@ -71,12 +71,12 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
         var neoForm = ConfigurationUtils.dependencyScope(this, name, null, "neoForm", c -> {});
         this.neoFormConfigDependencies = ConfigurationUtils.resolvableInternal(this, name, "neoFormConfigDependencies", c -> {
             c.extendsFrom(neoForm);
-            c.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+            InstallationDistribution.applyLazy(getDistribution(), c.getAttributes());
         });
         this.neoFormConfig = ConfigurationUtils.resolvableInternal(this, name, "neoFormConfig", c -> {
             c.extendsFrom(neoForm);
             c.setTransitive(false);
-            c.attributes(attributes -> attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, getDistribution().map(InstallationDistribution::neoAttributeValue)));
+            InstallationDistribution.applyLazy(getDistribution(), c.getAttributes());
         });
 
         neoForm.fromDependencyCollector(getDependencies().getNeoForm());
@@ -134,10 +134,11 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
         implementation.fromDependencyCollector(run.getImplementation());
         run.classpath.extendsFrom(implementation);
 
+        runType.distribution().apply(run.classpath.getAttributes());
+
         switch (runType) {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -154,7 +155,6 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
                 );
             }
             case SERVER -> {
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);
@@ -166,7 +166,6 @@ public abstract class NeoFormInstallation extends LocalMinecraftInstallation {
             }
             case DATA -> {
                 // TODO: what's the right stuff to go here?
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 project.afterEvaluate(p -> {
                     if (run.getAvoidNeedlessDecompilation().get()) {
                         run.classpath.extendsFrom(minecraft);

@@ -2,6 +2,7 @@ package dev.lukebemish.crochet.internal;
 
 import dev.lukebemish.crochet.CrochetProperties;
 import dev.lukebemish.crochet.internal.metadata.pistonmeta.PistonMetaMetadataRule;
+import dev.lukebemish.crochet.model.InstallationDistribution;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.ConsumableConfiguration;
@@ -14,7 +15,6 @@ import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.attributes.Category;
-import org.gradle.api.internal.artifacts.configurations.ConfigurationRole;
 import org.gradle.api.problems.ProblemSpec;
 import org.gradle.api.problems.Problems;
 import org.gradle.api.problems.Severity;
@@ -465,13 +465,13 @@ public abstract class ConfigurationUtils implements BuildService<ConfigurationUt
                         "module", PistonMetaMetadataRule.MINECRAFT_DEPENDENCIES
                     ));
                     c.attributes(attributes -> {
-                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, piece == PistonMetaPiece.CLIENT_JAR ? "client" : "server");
+                        (piece == PistonMetaPiece.CLIENT_JAR ? InstallationDistribution.CLIENT : InstallationDistribution.SERVER).apply(attributes);
                         attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
                     });
                 }
                 case CLIENT_MAPPINGS, SERVER_MAPPINGS -> {
                     c.attributes(attributes -> {
-                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, piece == PistonMetaPiece.CLIENT_MAPPINGS ? "client" : "server");
+                        (piece == PistonMetaPiece.CLIENT_MAPPINGS ? InstallationDistribution.CLIENT : InstallationDistribution.SERVER).apply(attributes);
                         attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "mappings"));
                     });
                 }

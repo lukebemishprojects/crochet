@@ -28,10 +28,11 @@ abstract class VanillaInstallationLogic {
             }
         });
 
+        runType.distribution().apply(run.classpath.getAttributes());
+
         switch (runType) {
             case CLIENT -> {
                 run.getMainClass().convention("net.minecraft.client.main.Main");
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
                 run.getArgs().addAll(
                     "--gameDir", ".",
                     "--assetIndex", "${assets_index_name}",
@@ -42,12 +43,10 @@ abstract class VanillaInstallationLogic {
             }
             case SERVER -> {
                 run.getMainClass().convention("net.minecraft.server.Main");
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server"));
             }
             case DATA -> {
                 // TODO: what's the right stuff to go here?
                 run.getMainClass().convention("net.minecraft.data.Main");
-                run.classpath.attributes(attributes -> attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client"));
             }
         }
     }

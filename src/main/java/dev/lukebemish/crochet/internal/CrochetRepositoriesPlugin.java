@@ -16,6 +16,10 @@ import org.gradle.api.artifacts.dsl.ComponentMetadataHandler;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
+import org.gradle.api.attributes.AttributeCompatibilityRule;
+import org.gradle.api.attributes.AttributeDisambiguationRule;
+import org.gradle.api.attributes.CompatibilityCheckDetails;
+import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.provider.ProviderFactory;
 
@@ -32,11 +36,13 @@ public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
             // We allow applying this plugin at the project level if someone wants to use it settings-level but override repositories for a project.
             repositories(project.getRepositories());
             components(project.getDependencies().getComponents());
+            setupAttributesSchema(project);
         } else if (target instanceof Settings settings) {
             repositories(settings.getDependencyResolutionManagement().getRepositories());
             components(settings.getDependencyResolutionManagement().getComponents());
             settings.getGradle().getLifecycle().beforeProject(project -> {
                 project.getPluginManager().apply(CrochetRepositoriesMarker.class);
+                setupAttributesSchema(project);
             });
         } else {
             throw new GradleException("This plugin does not support being applied to " + target);
@@ -139,5 +145,79 @@ public abstract class CrochetRepositoriesPlugin implements Plugin<Object> {
         });
 
         repositoryHandler.mavenCentral();
+    }
+
+    private static void setupAttributesSchema(Project project) {
+        project.getDependencies().attributesSchema(attributesSchema -> {
+            attributesSchema.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE).getDisambiguationRules().add(NeoDistributionDisambiguationRule.class);
+            attributesSchema.attribute(CrochetProjectPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, schema -> {
+                schema.getDisambiguationRules().add(CrochetDistributionDisambiguationRule.class);
+                schema.getCompatibilityRules().add(CrochetDistributionCompatibilityRule.class);
+            });
+            attributesSchema.attribute(CrochetProjectPlugin.CROCHET_REMAP_TYPE_ATTRIBUTE);
+            attributesSchema.attribute(CrochetProjectPlugin.LOCAL_DISTRIBUTION_ATTRIBUTE);
+
+            String osName = System.getProperty("os.name").toLowerCase();
+            String os;
+            if (osName.startsWith("windows")) {
+                os = "windows";
+            } else if (osName.startsWith("linux")) {
+                os = "linux";
+            } else if (osName.startsWith("mac")) {
+                os = "mac";
+            } else {
+                throw new IllegalStateException("Unsupported operating system for opensesame native lookup provider: " + osName);
+            }
+            attributesSchema.attribute(CrochetProjectPlugin.NEO_OPERATING_SYSTEM_ATTRIBUTE).getDisambiguationRules().add(
+                NeoOperatingSystemDisambiguationRule.class,
+                config -> config.params(os)
+            );
+        });
+    }
+
+    public abstract static class CrochetDistributionDisambiguationRule implements AttributeDisambiguationRule<String> {
+        @Override
+        public void execute(MultipleCandidatesDetails<String> details) {
+            if (details.getCandidateValues().contains("joined")) {
+                details.closestMatch("joined");
+            } else if (details.getConsumerValue() != null && details.getCandidateValues().contains(details.getConsumerValue())) {
+                details.closestMatch(details.getConsumerValue());
+            }
+        }
+    }
+
+    public abstract static class CrochetDistributionCompatibilityRule implements AttributeCompatibilityRule<String> {
+        @Override
+        public void execute(CompatibilityCheckDetails<String> details) {
+            if ("joined".equals(details.getConsumerValue())) {
+                details.compatible();
+            } else if ("common".equals(details.getProducerValue())) {
+                details.compatible();
+            }
+        }
+    }
+
+    public abstract static class NeoDistributionDisambiguationRule implements AttributeDisambiguationRule<String> {
+        @Override
+        public void execute(MultipleCandidatesDetails<String> details) {
+            // Client libraries are a superset of server, so default to that.
+            if (details.getCandidateValues().contains("client")) {
+                details.closestMatch("client");
+            }
+        }
+    }
+
+    public abstract static class NeoOperatingSystemDisambiguationRule implements AttributeDisambiguationRule<String> {
+        private final String currentOs;
+
+        @Inject
+        public NeoOperatingSystemDisambiguationRule(String currentOs) {
+            this.currentOs = currentOs;
+        }
+
+        @Override
+        public void execute(MultipleCandidatesDetails<String> details) {
+            details.closestMatch(currentOs);
+        }
     }
 }

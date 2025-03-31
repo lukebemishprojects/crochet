@@ -50,14 +50,14 @@ public abstract class AbstractVanillaInstallation extends LocalMinecraftInstalla
         var decompileCompileClasspath = ConfigurationUtils.resolvableInternal(this, name, "RunnerCompileClasspath", c -> {
             c.extendsFrom(minecraftDependencies);
             c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                InstallationDistribution.JOINED.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
         });
         var decompileRuntimeClasspath = ConfigurationUtils.resolvableInternal(this, name, "RunnerRuntimeClasspath", c -> {
             c.extendsFrom(minecraftDependencies);
             c.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
+                InstallationDistribution.JOINED.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
             });
         });

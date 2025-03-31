@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.gradle.api.Action;
+import org.gradle.api.DefaultTask;
 import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -13,6 +14,7 @@ import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.configuration.BuildFeatures;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.ExtensionAware;
@@ -22,7 +24,12 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.services.ServiceReference;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.OutputFiles;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 import org.jetbrains.annotations.ApiStatus;
@@ -44,8 +51,6 @@ import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
 import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -58,6 +63,124 @@ import java.util.Objects;
 @ApiStatus.Internal
 public class IdeaModelHandlerPlugin implements Plugin<Project> {
     private static final Logger LOGGER = LoggerFactory.getLogger(IdeaModelHandlerPlugin.class);
+
+    public static abstract class ModifyIdeaModelTask extends DefaultTask {
+        @InputFiles
+        public abstract ConfigurableFileCollection getInputModuleFiles();
+
+        @OutputFiles
+        public abstract ConfigurableFileCollection getOutputModuleFiles();
+
+        @Input
+        public abstract ListProperty<String> getBinaries();
+
+        @Input
+        public abstract ListProperty<String> getSources();
+
+        @Input
+        public abstract ListProperty<String> getLineMappedBinaries();
+
+        @ServiceReference("crochetLayoutFile")
+        public abstract Property<LayoutFileBuildService> getLayoutFileService();
+
+        @Inject
+        public ModifyIdeaModelTask() {
+            getInputModuleFiles().from(getProject().fileTree(getProject().getIsolated().getRootProject().getProjectDirectory().dir(".idea"), tree -> {
+                tree.include("modules/**/*.iml");
+            }));
+            getOutputModuleFiles().from(getInputModuleFiles());
+            getLayoutFileService().get();
+        }
+
+        @TaskAction
+        void run() {
+            Map<String, String> binariesToSourcesPathMap = new HashMap<>();
+            Map<String, String> binariesToLineMappedPathMap = new HashMap<>();
+            var finalBinaries = getBinaries().get();
+            var finalSources = getSources().get();
+            var finalLineMappedBinaries = getLineMappedBinaries().get();
+            for (int i = 0; i < finalBinaries.size(); i++) {
+                binariesToSourcesPathMap.put(finalBinaries.get(i), finalSources.get(i));
+                binariesToSourcesPathMap.put(finalLineMappedBinaries.get(i), finalSources.get(i));
+                if (!Objects.equals(finalBinaries.get(i), finalLineMappedBinaries.get(i))) {
+                    binariesToLineMappedPathMap.put(finalBinaries.get(i), finalLineMappedBinaries.get(i));
+                }
+            }
+            getInputModuleFiles().forEach(moduleImlFile -> {
+                LOGGER.info("Processing library sources for module file " + moduleImlFile.getName());
+                var imlPath = moduleImlFile.toPath();
+                if (Files.exists(imlPath)) {
+                    var moduleDir = imlPath.getParent();
+                    try {
+                        var documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+                        var doc = documentBuilder.parse(imlPath.toFile());
+                        XPathFactory xPathfactory = XPathFactory.newInstance();
+                        XPath xpath = xPathfactory.newXPath();
+                        XPathExpression expr = xpath.compile("//component[@name=\"NewModuleRootManager\"]/orderEntry[@type=\"module-library\"]/library");
+                        NodeList nodes = (NodeList) expr.evaluate(doc, XPathConstants.NODESET);
+                        for (int i = 0; i < nodes.getLength(); i++) {
+                            var node = nodes.item(i);
+                            var classesNode = getNode(node, "CLASSES");
+                            if (classesNode != null) {
+                                var classesRoot = getNode(classesNode, "root");
+                                if (classesRoot != null) {
+                                    var urlNode = classesRoot.getAttributes().getNamedItem("url");
+                                    if (urlNode != null) {
+                                        var url = urlNode.getNodeValue();
+                                        if (url.startsWith("jar://") && url.endsWith("!/")) {
+                                            var jarPathString = url.substring(5, url.length() - 2).replace("$MODULE_DIR$", moduleDir.toAbsolutePath().toString());
+                                            var jarPath = Paths.get(jarPathString).normalize().toAbsolutePath().toString();
+                                            if (binariesToSourcesPathMap.containsKey(jarPath)) {
+                                                if (binariesToLineMappedPathMap.containsKey(jarPath)) {
+                                                    var relativeLineMappedPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(binariesToLineMappedPathMap.get(jarPath)));
+                                                    var newUrl = "jar://" + relativeLineMappedPath + "!/";
+                                                    urlNode.setNodeValue(newUrl);
+                                                }
+                                                var relativeSourcesPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(binariesToSourcesPathMap.get(jarPath)));
+                                                var newUrl = "jar://" + relativeSourcesPath + "!/";
+                                                var sourcesNode = getNode(node, "SOURCES");
+                                                if (sourcesNode == null) {
+                                                    var sourcesRoot = doc.createElement("root");
+                                                    sourcesRoot.setAttribute("url", newUrl);
+                                                    sourcesRoot.setAttribute("type", "java-source");
+                                                    sourcesNode = doc.createElement("SOURCES");
+                                                    sourcesNode.appendChild(sourcesRoot);
+                                                    node.appendChild(sourcesNode);
+                                                } else {
+                                                    var sourceRoot = getNode(sourcesNode, "root");
+                                                    if (!(sourceRoot instanceof Element elementRoot)) {
+                                                        Element sourceRootElement = doc.createElement("root");
+                                                        sourceRootElement.setAttribute("url", newUrl);
+                                                        sourceRootElement.setAttribute("type", "java-source");
+                                                        sourcesNode.appendChild(sourceRootElement);
+                                                    } else {
+                                                        elementRoot.setAttribute("url", newUrl);
+                                                        elementRoot.setAttribute("type", "java-source");
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+                        Transformer transformer = transformerFactory.newTransformer();
+                        DOMSource source = new DOMSource(doc);
+                        try (var output = Files.newOutputStream(imlPath)) {
+                            StreamResult result = new StreamResult(output);
+                            transformer.transform(source, result);
+                        }
+                    } catch (Exception e) {
+                        if (e instanceof RuntimeException rE) {
+                            throw rE;
+                        }
+                        throw new RuntimeException(e);
+                    }
+                }
+            });
+        }
+    }
 
     public static abstract class LayoutFileBuildService implements BuildService<LayoutFileBuildService.Params>, AutoCloseable {
         interface Params extends BuildServiceParameters {
@@ -255,15 +378,18 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         }
     }
 
-    public static class IdeaLayoutJson {
-        public Map<String, String> modulesMap;
-    }
-
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void applyRoot(Project project) {
         ListProperty<String> sources = project.getObjects().listProperty(String.class);
         ListProperty<String> binaries = project.getObjects().listProperty(String.class);
         ListProperty<String> lineMappedBinaries = project.getObjects().listProperty(String.class);
+
+        var rewriteImlFiles = project.getTasks().register("rewriteImlFiles", ModifyIdeaModelTask.class, task -> {
+            task.getBinaries().set(binaries);
+            task.getSources().set(sources);
+            task.getLineMappedBinaries().set(lineMappedBinaries);
+        });
+
         NamedDomainObjectContainer<IdeaRun> ideaRuns = project.getObjects().domainObjectContainer(IdeaRun.class);
         var extension = project.getExtensions().create(IdeaModelOptions.class, "crochetIdeaModelOptions", IdeaModelOptions.class, (SourceBinaryLinker) (newBinaries, newSources, newLineMappedBinaries) -> {
             sources.addAll(newSources.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
@@ -271,7 +397,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
             lineMappedBinaries.addAll(newLineMappedBinaries.map(files -> files.stream().map(f -> f.getAsFile().toPath().normalize().toAbsolutePath().toString()).toList()));
         }, ideaRuns);
         var layoutFile = project.file("layout.json");
-        var serviceProvider = project.getGradle().getSharedServices()
+        project.getGradle().getSharedServices()
             .registerIfAbsent("crochetLayoutFile", LayoutFileBuildService.class, spec -> spec.getParameters().getLayoutFile().set(layoutFile));
         Action<Project> toExecute = p -> {
             project.getPluginManager().apply("idea");
@@ -324,120 +450,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
                 project.getTasks().register("processIdeaSettings");
             }
             project.getTasks().named("processIdeaSettings", task -> {
-                task.getInputs().property("crochetBinaries", binaries);
-                task.dependsOn(extension.taskDependencies.toArray());
-                task.getInputs().property("crochetSources", sources);
-                task.getInputs().property("crochetLineMappedBinaries", lineMappedBinaries);
-                task.getOutputs().upToDateWhen(t -> false);
-                task.usesService(serviceProvider);
-                task.doLast(t -> {
-                    var path = serviceProvider.get().getParameters().getLayoutFile().get().toPath();
-                    if (!Files.exists(path)) {
-                        LOGGER.error("No layout file found at " + path);
-                        return;
-                    }
-                    Map<String, String> binariesToSourcesPathMap = new HashMap<>();
-                    Map<String, String> binariesToLineMappedPathMap = new HashMap<>();
-                    var finalBinaries = (List<String>) t.getInputs().getProperties().get("crochetBinaries");
-                    var finalSources = (List<String>) t.getInputs().getProperties().get("crochetSources");
-                    var finalLineMappedBinaries = (List<String>) t.getInputs().getProperties().get("crochetLineMappedBinaries");
-                    for (int i = 0; i < finalBinaries.size(); i++) {
-                        binariesToSourcesPathMap.put(finalBinaries.get(i), finalSources.get(i));
-                        binariesToSourcesPathMap.put(finalLineMappedBinaries.get(i), finalSources.get(i));
-                        if (!Objects.equals(finalBinaries.get(i), finalLineMappedBinaries.get(i))) {
-                            binariesToLineMappedPathMap.put(finalBinaries.get(i), finalLineMappedBinaries.get(i));
-                        }
-                    }
-                    var tmpFile = t.getTemporaryDir().toPath().resolve("layout.json");
-                    try {
-                        if (Files.exists(tmpFile)) {
-                            Files.delete(tmpFile);
-                        }
-                        Files.createDirectories(tmpFile.getParent());
-                        Files.copy(path, tmpFile);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    IdeaLayoutJson layoutJson;
-                    try (var reader = Files.newBufferedReader(tmpFile)) {
-                        layoutJson = GSON.fromJson(reader, IdeaLayoutJson.class);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    layoutJson.modulesMap.forEach((module, imlPathString) -> {
-                        LOGGER.info("Processing library sources for module " + module + " at "+ imlPathString);
-                        var imlPath = new File(imlPathString).toPath();
-                        if (Files.exists(imlPath)) {
-                            var moduleDir = imlPath.getParent();
-                            try {
-                                var documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-                                var doc = documentBuilder.parse(imlPath.toFile());
-                                XPathFactory xPathfactory = XPathFactory.newInstance();
-                                XPath xpath = xPathfactory.newXPath();
-                                XPathExpression expr = xpath.compile("//component[@name=\"NewModuleRootManager\"]/orderEntry[@type=\"module-library\"]/library");
-                                NodeList nodes = (NodeList) expr.evaluate(doc, XPathConstants.NODESET);
-                                for (int i = 0; i < nodes.getLength(); i++) {
-                                    var node = nodes.item(i);
-                                    var classesNode = getNode(node, "CLASSES");
-                                    if (classesNode != null) {
-                                        var classesRoot = getNode(classesNode, "root");
-                                        if (classesRoot != null) {
-                                            var urlNode = classesRoot.getAttributes().getNamedItem("url");
-                                            if (urlNode != null) {
-                                                var url = urlNode.getNodeValue();
-                                                if (url.startsWith("jar://") && url.endsWith("!/")) {
-                                                    var jarPathString = url.substring(5, url.length() - 2).replace("$MODULE_DIR$", moduleDir.toAbsolutePath().toString());
-                                                    var jarPath = Paths.get(jarPathString).normalize().toAbsolutePath().toString();
-                                                    if (binariesToSourcesPathMap.containsKey(jarPath)) {
-                                                        if (binariesToLineMappedPathMap.containsKey(jarPath)) {
-                                                            var relativeLineMappedPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(binariesToLineMappedPathMap.get(jarPath)));
-                                                            var newUrl = "jar://" + relativeLineMappedPath + "!/";
-                                                            urlNode.setNodeValue(newUrl);
-                                                        }
-                                                        var relativeSourcesPath = "$MODULE_DIR$" + File.separator + moduleDir.relativize(Paths.get(binariesToSourcesPathMap.get(jarPath)));
-                                                        var newUrl = "jar://" + relativeSourcesPath + "!/";
-                                                        var sourcesNode = getNode(node, "SOURCES");
-                                                        if (sourcesNode == null) {
-                                                            var sourcesRoot = doc.createElement("root");
-                                                            sourcesRoot.setAttribute("url", newUrl);
-                                                            sourcesRoot.setAttribute("type", "java-source");
-                                                            sourcesNode = doc.createElement("SOURCES");
-                                                            sourcesNode.appendChild(sourcesRoot);
-                                                            node.appendChild(sourcesNode);
-                                                        } else {
-                                                            var sourceRoot = getNode(sourcesNode, "root");
-                                                            if (!(sourceRoot instanceof Element elementRoot)) {
-                                                                Element sourceRootElement = doc.createElement("root");
-                                                                sourceRootElement.setAttribute("url", newUrl);
-                                                                sourceRootElement.setAttribute("type", "java-source");
-                                                                sourcesNode.appendChild(sourceRootElement);
-                                                            } else {
-                                                                elementRoot.setAttribute("url", newUrl);
-                                                                elementRoot.setAttribute("type", "java-source");
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                TransformerFactory transformerFactory = TransformerFactory.newInstance();
-                                Transformer transformer = transformerFactory.newTransformer();
-                                DOMSource source = new DOMSource(doc);
-                                try (var output = Files.newOutputStream(imlPath)) {
-                                    StreamResult result = new StreamResult(output);
-                                    transformer.transform(source, result);
-                                }
-                            } catch (Exception e) {
-                                if (e instanceof RuntimeException rE) {
-                                    throw rE;
-                                }
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    });
-                });
+                task.dependsOn(rewriteImlFiles);
             });
         };
         if (project.getState().getExecuted()) {
@@ -447,7 +460,7 @@ public class IdeaModelHandlerPlugin implements Plugin<Project> {
         }
     }
 
-    private @Nullable Node getNode(Node node, String name) {
+    private static @Nullable Node getNode(Node node, String name) {
         for (int i = 0; i < node.getChildNodes().getLength(); i++) {
             var child = node.getChildNodes().item(i);
             if (child.getNodeType() == Node.ELEMENT_NODE && child.getNodeName().equals(name)) {

@@ -1,7 +1,7 @@
 package dev.lukebemish.crochet.internal.metadata.pistonmeta;
 
-import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import dev.lukebemish.crochet.internal.CrochetRepositoriesPlugin;
+import dev.lukebemish.crochet.model.InstallationDistribution;
 import dev.lukebemish.crochet.internal.metadata.MetadataUtils;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
@@ -57,9 +57,7 @@ public abstract class ServerDependenciesMetadataRule implements ComponentMetadat
                     v.withDependencies(deps -> {
                         MetadataUtils.depsOf(serverDeps, deps, false);
                     });
-                    v.attributes(attributes -> {
-                        attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
-                    });
+                    v.attributes(InstallationDistribution.SERVER::apply);
                 });
             });
         }

@@ -3,18 +3,18 @@ package dev.lukebemish.crochet.model;
 import java.io.Serializable;
 
 enum RunType implements Serializable {
-    CLIENT("client"),
-    SERVER("server"),
-    DATA("client"); // TODO: figure this out in newer envs
+    CLIENT(InstallationDistribution.CLIENT),
+    SERVER(InstallationDistribution.SERVER),
+    DATA(InstallationDistribution.CLIENT); // TODO: figure this out in newer envs
 
-    private final String attributeName;
+    private final InstallationDistribution distribution;
 
-    String attributeName() {
-        return attributeName;
+    InstallationDistribution distribution() {
+        return distribution;
     }
 
-    RunType(String attributeName) {
-        this.attributeName = attributeName;
+    RunType(InstallationDistribution distribution) {
+        this.distribution = distribution;
     }
 
     boolean allowsDistribution(InstallationDistribution installationDistribution) {

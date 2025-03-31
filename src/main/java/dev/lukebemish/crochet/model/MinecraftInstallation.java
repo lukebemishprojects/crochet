@@ -10,6 +10,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
 import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.plugins.JavaPlugin;
@@ -72,7 +73,7 @@ public abstract class MinecraftInstallation extends ExtensionHolder implements G
         this.minecraftDependencies = ConfigurationUtils.dependencyScope(this, name, null, "minecraftDependencies", config -> {});
         Configuration minecraftDependenciesVersioning = ConfigurationUtils.resolvableInternal(this, name, "minecraftDependenciesVersioning", config -> {
             config.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                InstallationDistribution.CLIENT.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
             config.extendsFrom(minecraftDependencies);
@@ -95,32 +96,36 @@ public abstract class MinecraftInstallation extends ExtensionHolder implements G
             config.extendsFrom(nonUpgradableDependencies);
             config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                InstallationDistribution.CLIENT.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
         this.nonUpgradableServerCompileVersioning = ConfigurationUtils.resolvableInternal(this, name, "nonUpgradableServerCompileVersioning", config -> {
             config.extendsFrom(nonUpgradableDependencies);
             config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
+                InstallationDistribution.SERVER.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
         this.nonUpgradableClientRuntimeVersioning = ConfigurationUtils.resolvableInternal(this, name, "nonUpgradableClientRuntimeVersioning", config -> {
             config.extendsFrom(nonUpgradableDependencies);
             config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.CLIENT.neoAttributeValue());
+                InstallationDistribution.CLIENT.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
         this.nonUpgradableServerRuntimeVersioning = ConfigurationUtils.resolvableInternal(this, name, "nonUpgradableServerRuntimeVersioning", config -> {
             config.extendsFrom(nonUpgradableDependencies);
             config.attributes(sharedAttributeAction);
             config.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, InstallationDistribution.SERVER.neoAttributeValue());
+                InstallationDistribution.SERVER.apply(attributes);
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             });
         });
 

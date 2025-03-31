@@ -131,8 +131,7 @@ abstract class FabricInstallationLogic {
             attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.JAR));
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, project.getObjects().named(Bundling.class, Bundling.EXTERNAL));
-            attributes.attributeProvider(CrochetProjectPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, minecraftInstallation.getDistribution().map(dist -> dist.name().toLowerCase(Locale.ROOT)));
-            attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, minecraftInstallation.getDistribution().map(InstallationDistribution::neoAttributeValue));
+            InstallationDistribution.applyLazy(minecraftInstallation.getDistribution(), attributes);
         };
 
         Action<AttributeContainer> runtimeAttributes = attributes -> {
@@ -140,8 +139,7 @@ abstract class FabricInstallationLogic {
             attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.LIBRARY));
             attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.JAR));
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, project.getObjects().named(Bundling.class, Bundling.EXTERNAL));
-            attributes.attributeProvider(CrochetProjectPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, minecraftInstallation.getDistribution().map(dist -> dist.name().toLowerCase(Locale.ROOT)));
-            attributes.attributeProvider(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, minecraftInstallation.getDistribution().map(InstallationDistribution::neoAttributeValue));
+            InstallationDistribution.applyLazy(minecraftInstallation.getDistribution(), attributes);
         };
 
         var modCompileClasspath = ConfigurationUtils.resolvableInternal(project, name, "modCompileClasspath", config -> {

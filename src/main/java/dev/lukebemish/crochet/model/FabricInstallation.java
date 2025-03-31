@@ -528,12 +528,7 @@ public abstract class FabricInstallation extends AbstractVanillaInstallation {
             "-Dfabric.classPathGroups=" + groups.stream().map(set -> set.stream().map(File::getAbsolutePath).collect(Collectors.joining(File.pathSeparator))).collect(Collectors.joining(File.pathSeparator+File.pathSeparator))
         ));
         run.classpath.attributes(attributes -> {
-            attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, switch (runType) {
-                case CLIENT -> "client";
-                case SERVER -> "server";
-                default -> throw new IllegalArgumentException("Unsupported run type: "+runType);
-            });
-            attributes.attribute(CrochetProjectPlugin.CROCHET_DISTRIBUTION_ATTRIBUTE, runType.attributeName());
+            runType.distribution().apply(attributes);
         });
 
         project.afterEvaluate(p -> {

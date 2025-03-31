@@ -6,17 +6,11 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.attributes.Attribute;
-import org.gradle.api.attributes.AttributeCompatibilityRule;
-import org.gradle.api.attributes.AttributeDisambiguationRule;
 import org.gradle.api.attributes.Bundling;
-import org.gradle.api.attributes.CompatibilityCheckDetails;
 import org.gradle.api.attributes.LibraryElements;
-import org.gradle.api.attributes.MultipleCandidatesDetails;
 import org.gradle.api.attributes.java.TargetJvmVersion;
 import org.gradle.api.logging.configuration.ShowStacktrace;
 import org.gradle.api.tasks.SourceSetContainer;
-
-import javax.inject.Inject;
 
 public class CrochetProjectPlugin implements Plugin<Project> {
     public static final String TASK_GRAPH_RUNNER_CONFIGURATION_NAME = "_crochetTaskGraphRunnerClasspath";
@@ -134,8 +128,6 @@ public class CrochetProjectPlugin implements Plugin<Project> {
             spec.getParameters().getRemoveUnusedOutputsAfterDays().convention(project.getProviders().gradleProperty(CrochetProperties.TASKGRAPHRUNNER_REMOVE_OUTPUT_DURATION).map(Integer::parseInt).orElse(30));
             spec.getParameters().getRemoveUnusedLocksAfterDays().convention(project.getProviders().gradleProperty(CrochetProperties.TASKGRAPHRUNNER_REMOVE_LOCK_DURATION).map(Integer::parseInt).orElse(1));
         });
-
-        applyDisambiguationRules(project);
     }
 
     private static void setupConventionalConfigurations(Project project) {
@@ -153,69 +145,5 @@ public class CrochetProjectPlugin implements Plugin<Project> {
             compileClasspath.extendsFrom(localImplementation);
             runtimeClasspath.extendsFrom(localImplementation);
         });
-    }
-
-    private static void applyDisambiguationRules(Project project) {
-        project.getDependencies().attributesSchema(attributesSchema -> {
-            attributesSchema.attribute(NEO_DISTRIBUTION_ATTRIBUTE).getDisambiguationRules().add(NeoDistributionDisambiguationRule.class);
-            attributesSchema.attribute(CROCHET_REMAP_TYPE_ATTRIBUTE);
-
-
-            String osName = System.getProperty("os.name").toLowerCase();
-            String os;
-            if (osName.startsWith("windows")) {
-                os = "windows";
-            } else if (osName.startsWith("linux")) {
-                os = "linux";
-            } else if (osName.startsWith("mac")) {
-                os = "mac";
-            } else {
-                throw new IllegalStateException("Unsupported operating system for opensesame native lookup provider: " + osName);
-            }
-            attributesSchema.attribute(NEO_OPERATING_SYSTEM_ATTRIBUTE).getDisambiguationRules().add(
-                NeoOperatingSystemDisambiguationRule.class,
-                config -> config.params(os)
-            );
-        });
-    }
-
-    public abstract static class CrochetDistributionDisambiguationRule implements AttributeDisambiguationRule<String> {
-        @Override
-        public void execute(MultipleCandidatesDetails<String> details) {
-            details.closestMatch("joined");
-        }
-    }
-
-    public abstract static class CrochetDistributionCompatiblityRule implements AttributeCompatibilityRule<String> {
-        @Override
-        public void execute(CompatibilityCheckDetails<String> details) {
-            if ("joined".equals(details.getConsumerValue())) {
-                details.compatible();
-            } else if ("common".equals(details.getProducerValue())) {
-                details.compatible();
-            }
-        }
-    }
-
-    public abstract static class NeoDistributionDisambiguationRule implements AttributeDisambiguationRule<String> {
-        @Override
-        public void execute(MultipleCandidatesDetails<String> details) {
-            // Client libraries are a superset of server, so default to that.
-            details.closestMatch("client");
-        }
-    }
-
-    public abstract static class NeoOperatingSystemDisambiguationRule implements AttributeDisambiguationRule<String> {
-        private final String currentOs;
-
-        @Inject
-        public NeoOperatingSystemDisambiguationRule(String currentOs) {
-            this.currentOs = currentOs;
-        }
-
-        @Override
-        public void execute(MultipleCandidatesDetails<String> details) {
-            details.closestMatch(currentOs);
-        }
     }
 }

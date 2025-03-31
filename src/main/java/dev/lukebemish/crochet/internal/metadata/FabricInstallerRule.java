@@ -2,7 +2,7 @@ package dev.lukebemish.crochet.internal.metadata;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
+import dev.lukebemish.crochet.model.InstallationDistribution;
 import org.gradle.api.artifacts.CacheableRule;
 import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
@@ -48,28 +48,26 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
 
         details.withVariant("compile", variant -> {
             dependenciesFor("common", variant, libraries, id);
+            InstallationDistribution.COMMON.apply(variant.getAttributes());
         });
 
         details.withVariant("runtime", variant -> {
             dependenciesFor("common", variant, libraries, id);
+            InstallationDistribution.COMMON.apply(variant.getAttributes());
         });
 
         details.addVariant("installerJsonRuntimeClientElements", "runtime", variant -> {
             dependenciesFor("common", variant, libraries, id);
             dependenciesFor("client", variant, libraries, id);
             defaultFiles(variant, id);
-            variant.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
-            });
+            InstallationDistribution.CLIENT.apply(variant.getAttributes());
         });
 
         details.addVariant("installerJsonRuntimeServerElements", "runtime", variant -> {
             dependenciesFor("common", variant, libraries, id);
             dependenciesFor("server", variant, libraries, id);
             defaultFiles(variant, id);
-            variant.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
-            });
+            InstallationDistribution.SERVER.apply(variant.getAttributes());
         });
 
         details.addVariant("installerJsonApiClientElements", "compile", variant -> {
@@ -77,9 +75,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("client", variant, libraries, id);
             dependenciesFor("development", variant, libraries, id);
             defaultFiles(variant, id);
-            variant.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "client");
-            });
+            InstallationDistribution.CLIENT.apply(variant.getAttributes());
         });
 
         details.addVariant("installerJsonApiServerElements", "compile", variant -> {
@@ -87,9 +83,7 @@ public abstract class FabricInstallerRule implements ComponentMetadataRule {
             dependenciesFor("server", variant, libraries, id);
             dependenciesFor("development", variant, libraries, id);
             defaultFiles(variant, id);
-            variant.attributes(attributes -> {
-                attributes.attribute(CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, "server");
-            });
+            InstallationDistribution.SERVER.apply(variant.getAttributes());
         });
     }
 

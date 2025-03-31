@@ -27,19 +27,19 @@ version = '1.0.0'
 
 crochet {
     fabricInstallation('fabric') {
-        minecraft = '1.21.1'
+        minecraft = '1.21.4'
 
         dependencies {
-            loader 'net.fabricmc:fabric-loader:0.16.0'
+            loader 'net.fabricmc:fabric-loader:0.16.9'
             mappings = chained {
                 add official()
-                add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
+                add(artifact 'org.parchmentmc.data:parchment-1.21.4:2025.02.16@zip')
             }
             publishInjectedInterfaces file('interfaces.json')
         }
 
         forFeature(project.sourceSets.main) {
-            modApi 'net.fabricmc.fabric-api:fabric-api:0.105.0+1.21.1'
+            modApi 'net.fabricmc.fabric-api:fabric-api:0.114.1+1.21.4'
         }
     }
     runs {

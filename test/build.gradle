@@ -33,16 +33,29 @@ jar {
     }
 }
 
+configurations {
+    canBeResolved {
+        attributes {
+            attribute dev.lukebemish.crochet.internal.CrochetProjectPlugin.NEO_DISTRIBUTION_ATTRIBUTE, 'client'
+            attribute Usage.USAGE_ATTRIBUTE, objects.named(Usage, 'java-api')
+            attribute Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'library')
+        }
+    }
+}
+dependencies {
+    canBeResolved 'net.fabricmc:fabric-loader:0.16.9'
+}
+
 crochet {
     fabricSplitSourceSets('main') {
         installation {
-            minecraft = '1.21.1'
+            minecraft = '1.21.4'
 
             dependencies {
-                loader 'net.fabricmc:fabric-loader:0.16.0'
+                loader 'net.fabricmc:fabric-loader:0.16.9'
                 mappings = chained {
                     add official()
-                    add(artifact 'org.parchmentmc.data:parchment-1.21:2024.07.28@zip')
+                    add(artifact 'org.parchmentmc.data:parchment-1.21.4:2025.02.16@zip')
                 }
             }
         }
