@@ -8,7 +8,6 @@ import dev.lukebemish.crochet.internal.IdeaModelHandlerPlugin;
 import dev.lukebemish.crochet.internal.Memoize;
 import dev.lukebemish.crochet.internal.TaskUtils;
 import dev.lukebemish.crochet.internal.tasks.TaskGraphExecution;
-import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;

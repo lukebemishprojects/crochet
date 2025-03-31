@@ -28,9 +28,12 @@ import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFiles;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.UntrackedTask;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
@@ -64,8 +67,10 @@ import java.util.Objects;
 public class IdeaModelHandlerPlugin implements Plugin<Project> {
     private static final Logger LOGGER = LoggerFactory.getLogger(IdeaModelHandlerPlugin.class);
 
+    @UntrackedTask(because = "Fixes IntelliJ IDEA module files, and does not make sense to cache as it thus modifies its own input")
     public static abstract class ModifyIdeaModelTask extends DefaultTask {
         @InputFiles
+        @PathSensitive(PathSensitivity.NONE)
         public abstract ConfigurableFileCollection getInputModuleFiles();
 
         @OutputFiles

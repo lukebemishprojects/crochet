@@ -1,7 +1,6 @@
 package dev.lukebemish.crochet.model;
 
 import dev.lukebemish.crochet.internal.ConfigurationUtils;
-import dev.lukebemish.crochet.internal.CrochetProjectPlugin;
 import org.gradle.api.Project;
 
 abstract class VanillaInstallationLogic {
