@@ -2,10 +2,6 @@ pluginManagement {
     includeBuild '../'
 
     repositories {
-        if (settings.useLocalMavenForTesting) {
-            mavenLocal()
-        }
-
         gradlePluginPortal()
         maven {
             name = 'Staging'
@@ -16,7 +12,10 @@ pluginManagement {
 
 plugins {
     id 'dev.lukebemish.crochet'
+    id 'conventions'
 }
+
+sharedConventions.repositories('../.local.properties')
 
 includeBuild '../'
 

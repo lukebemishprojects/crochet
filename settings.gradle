@@ -1,9 +1,5 @@
 pluginManagement {
     repositories {
-        if (settings.useLocalMavenForTesting) {
-            mavenLocal()
-        }
-
         gradlePluginPortal()
         maven {
             url = "https://maven.lukebemish.dev/releases/"
@@ -13,12 +9,17 @@ pluginManagement {
         id "com.gradleup.shadow" version '8.3.0'
         id 'dev.lukebemish.managedversioning' version '1.2.26'
     }
+
+    includeBuild 'conventions'
 }
 
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
     id 'dev.lukebemish.conventions' version '0.1.10'
+    id 'conventions'
 }
+
+sharedConventions.repositories()
 
 rootProject.name = 'crochet'
 

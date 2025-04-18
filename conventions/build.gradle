@@ -1,0 +1,12 @@
+plugins {
+    id 'java-gradle-plugin'
+}
+
+gradlePlugin {
+    plugins {
+        register("conventionsPlugin") {
+            id = "conventions"
+            implementationClass = "crochet.dev.conventions.ConventionPlugin"
+        }
+    }
+}

@@ -7,13 +7,6 @@ plugins {
 }
 
 repositories {
-    val useLocalMavenForTesting: String by project
-
-    /// WTF kotlin...
-    if (`java.lang`.Boolean.valueOf(useLocalMavenForTesting)) {
-        mavenLocal()
-    }
-
     mavenCentral()
     maven {
         name = "ParchmentMC"

@@ -19,10 +19,6 @@ managedVersioning {
 }
 
 repositories {
-    if (project.useLocalMavenForTesting) {
-        mavenLocal()
-    }
-
     mavenCentral()
     maven {
         url = 'https://maven.fabricmc.net/'

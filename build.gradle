@@ -143,10 +143,6 @@ gradlePlugin {
 }
 
 repositories {
-    if (project.useLocalMavenForTesting) {
-        mavenLocal()
-    }
-
     mavenCentral()
     gradlePluginPortal()
     maven {
