@@ -1,0 +1,59 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.lukebemish.dev/releases/' }
+    }
+    plugins {
+        id 'com.gradle.plugin-publish' version '+'
+        id 'org.gradle.plugin-compatibility' version '+'
+    }
+}
+
+buildscript {
+    dependencyLocking {
+        lockMode = LockMode.STRICT
+        lockAllConfigurations()
+        lockFile.set file("locks/settings-buildscript-gradle.lockfile")
+    }
+}
+
+plugins {
+    id 'dev.lukebemish.jvmfinder-convention' version '+'
+    id 'dev.lukebemish.conventions' version '+'
+    id 'dev.lukebemish.managedversioning' version '+'
+}
+
+gradle.lifecycle.beforeProject { p ->
+    p.buildscript {
+        dependencyLocking {
+            lockMode = LockMode.STRICT
+            lockAllConfigurations()
+            var cleanProjectName = (p.path + ":").replace(':', ' ').trim().replace(' ', '-')
+            lockFile.set rootProject.file("locks/${cleanProjectName}${cleanProjectName.empty ? '' : '-'}buildscript-gradle.lockfile")
+        }
+    }
+}
+
+managedVersioning {
+    versionFile.set file('version.properties')
+    versionPRs()
+    versionSnapshots()
+}
+
+gradle.lifecycle.beforeProject {
+    group = 'dev.lukebemish' + (project.path == ':' ? '' : '.crochet' + project.path.split(':')[0..-2].join('.'))
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven {
+            name = "Gradle Releases"
+            url = "https://repo.gradle.org/gradle/libs-releases"
+        }
+    }
+    repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
+    rulesMode = RulesMode.FAIL_ON_PROJECT_RULES
+}
+
+rootProject.name = "crochet"

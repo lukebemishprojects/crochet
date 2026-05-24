@@ -1,0 +1,7 @@
+[versions]
+
+gradle="9.5.1"
+
+[libraries]
+
+gradle = { module = "org.gradle.experimental:gradle-public-api", version.ref = "gradle" }

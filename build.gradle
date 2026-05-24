@@ -1,0 +1,43 @@
+import org.gradle.api.attributes.plugin.GradlePluginApiVersion
+
+plugins {
+    id 'com.gradle.plugin-publish'
+    id 'org.gradle.plugin-compatibility'
+    id 'java-library'
+    id 'maven-publish'
+    id 'java-gradle-plugin'
+}
+
+java{
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+    withJavadocJar()
+}
+
+def gradleVersion = "9.5.1"
+
+['apiElements', 'runtimeElements'].each {
+    configurations.named(it).configure {
+        attributes {
+            attribute(
+                    GradlePluginApiVersion.GRADLE_PLUGIN_API_VERSION_ATTRIBUTE,
+                    objects.named(GradlePluginApiVersion, gradleVersion)
+            )
+        }
+    }
+}
+
+dependencies {
+    compileOnly(libs.gradle) {
+        capabilities {
+            requireFeature "internal"
+        }
+    }
+}
+
+// Thanks, java-gradle-plugin... but no thanks
+configurations.named("compileOnlyApi") {
+    withDependencies {
+        it.removeElement(project.dependencies.gradleApi())
+    }
+}
