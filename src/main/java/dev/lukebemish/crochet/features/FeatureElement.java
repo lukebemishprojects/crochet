@@ -4,7 +4,9 @@ import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
+import org.gradle.api.artifacts.ConsumableConfiguration;
 import org.gradle.api.artifacts.DependencyScopeConfiguration;
+import org.gradle.api.artifacts.ResolvableConfiguration;
 import org.gradle.api.tasks.SourceSet;
 import org.jspecify.annotations.Nullable;
 
@@ -31,8 +33,19 @@ public interface FeatureElement<T extends Configuration> {
     FeatureElement<Configuration> SOURCES_ELEMENTS = new DefaultFeatureElement(SourceSet::getSourcesElementsConfigurationName);
     FeatureElement<Configuration> JAVADOC_ELEMENTS = new DefaultFeatureElement(SourceSet::getJavadocElementsConfigurationName);
 
-    FeatureElement<DependencyScopeConfiguration> LOCAL_RUNTIME = new DependentFeatureElement<>(List.of(), null, "localRuntime", ElementScope.DEPENDENCY_SCOPE, feature -> {});
-    FeatureElement<DependencyScopeConfiguration> LOCAL_IMPLEMENTATION = new DependentFeatureElement<>(List.of(), null, "localImplementation", ElementScope.DEPENDENCY_SCOPE, feature -> {});
+    FeatureElement<DependencyScopeConfiguration> LOCAL_RUNTIME = new DependentFeatureElement<>(List.of(FeatureElement.RUNTIME_CLASSPATH), null, "localRuntime", ElementScope.DEPENDENCY_SCOPE, feature -> {
+        feature.element(FeatureElement.RUNTIME_CLASSPATH).configure(config -> {
+            config.extendsFrom(feature.element(FeatureElement.LOCAL_RUNTIME));
+        });
+    });
+    FeatureElement<DependencyScopeConfiguration> LOCAL_IMPLEMENTATION = new DependentFeatureElement<>(List.of(FeatureElement.RUNTIME_CLASSPATH, FeatureElement.COMPILE_CLASSPATH), null, "localImplementation", ElementScope.DEPENDENCY_SCOPE, feature -> {
+        feature.element(FeatureElement.RUNTIME_CLASSPATH).configure(config -> {
+            config.extendsFrom(feature.element(FeatureElement.LOCAL_IMPLEMENTATION));
+        });
+        feature.element(FeatureElement.COMPILE_CLASSPATH).configure(config -> {
+            config.extendsFrom(feature.element(FeatureElement.LOCAL_IMPLEMENTATION));
+        });
+    });
 }
 
 record DefaultFeatureElement(Function<SourceSet, String> namer) implements FeatureElement<Configuration> {
@@ -64,11 +77,13 @@ record DependentFeatureElement<T extends Configuration>(List<FeatureElement<?>> 
         var name = getConfigurationName(feature.getSourceSet());
         configurations.addRule("crochet features: register "+name, it -> {
             if (name.equals(it)) {
-                for (var parent : parents) {
-                    feature.element(parent);
-                }
                 // De-lazy this due to rule weirdness -- direct `getByName()` triggering the rule will fail otherwise
-                createConfiguration(configurations, name).get();
+                createConfiguration(configurations, name, config -> {
+                    // When this config is de-lazy-ed, its parents must exist
+                    for (var parent : parents) {
+                        feature.element(parent);
+                    }
+                }).get();
                 action.execute(feature);
             }
         });
@@ -79,16 +94,16 @@ record DependentFeatureElement<T extends Configuration>(List<FeatureElement<?>> 
         for (var parent : parents) {
             feature.element(parent);
         }
-        createConfiguration(feature.getConfigurations(), name);
+        createConfiguration(feature.getConfigurations(), name, config -> {});
         action.execute(feature);
     }
 
-    @SuppressWarnings("UnstableApiUsage")
-    private NamedDomainObjectProvider<? extends Configuration> createConfiguration(ConfigurationContainer configurations, String name) {
-        return switch (scope) {
-            case ElementScope.Consumable ignored -> configurations.consumable(name);
-            case ElementScope.DependencyScope ignored -> configurations.dependencyScope(name);
-            case ElementScope.Resolvable ignored -> configurations.resolvable(name);
+    @SuppressWarnings({"UnstableApiUsage", "unchecked"})
+    private NamedDomainObjectProvider<T> createConfiguration(ConfigurationContainer configurations, String name, Action<? super T> action) {
+        return (NamedDomainObjectProvider<T>) switch (scope) {
+            case ElementScope.Consumable ignored -> configurations.consumable(name, (Action<? super ConsumableConfiguration>) action);
+            case ElementScope.DependencyScope ignored -> configurations.dependencyScope(name, (Action<? super DependencyScopeConfiguration>) action);
+            case ElementScope.Resolvable ignored -> configurations.resolvable(name, (Action<? super ResolvableConfiguration>) action);
         };
     }
 }
