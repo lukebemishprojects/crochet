@@ -41,3 +41,59 @@ configurations.named("compileOnlyApi") {
         it.removeElement(project.dependencies.gradleApi())
     }
 }
+
+def pluginIdToVariant(PluginDeclaration decl, String feature) {
+    def pluginId = decl.id
+    def softwareComponentFactory = project.publishing.softwareComponentFactory
+    def sanePluginId = pluginId.split("\\.").collect { it.capitalize() }.join("")
+    def adhocComponent = softwareComponentFactory.adhoc("plugin${sanePluginId}")
+    project.components.add(adhocComponent)
+    def depScope = configurations.dependencyScope("plugin${sanePluginId}Dependencies")
+    def consumable = configurations.consumable("plugin${sanePluginId}Runtime") {
+        extendsFrom depScope
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.class, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.class, Category.LIBRARY))
+        }
+        outgoing {
+            capability("${pluginId}:${pluginId}.gradle.plugin:${project.version}")
+        }
+    }
+    adhocComponent.addVariantsFromConfiguration(consumable.get()) {
+        mapToMavenScope("runtime")
+    }
+    dependencies.add(depScope.name, dependencies.project(":")) {
+        capabilities {
+            if (feature != null) {
+                requireFeature feature
+            }
+        }
+    }
+    publishing.publications.matching { it.name == "${decl.name}PluginMarkerMaven" }.withType(MavenPublication).configureEach {
+        from adhocComponent
+        pom.withXml {
+            def root = it.asElement();
+            root.removeChild(root.getElementsByTagName("dependencies").item(0));
+        }
+    }
+}
+
+gradlePlugin {
+    plugins {
+        register("features") {
+            id = "dev.lukebemish.crochet.features"
+            implementationClass = "dev.lukebemish.crochet.features.FeatureRoutingPlugin"
+            pluginIdToVariant(it, null)
+        }
+        register("featuresConvention") {
+            id = "dev.lukebemish.crochet.features.convention"
+            implementationClass = "dev.lukebemish.crochet.features.FeatureRoutingConventionPlugin"
+            pluginIdToVariant(it, null)
+        }
+        register("shared") {
+            id = "dev.lukebemish.crochet.base"
+            implementationClass = "dev.lukebemish.crochet.CrochetSharedProjectPlugin"
+            pluginIdToVariant(it, null)
+        }
+    }
+}

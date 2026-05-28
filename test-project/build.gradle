@@ -1,0 +1,27 @@
+import dev.lukebemish.crochet.features.FeatureElement
+import dev.lukebemish.crochet.features.ElementScope
+
+plugins {
+    id "dev.lukebemish.crochet.features.convention"
+    id "java"
+}
+
+crochet.features {
+    features.configureEach {
+        println "Feature: ${it.name}"
+    }
+    registerElement([FeatureElement.API_ELEMENTS], null, "gizmoGadget", ElementScope.DEPENDENCY_SCOPE) { feature ->
+        println "Added element to: ${name}"
+    }
+}
+
+java {
+    registerFeature("foo") {
+        usingSourceSet(sourceSets.create("foo"))
+    }
+}
+
+dependencies {
+    fooGizmoGadget("x.y:z:1.0.0")
+    localImplementation("a.b:c:1.0.0")
+}
