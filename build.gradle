@@ -12,16 +12,36 @@ java{
     toolchain.languageVersion = JavaLanguageVersion.of(21)
     withSourcesJar()
     withJavadocJar()
+    registerFeature("metadata") {
+        usingSourceSet(sourceSets.create("metadata"))
+        withSourcesJar()
+        withJavadocJar()
+    }
 }
 
-def gradleVersion = "9.5.1"
+abstract class NamedTransformer<A extends Named> implements Transformer<A, String> {
+    private final Class<A> clazz
+
+    @Inject
+    protected abstract ObjectFactory getObjectFactory()
+
+    @Inject
+    NamedTransformer(Class<A> clazz) {
+        this.clazz = clazz
+    }
+
+    @Override
+    A transform(String s) {
+        return objectFactory.named(clazz, s)
+    }
+}
 
 ['apiElements', 'runtimeElements'].each {
     configurations.named(it).configure {
         attributes {
-            attribute(
-                    GradlePluginApiVersion.GRADLE_PLUGIN_API_VERSION_ATTRIBUTE,
-                    objects.named(GradlePluginApiVersion, gradleVersion)
+            attributeProvider(
+                GradlePluginApiVersion.GRADLE_PLUGIN_API_VERSION_ATTRIBUTE,
+                libs.versions.gradle.map(objects.newInstance(NamedTransformer, GradlePluginApiVersion))
             )
         }
     }
@@ -33,6 +53,8 @@ dependencies {
             requireFeature "internal"
         }
     }
+
+    metadataApi(project(":"))
 }
 
 // Thanks, java-gradle-plugin... but no thanks
@@ -54,6 +76,10 @@ def pluginIdToVariant(PluginDeclaration decl, String feature) {
         attributes {
             attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.class, Usage.JAVA_RUNTIME))
             attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.class, Category.LIBRARY))
+            attributeProvider(
+                GradlePluginApiVersion.GRADLE_PLUGIN_API_VERSION_ATTRIBUTE,
+                libs.versions.gradle.map(objects.newInstance(NamedTransformer, GradlePluginApiVersion))
+            )
         }
         outgoing {
             capability("${pluginId}:${pluginId}.gradle.plugin:${project.version}")
@@ -72,14 +98,29 @@ def pluginIdToVariant(PluginDeclaration decl, String feature) {
     publishing.publications.matching { it.name == "${decl.name}PluginMarkerMaven" }.withType(MavenPublication).configureEach {
         from adhocComponent
         pom.withXml {
-            def root = it.asElement();
-            root.removeChild(root.getElementsByTagName("dependencies").item(0));
+            def root = it.asElement()
+            root.removeChild(root.getElementsByTagName("dependencies").item(0))
+        }
+        suppressAllPomMetadataWarnings()
+    }
+    if (feature != null) {
+        tasks.named("jar", Jar) {
+            exclude("META-INF/gradle-plugins/${decl.id}.properties")
+        }
+        var pluginDescriptorsTask = tasks.named("pluginDescriptors", GeneratePluginDescriptors)
+        tasks.named("${feature.replaceAll( "(-)([A-Za-z0-9])") { Object[] it -> it[2].toUpperCase(Locale.ROOT) }}Jar", Jar) {
+            from(pluginDescriptorsTask.flatMap { it.outputDirectory }.map { it.file("${decl.id}.properties") }) {
+                into "META-INF/gradle-plugins"
+            }
         }
     }
 }
 
 gradlePlugin {
     plugins {
+        configureEach {
+            compatibility.features.configurationCache = true
+        }
         register("features") {
             id = "dev.lukebemish.crochet.features"
             implementationClass = "dev.lukebemish.crochet.features.FeatureRoutingPlugin"
@@ -94,6 +135,19 @@ gradlePlugin {
             id = "dev.lukebemish.crochet.base"
             implementationClass = "dev.lukebemish.crochet.CrochetSharedProjectPlugin"
             pluginIdToVariant(it, null)
+        }
+        register("metadata") {
+            id = "dev.lukebemish.crochet.metadata"
+            implementationClass = "dev.lukebemish.crochet.metadata.CrochetMetadataPlugin"
+            pluginIdToVariant(it, "metadata")
+        }
+    }
+}
+
+publishing {
+    publications {
+        named {name -> name == "pluginMaven"}.withType(MavenPublication).configureEach {
+            suppressAllPomMetadataWarnings()
         }
     }
 }
