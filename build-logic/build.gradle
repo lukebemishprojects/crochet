@@ -1,0 +1,51 @@
+plugins {
+    id "java-gradle-plugin"
+}
+
+repositories {
+    exclusiveContent {
+        forRepositories(ivy {
+            name = "Version Manifest"
+            url = "https://piston-meta.mojang.com/"
+            patternLayout {
+                artifact("mc/game/version_manifest_v2.json")
+            }
+            metadataSources {
+                artifact()
+            }
+        })
+        filter {
+            includeModule("dev.lukebemish.crochet.mojang-stubs", "version-manifest")
+        }
+    }
+}
+
+configurations {
+    dependencyScope("versionManifest") {}
+    resolvable("versionManifestResolved") {
+        extendsFrom versionManifest
+        resolutionStrategy.cacheDynamicVersionsFor 1, 'days'
+    }
+}
+
+dependencies {
+    versionManifest("dev.lukebemish.crochet.mojang-stubs:version-manifest:v2") {
+        artifact {
+            extension = "json"
+        }
+        changing = true
+    }
+}
+
+gradlePlugin {
+    plugins.register("convention") {
+        id = "dev.lukebemish.crochet.build-logic.convention"
+        implementationClass = "dev.lukebemish.crochet.buildlogic.ConventionPlugin"
+    }
+}
+
+processResources {
+    from(configurations.versionManifestResolved) {
+        into "dev/lukebemish/crochet/buildlogic"
+    }
+}

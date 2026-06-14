@@ -7,6 +7,7 @@ pluginManagement {
         id 'com.gradle.plugin-publish' version '+'
         id 'org.gradle.plugin-compatibility' version '+'
     }
+    includeBuild("build-logic")
 }
 
 buildscript {
@@ -21,6 +22,7 @@ plugins {
     id 'dev.lukebemish.jvmfinder-convention' version '+'
     id 'dev.lukebemish.conventions' version '+'
     id 'dev.lukebemish.managedversioning' version '+'
+    id 'dev.lukebemish.crochet.build-logic.convention'
 }
 
 gradle.lifecycle.beforeProject { p ->

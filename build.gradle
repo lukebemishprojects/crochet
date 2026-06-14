@@ -54,6 +54,12 @@ dependencies {
         }
     }
 
+    metadataCompileOnly(libs.gradle) {
+        capabilities {
+            requireFeature "internal"
+        }
+    }
+
     metadataApi(project(":"))
 }
 
@@ -142,6 +148,12 @@ gradlePlugin {
             pluginIdToVariant(it, "metadata")
         }
     }
+}
+
+tasks.register('createMinecraftLibrariesMavenContent', dev.lukebemish.crochet.buildlogic.CreateMinecraftLibrariesMavenContent) {
+    className.set('dev.lukebemish.crochet.metadata.MinecraftLibrariesMavenContent')
+    outputDir.set(project.file('src/metadata/java/'))
+    versions.from(configurations.versionMetadataResolved)
 }
 
 publishing {
